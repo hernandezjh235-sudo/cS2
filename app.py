@@ -56,9 +56,9 @@ import streamlit as st
 # ============================================================
 
 APP_NAME = "ONE WAY PICKZ — CS2"
-APP_VERSION = "CS2 v4.6 — SOURCE RECOVERY + VERIFIED FALLBACKS + MATCHING FIX"
-MODEL_VERSION = "OWP_CS2_KILLS_M12_4.6"
-SEED_VERSION = "CS2_ACCURACY_SEED_2026_07_14_V45"
+APP_VERSION = "CS2 v4.7 — BO3 PRIMARY + RAILWAY SOURCE RECOVERY + CIRCUIT BREAKER"
+MODEL_VERSION = "OWP_CS2_KILLS_M12_4.7"
+SEED_VERSION = "CS2_ACCURACY_SEED_2026_07_14_V47"
 
 # The Underdog board endpoint is public but undocumented and can change.
 # UNDERDOG_URL_OVERRIDE lets Railway use a replacement endpoint without a code edit.
@@ -7305,10 +7305,737 @@ def parser_consistency_report(board: Sequence[Dict[str,Any]],status: Optional[Di
         n=len(board);proj=sum(r.get("projection") is not None for r in board);profiles=sum((safe_int(r.get("profile_maps"),0) or 0)>0 for r in board)
         ratio=proj/max(n,1);score=100*ratio
         base={"score":score,"grade":"HEALTHY" if score>=86 else "DEGRADED","official_enabled":score>=V45_PARSER_SHUTDOWN_SCORE,"checks":[]}
-    n=len(board);proj=sum(r.get("projection") is not None for r in board);profile_ratio=sum((safe_int(r.get("profile_maps"),0) or 0)>0 for r in board)/max(n,1)
-    base["checks"]=list(base.get("checks") or [])+[{"check":"verified player profile coverage","value":round(profile_ratio*100,1),"pass":profile_ratio>=.45},{"check":"projection coverage","value":round(proj/max(n,1)*100,1),"pass":proj/max(n,1)>=.35}]
+    n=len(board);proj=sum(r.get("projection") is not None for r in board);profile_count=sum((safe_int(r.get("profile_maps"),0) or 0)>0 for r in board);profile_ratio=profile_count/max(n,1)
+    base["checks"]=list(base.get("checks") or [])+[
+        {"name":"verified player profile coverage","passed":profile_count,"total":n,"ratio":profile_ratio,"critical":True,"note":"BO3, verified local database, or full-round demo profile"},
+        {"name":"projection coverage","passed":proj,"total":n,"ratio":proj/max(n,1),"critical":True,"note":"rows that reached the projection engine"}
+    ]
     if n>=10 and (profile_ratio<.20 or proj/max(n,1)<.10):
         base["score"]=min(float(base.get("score",0)),20.0);base["grade"]="SOURCE FAILURE";base["official_enabled"]=False;base["shutdown_reason"]="Player/profile source coverage collapsed"
+    return base
+
+
+# ============================================================
+# V4.7 RAILWAY SOURCE REPLACEMENT — BO3 PRIMARY + HLTV CIRCUIT
+# ============================================================
+
+MODEL_SCHEMA_FINGERPRINT = "v47_bo3_primary_hltv_circuit_database_first_pandascore_fixture_schema1"
+SOURCE_RECOVERY_VERSION = "4.7"
+BO3_API_BASE = "https://api.bo3.gg/api/v1"
+BO3_WEB_BASE = "https://bo3.gg"
+BO3_PROFILE_MAX_AGE = 24 * 3600
+BO3_MATCH_MAX_AGE = 5 * 60
+SOURCE_CIRCUIT_FILE = os.path.join(STORAGE_DIR, "source_circuits.json")
+
+_BO3_HEADERS = {
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Origin": "https://bo3.gg",
+    "Referer": "https://bo3.gg/",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+}
+
+
+def _source_circuits() -> Dict[str, Any]:
+    raw = load_json(SOURCE_CIRCUIT_FILE, {})
+    return raw if isinstance(raw, dict) else {}
+
+
+def _source_circuit_state(provider: str) -> Dict[str, Any]:
+    return dict(_source_circuits().get(provider, {}) or {})
+
+
+def _source_circuit_open(provider: str) -> bool:
+    row = _source_circuit_state(provider)
+    until = _parse_iso_datetime(row.get("open_until"))
+    return bool(until and until > datetime.now(timezone.utc))
+
+
+def _trip_source_circuit(provider: str, reason: str, seconds: int) -> None:
+    raw = _source_circuits()
+    now = datetime.now(timezone.utc)
+    old = dict(raw.get(provider, {}) or {})
+    failures = int(old.get("failures", 0) or 0) + 1
+    raw[provider] = {
+        "provider": provider,
+        "state": "OPEN",
+        "reason": str(reason)[:400],
+        "failures": failures,
+        "opened_at": now.isoformat(),
+        "open_until": (now + timedelta(seconds=max(60, seconds))).isoformat(),
+    }
+    save_json(SOURCE_CIRCUIT_FILE, raw, force=True)
+
+
+def _close_source_circuit(provider: str) -> None:
+    raw = _source_circuits()
+    row = dict(raw.get(provider, {}) or {})
+    row.update({"provider": provider, "state": "CLOSED", "reason": "", "failures": 0,
+                "closed_at": now_iso(), "open_until": ""})
+    raw[provider] = row
+    save_json(SOURCE_CIRCUIT_FILE, raw, force=True)
+
+
+_v47_http_get_text_base = http_get_text
+
+def http_get_text(url: str, source: str, ttl: int = 900, params: Optional[Dict[str, Any]] = None,
+                  headers: Optional[Dict[str, str]] = None, timeout: int = 18,
+                  allow_stale: bool = True, stale_ttl: Optional[int] = None) -> Tuple[Optional[str], Dict[str, Any]]:
+    provider = "hltv" if "hltv.org" in str(url).lower() else "bo3" if "bo3.gg" in str(url).lower() else ""
+    if provider and _source_circuit_open(provider):
+        state = _source_circuit_state(provider)
+        return None, {"ok": False, "source": source, "provider": provider, "circuit_open": True,
+                      "warning": f"{provider.upper()} circuit open: {state.get('reason','recent provider failure')}",
+                      "open_until": state.get("open_until"), "url": url, "status": 0}
+    text, status = _v47_http_get_text_base(url, source, ttl, params, headers, timeout, allow_stale, stale_ttl)
+    warning = str(status.get("warning") or "").lower()
+    blocked = bool(status.get("blocked")) or any(x in warning for x in ["http 403", "forbidden", "cloudflare", "captcha", "access denied"])
+    rate_limited = "http 429" in warning or "too many requests" in warning
+    if provider == "hltv" and blocked:
+        _trip_source_circuit("hltv", warning or "HTTP 403 / anti-bot block", 30 * 60)
+        return None, {**status, "ok": False, "provider": "hltv", "circuit_open": True,
+                      "warning": "HLTV blocked this Railway IP. Requests paused for 30 minutes."}
+    if provider == "bo3" and (blocked or rate_limited):
+        _trip_source_circuit("bo3", warning or "BO3 provider blocked/rate limited", 5 * 60)
+    elif provider and status.get("ok"):
+        _close_source_circuit(provider)
+    return text, status
+
+
+def _bo3_get_json(endpoint: str, source: str, params: Optional[Dict[str, Any]] = None,
+                  ttl: int = 3600, allow_stale: bool = True) -> Tuple[Optional[Any], Dict[str, Any]]:
+    return http_get_json(f"{BO3_API_BASE}{endpoint}", source, ttl=ttl, params=params,
+                         headers=_BO3_HEADERS, timeout=22, allow_stale=allow_stale,
+                         stale_ttl=BO3_PROFILE_MAX_AGE if allow_stale else 0)
+
+
+def _bo3_payload_data(payload: Any) -> List[Dict[str, Any]]:
+    if isinstance(payload, list):
+        return [x for x in payload if isinstance(x, dict)]
+    if not isinstance(payload, dict):
+        return []
+    data = payload.get("data")
+    if isinstance(data, list):
+        return [x for x in data if isinstance(x, dict)]
+    if isinstance(data, dict):
+        return [data]
+    for key in ["items", "results", "players", "matches", "teams"]:
+        value = payload.get(key)
+        if isinstance(value, list):
+            return [x for x in value if isinstance(x, dict)]
+    return []
+
+
+def _bo3_included_index(payload: Any) -> Dict[Tuple[str, str], Dict[str, Any]]:
+    out: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    if not isinstance(payload, dict):
+        return out
+    for item in payload.get("included") or []:
+        if not isinstance(item, dict):
+            continue
+        out[(object_type(item), object_id(item))] = item
+        out[("", object_id(item))] = item
+    return out
+
+
+def _bo3_resolve_related(item: Dict[str, Any], rel_names: Sequence[str], payload: Any) -> List[Dict[str, Any]]:
+    included = _bo3_included_index(payload)
+    rels = item.get("relationships") if isinstance(item, dict) else {}
+    if not isinstance(rels, dict):
+        return []
+    output: List[Dict[str, Any]] = []
+    wanted = {normalize_name(x).replace(" ", "") for x in rel_names}
+    for key, node in rels.items():
+        if normalize_name(key).replace(" ", "") not in wanted:
+            continue
+        data = node.get("data") if isinstance(node, dict) else node
+        entries = data if isinstance(data, list) else [data]
+        for ref in entries:
+            if not isinstance(ref, dict):
+                continue
+            found = included.get((object_type(ref), object_id(ref))) or included.get(("", object_id(ref)))
+            if found:
+                output.append(found)
+            else:
+                output.append(ref)
+    return output
+
+
+def _bo3_scalar(obj: Any, keys: Sequence[str], default: Any = None) -> Any:
+    wanted = {normalize_name(k).replace(" ", "") for k in keys}
+    if isinstance(obj, dict):
+        a = attrs(obj)
+        for k, v in a.items():
+            nk = normalize_name(k).replace(" ", "")
+            if nk in wanted and v not in [None, "", [], {}]:
+                if isinstance(v, dict):
+                    for sub in ["value", "name", "title", "slug", "id"]:
+                        if v.get(sub) not in [None, ""]:
+                            return v.get(sub)
+                elif not isinstance(v, (list, dict)):
+                    return v
+        label = normalize_name(a.get("name") or a.get("title") or a.get("label") or "").replace(" ", "")
+        if label in wanted:
+            for sub in ["value", "count", "avg", "average", "per_round", "percentage"]:
+                if a.get(sub) not in [None, ""]:
+                    return a.get(sub)
+        for v in obj.values():
+            found = _bo3_scalar(v, keys, None)
+            if found not in [None, ""]:
+                return found
+    elif isinstance(obj, list):
+        for v in obj:
+            found = _bo3_scalar(v, keys, None)
+            if found not in [None, ""]:
+                return found
+    return default
+
+
+def _bo3_player_candidate(payload: Any, player: str) -> Dict[str, Any]:
+    candidates = _bo3_payload_data(payload)
+    scored = []
+    for item in candidates:
+        a = attrs(item)
+        name = str(_bo3_scalar(a, ["nickname", "nick_name", "player_name", "display_name", "name", "slug"], "") or "")
+        slug = str(_bo3_scalar(a, ["slug"], "") or "")
+        score = max(name_similarity(player, name), name_similarity(player, slug.replace("-", " ")))
+        scored.append((score, item))
+    if not scored:
+        return {}
+    score, item = max(scored, key=lambda x: x[0])
+    return item if score >= 0.78 else {}
+
+
+def _bo3_slug_candidates(player: str, alias: Optional[Dict[str, Any]] = None) -> List[str]:
+    alias = alias or {}
+    raw = [alias.get("bo3_slug"), alias.get("slug"), normalize_name(player).replace(" ", "-"),
+           re.sub(r"[^a-z0-9]", "", normalize_name(player))]
+    return list(dict.fromkeys(str(x).strip().lower() for x in raw if str(x or "").strip()))
+
+
+def _bo3_parse_player_html(page: str, player: str, slug: str, url: str) -> Tuple[Optional[PlayerStats], Dict[str, Any]]:
+    if not page:
+        return None, {"ok": False, "warning": "empty BO3 player page"}
+    text = strip_tags(page)
+    low = text.lower()
+    if "general stats" not in low and "overall statistics" not in low and "maps last" not in low:
+        return None, {"ok": False, "warning": "BO3 page did not contain player statistics"}
+    maps = rounds = 0
+    general = re.search(r"General stats last.*?Maps\s+(\d+).*?Rounds\s+(\d+)", text, re.I | re.S)
+    if general:
+        maps, rounds = int(general.group(1)), int(general.group(2))
+    overall = re.search(r"Overall(?:\s+[A-Za-z0-9_.-]+)?\s+statistics(.*?)(?:Player records|Maps last|Transfers History|General stats)", text, re.I | re.S)
+    section = overall.group(1) if overall else text[:12000]
+    def metric(label: str, lo: float, hi: float) -> Optional[float]:
+        m = re.search(rf"\b{label}\b\s+([0-9]+(?:\.[0-9]+)?)", section, re.I)
+        v = safe_float(m.group(1), None) if m else None
+        return v if v is not None and lo <= v <= hi else None
+    score = metric("Score", 0, 20)
+    kpr = metric("Kills", 0.25, 1.25)
+    dpr = metric("Death", 0.25, 1.25)
+    opening = metric("Open kills", 0.01, 0.40)
+    adr = metric("Damage", 25, 140)
+    if kpr is None:
+        return None, {"ok": False, "warning": "BO3 page lacked realistic reported KPR"}
+    map_profiles: Dict[str, Dict[str, Any]] = {}
+    for map_name in KNOWN_MAPS:
+        variants = [map_name, "Dust II" if map_name == "Dust2" else map_name]
+        found = None
+        for variant in variants:
+            m = re.search(rf"\b{re.escape(variant)}\b\s+([0-9]+(?:\.[0-9]+)?)\s+(\d+)\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9]+(?:\.[0-9]+)?)", text, re.I)
+            if m:
+                found = m; break
+        if found:
+            mkpr = safe_float(found.group(3), None)
+            if mkpr is not None and 0.25 <= mkpr <= 1.25:
+                map_profiles[map_name] = {"maps": int(found.group(2)), "long_kpr": mkpr,
+                                          "recent_kpr": mkpr, "blended_kpr": mkpr,
+                                          "adr": safe_float(found.group(4), None),
+                                          "source": "BO3 public player page"}
+    if maps <= 0:
+        maps = sum(int(v.get("maps", 0) or 0) for v in map_profiles.values())
+    if rounds <= 0 and maps > 0:
+        rounds = int(round(maps * 21.2))
+    title = re.search(r"<title[^>]*>(.*?)</title>", page, re.I | re.S)
+    title_text = strip_tags(title.group(1)) if title else ""
+    team = ""
+    tm = re.search(r"CS2 Stats\s*[–—-]\s*(.+)$", title_text, re.I)
+    if tm:
+        team = tm.group(1).strip()
+    headshot = None
+    hm = re.search(r"\bHead\b\s+\d+\s+(\d+(?:\.\d+)?)%", text, re.I)
+    if hm:
+        headshot = safe_float(hm.group(1), None)
+    rating = clamp(1.0 + ((score or 6.27) - 6.27) * 0.11, 0.70, 1.35)
+    kd = kpr / max(dpr or LEAGUE_DPR, 0.25)
+    profile = PlayerStats(player=player, player_id=f"bo3:{slug}", slug=slug, team=team,
+                          maps=max(maps, 1), rounds=max(rounds, max(maps, 1) * 13),
+                          kpr=float(kpr), dpr=float(dpr or LEAGUE_DPR), adr=float(adr or LEAGUE_ADR),
+                          rating=float(rating), kd=float(kd), hs_pct=headshot, opening_kpr=opening,
+                          source="BO3 public professional statistics", href=url,
+                          data_warnings=["HLTV unavailable — BO3 provider used"],
+                          kpr_source="bo3_reported_kpr")
+    meta = {"matched": True, "source": "BO3 public professional statistics", "source_fresh": True,
+            "source_ages": {"bo3_player": 0}, "core_kpr_verified": True,
+            "kpr_source": "bo3_reported_kpr", "match_score": 1.0,
+            "player_map_profiles": map_profiles, "bo3_slug": slug,
+            "provider": "BO3", "profile_url": url}
+    return profile, meta
+
+
+def _bo3_profile_from_api(player: str, alias: Optional[Dict[str, Any]] = None) -> Tuple[Optional[PlayerStats], Dict[str, Any]]:
+    alias = alias or {}
+    search, sstatus = _bo3_get_json("/filters/players", "BO3 player search", {
+        "page[offset]": "0", "page[limit]": "6", "filter[discipline_id][eq]": "1",
+        "with": "country", "search_text": player,
+    }, ttl=12 * 3600)
+    candidate = _bo3_player_candidate(search, player)
+    if not candidate:
+        return None, {**sstatus, "ok": False, "warning": "BO3 player search returned no confident match"}
+    a = attrs(candidate)
+    slug = str(_bo3_scalar(a, ["slug"], "") or "")
+    pid = str(object_id(candidate) or _bo3_scalar(a, ["id", "player_id"], "") or "")
+    name = str(_bo3_scalar(a, ["nickname", "nick_name", "display_name", "name"], player) or player)
+    if not slug:
+        slug = normalize_name(name).replace(" ", "-")
+    general, gstatus = _bo3_get_json(f"/players/{quote(slug)}/general_stats", "BO3 player general stats", {
+        "filter[start_date_to]": local_now().date().isoformat(),
+        "filter[start_date_from]": (local_now().date() - timedelta(days=180)).isoformat(),
+    }, ttl=6 * 3600)
+    maps_payload, mstatus = _bo3_get_json(f"/players/{quote(slug)}/map_stats", "BO3 player map stats", {
+        "filter[begin_at_to]": local_now().date().isoformat(),
+        "filter[begin_at_from]": (local_now().date() - timedelta(days=180)).isoformat(),
+    }, ttl=6 * 3600)
+    kpr = safe_float(_bo3_scalar(general, ["kills_per_round", "kpr", "kills"], None), None)
+    dpr = safe_float(_bo3_scalar(general, ["deaths_per_round", "dpr", "death", "deaths"], None), None)
+    adr = safe_float(_bo3_scalar(general, ["damage_per_round", "adr", "damage"], None), None)
+    maps = safe_int(_bo3_scalar(general, ["maps", "maps_count", "map_count"], None), 0) or 0
+    rounds = safe_int(_bo3_scalar(general, ["rounds", "rounds_count", "round_count"], None), 0) or 0
+    map_profiles: Dict[str, Dict[str, Any]] = {}
+    for node in flatten_json(maps_payload):
+        map_name = canonical_map_name(_bo3_scalar(node, ["map", "map_name", "name", "title"], ""))
+        if not map_name:
+            continue
+        mkpr = safe_float(_bo3_scalar(node, ["kills_per_round", "kpr", "kills"], None), None)
+        count = safe_int(_bo3_scalar(node, ["maps", "count", "maps_count"], None), 0) or 0
+        madr = safe_float(_bo3_scalar(node, ["damage_per_round", "adr", "damage"], None), None)
+        if mkpr is not None and .25 <= mkpr <= 1.25 and count > 0:
+            old = map_profiles.get(map_name)
+            if not old or count > int(old.get("maps", 0)):
+                map_profiles[map_name] = {"maps": count, "long_kpr": mkpr, "recent_kpr": mkpr,
+                                          "blended_kpr": mkpr, "adr": madr,
+                                          "source": "BO3 API map stats"}
+    if maps <= 0:
+        maps = sum(int(v.get("maps", 0) or 0) for v in map_profiles.values())
+    if rounds <= 0 and maps > 0:
+        rounds = int(round(maps * 21.2))
+    if kpr is None or not (.25 <= kpr <= 1.25) or maps <= 0:
+        return None, {"ok": False, "provider": "BO3", "search": sstatus, "general": gstatus,
+                      "maps": mstatus, "warning": "BO3 API did not return a usable KPR/map sample"}
+    team = str(_bo3_scalar(a, ["team_name", "current_team", "team"], "") or "")
+    score = safe_float(_bo3_scalar(general, ["score", "rating"], None), None)
+    rating = clamp(1.0 + ((score or 6.27) - 6.27) * .11, .70, 1.35)
+    profile = PlayerStats(player=player, player_id=f"bo3:{pid or slug}", slug=slug, team=team,
+                          maps=maps, rounds=max(rounds, maps * 13), kpr=float(kpr),
+                          dpr=float(dpr or LEAGUE_DPR), adr=float(adr or LEAGUE_ADR), rating=rating,
+                          kd=float(kpr / max(dpr or LEAGUE_DPR, .25)),
+                          source="BO3 professional statistics API", href=f"{BO3_WEB_BASE}/players/{slug}",
+                          data_warnings=["HLTV unavailable — BO3 API used"], kpr_source="bo3_reported_kpr")
+    return profile, {"matched": True, "source": "BO3 professional statistics API", "provider": "BO3",
+                     "source_fresh": True, "source_ages": {"bo3_player": 0},
+                     "core_kpr_verified": True, "kpr_source": "bo3_reported_kpr",
+                     "match_score": max(name_similarity(player, name), name_similarity(player, slug)),
+                     "player_map_profiles": map_profiles, "bo3_slug": slug,
+                     "search_status": sstatus, "general_status": gstatus, "map_status": mstatus}
+
+
+def _bo3_player_profile(player: str) -> Tuple[Optional[PlayerStats], Dict[str, Any]]:
+    alias = _alias_record(player)
+    # Direct public page is one request and contains overall + map KPR.
+    for slug in _bo3_slug_candidates(player, alias):
+        url = f"{BO3_WEB_BASE}/players/{quote(slug)}"
+        page, status = http_get_text(url, "BO3 player page", ttl=6 * 3600, headers=_BO3_HEADERS,
+                                     timeout=22, allow_stale=True, stale_ttl=BO3_PROFILE_MAX_AGE)
+        profile, meta = _bo3_parse_player_html(page or "", player, slug, url)
+        if profile is not None:
+            return profile, {**meta, "http_status": status}
+        if status.get("circuit_open"):
+            break
+    return _bo3_profile_from_api(player, alias)
+
+
+def _persist_provider_profile(profile: PlayerStats, meta: Dict[str, Any]) -> None:
+    key = normalize_name(profile.player)
+    maps = meta.get("player_map_profiles") or {}
+    record = {"player": profile.player, "team": profile.team, "profile_maps": profile.maps,
+              "profile_rounds": profile.rounds, "base_kpr": profile.kpr, "dpr": profile.dpr,
+              "adr": profile.adr, "rating": profile.rating, "kd": profile.kd,
+              "hs_pct": profile.hs_pct, "opening_kpr": profile.opening_kpr,
+              "player_map_profiles": maps, "profile_source": profile.source,
+              "profile_href": profile.href, "kpr_source": profile.kpr_source,
+              "identity_ids": {"player_id": profile.player_id}, "updated_at": now_iso()}
+    upsert_database_record(PLAYER_DATABASE_FILE, key, record)
+    sqlite_store_entity_snapshot("player", str(profile.player_id or key), record, profile.source, 0, now_iso())
+
+
+_v47_build_player_profile_base = build_player_profile
+
+def build_player_profile(player_name: str, long_table: Dict[str, Dict[str, Any]], medium_table: Dict[str, Dict[str, Any]],
+                         recent30_table: Dict[str, Dict[str, Any]], recent15_table: Dict[str, Dict[str, Any]]) -> Tuple[PlayerStats, Dict[str, Any]]:
+    # Database/demo first prevents a blocked provider from creating hundreds of repeated requests.
+    local, lmeta = _playerstats_from_local(player_name)
+    if local is not None:
+        updated = _parse_iso_datetime((lookup_database_player(player_name) or {}).get("updated_at"))
+        age = (datetime.now(timezone.utc) - updated).total_seconds() if updated else 999999
+        if age <= BO3_PROFILE_MAX_AGE or "demo" in str(lmeta.get("source", "")).lower():
+            return local, {**lmeta, "recovery_path": "verified local cache/demo", "source_fresh": age <= BO3_PROFILE_MAX_AGE,
+                           "source_ages": {"local_profile": age}}
+    profile, meta = _bo3_player_profile(player_name)
+    if profile is not None and int(profile.maps or 0) > 0:
+        _persist_provider_profile(profile, meta)
+        return profile, {**meta, "recovery_path": "BO3 primary provider"}
+    # HLTV is now optional and called only if its circuit is closed.
+    if not _source_circuit_open("hltv"):
+        profile2, meta2 = _v47_build_player_profile_base(player_name, long_table, medium_table, recent30_table, recent15_table)
+        if meta2.get("matched") and int(profile2.maps or 0) > 0:
+            return profile2, {**meta2, "recovery_path": "optional HLTV"}
+    local, lmeta = _playerstats_from_local(player_name)
+    if local is not None:
+        return local, {**lmeta, "recovery_path": "verified local stale fallback", "source_fresh": False}
+    empty = PlayerStats(player=player_name, maps=0, rounds=0, kpr=LEAGUE_KPR, source="")
+    return empty, {"matched": False, "source_fresh": False, "core_kpr_verified": False,
+                   "recovery_path": "failed", "bo3_status": meta,
+                   "source_failure": "BO3 and verified local/demo profiles unavailable; HLTV optional source blocked/unavailable"}
+
+
+def _bo3_materialize_matches(payload: Any) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    for item in _bo3_payload_data(payload):
+        a = attrs(item)
+        mid = str(object_id(item) or _bo3_scalar(a, ["id", "match_id"], "") or "")
+        slug = str(_bo3_scalar(a, ["slug"], "") or "")
+        status = str(_bo3_scalar(a, ["status"], "") or "")
+        start = _bo3_scalar(a, ["start_date", "begin_at", "scheduled_at", "start_time"], "")
+        bo = safe_int(_bo3_scalar(a, ["best_of", "number_of_games", "games_count", "format"], None), None)
+        teams_raw = _bo3_resolve_related(item, ["teams", "opponents"], payload)
+        teams: List[Dict[str, Any]] = []
+        for t in teams_raw:
+            ta = attrs(t)
+            name = str(_bo3_scalar(ta, ["name", "title", "short_name"], "") or "")
+            tslug = str(_bo3_scalar(ta, ["slug"], "") or "")
+            tid = str(object_id(t) or _bo3_scalar(ta, ["id", "team_id"], "") or "")
+            if name:
+                teams.append({"name": name, "slug": tslug or normalize_name(name).replace(" ", "-"),
+                              "team_id": f"bo3:{tid or tslug or normalize_team(name)}", "provider_id": tid})
+        if len(teams) < 2:
+            # Fallback for non-JSONAPI payloads.
+            seen = set()
+            for node in flatten_json(item):
+                na = attrs(node)
+                typ = object_type(node)
+                name = str(_bo3_scalar(na, ["team_name", "name"], "") or "")
+                if name and ("team" in typ or na.get("team_id") or na.get("logo_url")) and normalize_team(name) not in seen:
+                    seen.add(normalize_team(name)); tid = str(object_id(node) or na.get("team_id") or "")
+                    teams.append({"name": name, "slug": str(na.get("slug") or normalize_name(name).replace(" ", "-")),
+                                  "team_id": f"bo3:{tid or normalize_team(name)}", "provider_id": tid})
+                if len(teams) >= 2: break
+        tournament = ""
+        rel_t = _bo3_resolve_related(item, ["tournament", "tournament_deep", "league"], payload)
+        if rel_t:
+            tournament = str(_bo3_scalar(attrs(rel_t[0]), ["name", "title"], "") or "")
+        games = _bo3_resolve_related(item, ["games", "match_maps"], payload)
+        maps = []
+        for g in games:
+            mn = canonical_map_name(_bo3_scalar(g, ["map_name", "map", "name"], ""))
+            if mn and mn not in maps: maps.append(mn)
+        players = _bo3_resolve_related(item, ["players", "lineups", "rosters"], payload)
+        lineup_names = []
+        for p in players:
+            pn = str(_bo3_scalar(p, ["nickname", "nick_name", "display_name", "name"], "") or "")
+            if pn and normalize_name(pn) not in {normalize_name(x) for x in lineup_names}: lineup_names.append(pn)
+        rows.append({"match_id": f"bo3:{mid or slug}", "provider_match_id": mid, "slug": slug,
+                     "match_url": f"bo3://{mid or slug}/{slug}", "status": status, "start_time": start,
+                     "format": f"BO{bo}" if bo else "BO3", "teams": teams[:2], "event": tournament,
+                     "confirmed_maps": maps[:3], "lineup_names": lineup_names})
+    return [r for r in rows if len(r.get("teams") or []) >= 2]
+
+
+@st.cache_data(ttl=3 * 60, show_spinner=False)
+def fetch_bo3_upcoming_matches() -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    today = datetime.now(timezone.utc).date()
+    params = {"scope": "widget-matches", "page[offset]": "0", "page[limit]": "150",
+              "sort": "tier_rank,-start_date", "filter[matches.status][in]": "upcoming,current",
+              "filter[matches.start_date][lt]": f"{(today + timedelta(days=4)).isoformat()} 23:59",
+              "filter[matches.start_date][gt]": f"{(today - timedelta(days=1)).isoformat()} 00:00",
+              "filter[matches.discipline_id][eq]": "1",
+              "with": "teams,tournament,ai_predictions,games,streams"}
+    payload, status = _bo3_get_json("/matches", "BO3 upcoming matches", params, ttl=3 * 60, allow_stale=False)
+    rows = _bo3_materialize_matches(payload)
+    return rows, {**status, "provider": "BO3", "rows": len(rows)}
+
+
+def _bo3_match_score(row: Dict[str, Any], team: str, opponent: str, player: str = "") -> float:
+    names = [str(x.get("name") or "") for x in row.get("teams") or []]
+    score = 0.0
+    if team and names: score += max(name_similarity(team, n) for n in names) * .58
+    if opponent and names: score += max(name_similarity(opponent, n) for n in names) * .38
+    if not team and not opponent and player and player in (row.get("lineup_names") or []): score += .90
+    start = _parse_iso_datetime(row.get("start_time"))
+    if start:
+        hours = abs((start - datetime.now(timezone.utc)).total_seconds()) / 3600
+        score += max(0, .08 - min(hours, 96) / 1200)
+    return score
+
+
+def discover_bo3_match(team: str, opponent: str, player: str = "") -> Tuple[str, Dict[str, Any]]:
+    rows, status = fetch_bo3_upcoming_matches()
+    if not rows:
+        return "", {**status, "ok": False, "warning": "BO3 returned no upcoming/current matches"}
+    scored = sorted([(_bo3_match_score(r, team, opponent, player), r) for r in rows], key=lambda x: x[0], reverse=True)
+    if not scored or scored[0][0] < (.70 if team and opponent else .50):
+        return "", {**status, "ok": False, "warning": "No confident BO3 match identity", "best_score": scored[0][0] if scored else 0}
+    score, row = scored[0]
+    return str(row.get("match_url") or ""), {**status, "ok": True, "method": "BO3 fixtures/match identity",
+                                             "match_score": round(score, 3), "match": row}
+
+
+_v47_discover_match_base = discover_hltv_match
+
+def discover_hltv_match(team: str, opponent: str, player: str = "") -> Tuple[str, Dict[str, Any]]:
+    url, meta = discover_bo3_match(team, opponent, player)
+    if url:
+        return url, meta
+    # Free PandaScore fixture fallback when configured.
+    panda_rows, pstatus = fetch_pandascore_upcoming()
+    best = (0.0, None)
+    for raw in panda_rows:
+        opponents = raw.get("opponents") or []
+        names = [str(((x.get("opponent") or {}).get("name")) or "") for x in opponents]
+        s = (max([name_similarity(team, n) for n in names] or [0]) * .58 +
+             max([name_similarity(opponent, n) for n in names] or [0]) * .38)
+        if s > best[0]: best = (s, raw)
+    if best[1] is not None and best[0] >= .70:
+        raw = best[1]; mid = str(raw.get("id") or ""); slug = str(raw.get("slug") or mid)
+        return f"pandascore://{mid}/{slug}", {**pstatus, "ok": True, "method": "PandaScore free fixtures", "match": raw}
+    if not _source_circuit_open("hltv"):
+        return _v47_discover_match_base(team, opponent, player)
+    return "", {"ok": False, "method": "all match providers failed", "bo3": meta, "pandascore": pstatus,
+                "hltv_circuit": _source_circuit_state("hltv")}
+
+
+def _bo3_team_roster_from_html(page: str) -> List[str]:
+    if not page: return []
+    segment = page
+    marker = re.search(r"(?:Squad|Roster)", page, re.I)
+    if marker:
+        segment = page[marker.start():]
+    transfer = re.search(r"Transfers History", segment, re.I)
+    if transfer:
+        segment = segment[:transfer.start()]
+    players = []
+    for href, anchor in re.findall(r'href=["\'](?:https?://bo3\.gg)?/players/([^"\'/?#]+)[^"\']*["\'][^>]*>(.*?)</a>', segment, re.I | re.S):
+        name = strip_tags(anchor).split("\n")[0].strip() or href.replace("-", " ")
+        if name and normalize_name(name) not in {normalize_name(x) for x in players}:
+            players.append(name)
+    return players[:7]
+
+
+def _bo3_team_profile_from_html(team_id: str, slug: str, team_name: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    url = f"{BO3_WEB_BASE}/teams/{quote(slug or normalize_name(team_name).replace(' ', '-'))}"
+    page, status = http_get_text(url, "BO3 team page", ttl=6 * 3600, headers=_BO3_HEADERS,
+                                 timeout=22, allow_stale=True, stale_ttl=SOURCE_MAX_STALE_SECONDS["team_maps"])
+    if not page:
+        return {}, {**status, "ok": False}
+    text = strip_tags(page)
+    roster = _bo3_team_roster_from_html(page)
+    map_profiles: Dict[str, Dict[str, Any]] = {}
+    for map_name in KNOWN_MAPS:
+        variant = "Dust II" if map_name == "Dust2" else map_name
+        # BO3 team table: map, winrate, count, recent, picks, bans, CT%, T%.
+        m = re.search(rf"\b{re.escape(variant)}\b\s+(\d+(?:\.\d+)?)%\s+(\d+)\s+.*?\s+(\d+)\s+(\d+)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%", text, re.I)
+        if m:
+            map_profiles[map_name] = {"win_pct": float(m.group(1)), "maps": int(m.group(2)),
+                                      "pick_count": int(m.group(3)), "ban_count": int(m.group(4)),
+                                      "ct_round_win_pct": float(m.group(5)), "t_round_win_pct": float(m.group(6)),
+                                      "round_win_pct": (float(m.group(5)) + float(m.group(6))) / 2,
+                                      "avg_rounds": MAP_ROUND_BASE.get(map_name, 21.2), "source": "BO3 team page"}
+    overall = re.search(r"Overall statistics(.*?)(?:Team records|Maps last|Transfers History|General stats)", text, re.I | re.S)
+    section = overall.group(1) if overall else text[:10000]
+    def metric(label: str, lo: float, hi: float) -> Optional[float]:
+        mm = re.search(rf"\b{label}\b\s+([0-9]+(?:\.[0-9]+)?)", section, re.I)
+        vv = safe_float(mm.group(1), None) if mm else None
+        return vv if vv is not None and lo <= vv <= hi else None
+    team_kpr = metric("Kills", 1.5, 5.0)
+    deaths = metric("Death", 1.5, 5.0)
+    total_maps = sum(int(v.get("maps", 0)) for v in map_profiles.values())
+    profile = {"team_id": team_id, "slug": slug, "team": team_name, "current_roster": roster,
+               "recent_matches": 0, "recent_maps": total_maps, "cumulative_map_observations": 0,
+               "same_core_matches": 0, "current_roster_maps": min(total_maps, 30) if len(roster) >= 5 else 0,
+               "roster_stability": 1.0 if len(roster) >= 5 else 0.0,
+               "pick_counts": {m: int(v.get("pick_count", 0)) for m, v in map_profiles.items()},
+               "ban_counts": {m: int(v.get("ban_count", 0)) for m, v in map_profiles.items()},
+               "map_profiles": map_profiles, "kills_for_per_round": team_kpr,
+               "deaths_allowed_per_round": deaths, "mapstats_samples": total_maps,
+               "environment_counts": {}, "latest_match": "", "rest_days": None,
+               "historical_opponent_rank_avg": None, "historical_opponent_rank_samples": 0,
+               "updated_at": now_iso(), "provider": "BO3"}
+    return profile, {**status, "ok": bool(map_profiles or roster), "roster_fresh": status.get("ok"),
+                     "pool_fresh": status.get("ok"), "provider": "BO3"}
+
+
+_v47_build_team_deep_base = build_team_deep_profile
+
+def build_team_deep_profile(team_id: str, slug: str, team_name: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    is_bo3 = str(team_id).startswith("bo3:") or not re.fullmatch(r"\d+", str(team_id or ""))
+    if is_bo3 or _source_circuit_open("hltv"):
+        profile, status = _bo3_team_profile_from_html(team_id, slug, team_name)
+        if profile:
+            sqlite_store_entity_snapshot("team_deep", str(team_id or normalize_team(team_name)), profile,
+                                         "BO3 team/map/roster", 0, now_iso())
+            return profile, status
+        snap, smeta = sqlite_latest_entity_snapshot("team_deep", str(team_id or normalize_team(team_name)),
+                                                    SOURCE_MAX_STALE_SECONDS["team_maps"])
+        if snap:
+            return snap, {**smeta, "ok": True, "roster_fresh": False, "pool_fresh": False,
+                          "provider": "local team snapshot"}
+    if not _source_circuit_open("hltv"):
+        return _v47_build_team_deep_base(team_id, slug, team_name)
+    return {}, {"ok": False, "provider": "none", "warning": "BO3 team profile unavailable; HLTV circuit open"}
+
+
+def _bo3_match_from_cache(match_id: str, slug: str) -> Optional[Dict[str, Any]]:
+    rows, _ = fetch_bo3_upcoming_matches()
+    clean = str(match_id).replace("bo3:", "")
+    return next((r for r in rows if str(r.get("provider_match_id") or "") == clean or str(r.get("slug") or "") == slug), None)
+
+
+def fetch_bo3_match_context(match_url: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    m = re.match(r"bo3://([^/]+)/?(.*)", str(match_url or ""))
+    if not m:
+        return {}, {"ok": False, "warning": "invalid BO3 match URL"}
+    mid, slug = m.group(1), m.group(2)
+    cached = _bo3_match_from_cache(mid, slug)
+    payload = None; status = {"ok": True, "provider": "BO3", "cache": "upcoming list", "age_seconds": 0.0}
+    if slug:
+        payload, status = _bo3_get_json(f"/matches/{quote(slug)}", "BO3 match details",
+                                        {"scope": "show-match", "with": "games,streams,teams,tournament_deep,stage,ai_predictions"},
+                                        ttl=2 * 60, allow_stale=False)
+    details = _bo3_materialize_matches(payload)
+    row = details[0] if details else cached
+    if not row:
+        return {}, {**status, "ok": False, "warning": "BO3 match details unavailable"}
+    teams = row.get("teams") or []
+    # Pull team pages to recover current rosters. These are not treated as announced lineups.
+    roster_groups = []
+    for t in teams[:2]:
+        tp, _ = _bo3_team_profile_from_html(str(t.get("team_id") or ""), str(t.get("slug") or ""), str(t.get("name") or ""))
+        roster_groups.append({"team": t.get("name"), "players": tp.get("current_roster") or []})
+    exact_lineup = row.get("lineup_names") or []
+    context = {"match_url": match_url, "teams": teams, "format": row.get("format") or "BO3",
+               "event": row.get("event") or "", "stage": "", "event_tier": "LOW/UNKNOWN",
+               "environment": "UNKNOWN", "world_ranks": [], "confirmed_maps": row.get("confirmed_maps") or [],
+               "veto_actions": [], "lineup_names": exact_lineup,
+               "lineup_groups": roster_groups, "starting_side_hints": {},
+               "provider": "BO3", "provider_match_id": row.get("provider_match_id") or mid,
+               "lineup_source": "BO3 exact match payload" if exact_lineup else "BO3 current team rosters only"}
+    return context, {**status, "ok": True, "provider": "BO3", "age_seconds": 0.0,
+                     "exact_lineup": bool(exact_lineup), "match_id": row.get("provider_match_id") or mid}
+
+
+def fetch_pandascore_match_context(match_url: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    m = re.match(r"pandascore://([^/]+)/?(.*)", str(match_url or ""))
+    if not m: return {}, {"ok": False}
+    mid = str(m.group(1)); rows, status = fetch_pandascore_upcoming()
+    raw = next((x for x in rows if str(x.get("id")) == mid), None)
+    if not raw: return {}, {**status, "ok": False, "warning": "PandaScore match missing"}
+    teams=[]
+    for x in raw.get("opponents") or []:
+        o=x.get("opponent") or {}; name=str(o.get("name") or ""); tid=str(o.get("id") or "")
+        if name: teams.append({"name":name,"slug":str(o.get("slug") or normalize_name(name).replace(" ","-")),"team_id":f"panda:{tid}"})
+    context={"match_url":match_url,"teams":teams,"format":f"BO{raw.get('number_of_games') or 3}",
+             "event":str(((raw.get("tournament") or {}).get("name")) or ""),"stage":"","event_tier":"LOW/UNKNOWN",
+             "environment":"UNKNOWN","world_ranks":[],"confirmed_maps":[],"veto_actions":[],"lineup_names":[],
+             "lineup_groups":[],"starting_side_hints":{},"provider":"PandaScore","provider_match_id":mid,
+             "lineup_source":"PandaScore fixtures (no announced lineup)"}
+    return context,{**status,"ok":len(teams)>=2,"provider":"PandaScore","age_seconds":0.0,"match_id":mid}
+
+
+_v47_fetch_match_context_base = fetch_match_context
+
+def fetch_match_context(match_url: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    if str(match_url).startswith("bo3://"):
+        return fetch_bo3_match_context(match_url)
+    if str(match_url).startswith("pandascore://"):
+        return fetch_pandascore_match_context(match_url)
+    if _source_circuit_open("hltv"):
+        return {}, {"ok": False, "provider": "HLTV", "circuit_open": True,
+                    "warning": "HLTV blocked on Railway; BO3/PandaScore/local context required"}
+    return _v47_fetch_match_context_base(match_url)
+
+
+_v47_match_id_base = _match_id_from_url
+
+def _match_id_from_url(url: str) -> str:
+    m = re.match(r"(?:bo3|pandascore)://([^/]+)", str(url or ""))
+    if m: return str(m.group(1)).replace("bo3:", "")
+    return _v47_match_id_base(url)
+
+
+_v47_build_full_board_base = build_full_board
+
+def build_full_board(props: List[Dict[str, Any]], deep_enabled: bool = True) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    # Trip HLTV only once. All actual projection data is BO3/database/demo first.
+    enriched = [_enrich_prop_identity_v46(p) for p in props]
+    board, status = _v47_build_full_board_base(enriched, deep_enabled)
+    projections = sum(r.get("projection") is not None for r in board)
+    profiles = sum((safe_int(r.get("profile_maps"), 0) or 0) > 0 for r in board)
+    bo3_profiles = sum("bo3" in str(r.get("profile_source") or "").lower() for r in board)
+    local_profiles = sum(any(x in str(r.get("profile_source") or "").lower() for x in ["database", "demo", "manual"]) for r in board)
+    matches = sum(bool(r.get("match_url")) for r in board)
+    bo3_matches = sum(str(r.get("match_url") or "").startswith("bo3://") for r in board)
+    hltv_state = _source_circuit_state("hltv"); bo3_state = _source_circuit_state("bo3")
+    provider_status = {"lines_loaded": len(board), "verified_profiles": profiles,
+                       "bo3_profiles": bo3_profiles, "local_demo_profiles": local_profiles,
+                       "matched_events": matches, "bo3_matches": bo3_matches,
+                       "projections_generated": projections,
+                       "profile_coverage_pct": round(profiles / max(len(board), 1) * 100, 1),
+                       "projection_coverage_pct": round(projections / max(len(board), 1) * 100, 1),
+                       "primary_provider": "BO3", "hltv_role": "optional only",
+                       "hltv_circuit": hltv_state, "bo3_circuit": bo3_state,
+                       "message": ("Underdog lines and verified BO3/local profiles loaded." if projections
+                                   else "Underdog lines loaded, but BO3/local/demo profiles were unavailable. Official picks disabled.")}
+    for r in board:
+        r["model_version"] = MODEL_VERSION; r["feature_fingerprint"] = MODEL_SCHEMA_FINGERPRINT
+    return board, {**status, "v47_provider_recovery": provider_status,
+                   "v46_source_recovery": provider_status,
+                   "model_version": MODEL_VERSION, "feature_fingerprint": MODEL_SCHEMA_FINGERPRINT}
+
+
+_v47_parser_report_base = parser_consistency_report
+
+def parser_consistency_report(board: Sequence[Dict[str, Any]], status: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    base = _v47_parser_report_base(board, status)
+    n = len(board); projections = sum(r.get("projection") is not None for r in board)
+    profiles = sum(
+        (safe_int(r.get("profile_maps"), 0) or 0) > 0
+        or bool(r.get("core_kpr_verified"))
+        or bool(str(r.get("profile_source") or "").strip())
+        for r in board
+    )
+    lines_ok = n > 0
+    if lines_ok and profiles == 0 and projections == 0:
+        base["score"] = max(10.0, min(float(base.get("score", 0) or 0), 25.0))
+        base["grade"] = "LINES OK — STATS PROVIDER UNAVAILABLE"
+        base["official_enabled"] = False
+        base["shutdown_reason"] = "Underdog loaded, but no BO3/local/demo player profiles were verified"
+    elif lines_ok and projections == 0:
+        base["score"] = max(20.0, min(float(base.get("score", 0) or 0), 40.0))
+        base["grade"] = "LINES/PROFILES OK — MATCH CONTEXT INCOMPLETE"
+        base["official_enabled"] = False
+    base["source_summary"] = {"underdog_lines": n, "verified_profiles": profiles,
+                              "projections": projections, "hltv_circuit_open": _source_circuit_open("hltv"),
+                              "bo3_circuit_open": _source_circuit_open("bo3")}
     return base
 
 
@@ -7962,11 +8689,32 @@ with tab_debug:
     h4.metric("Calibration",health['calibration_tier'])
     st.caption(health['note'])
     st.json(health,expanded=False)
-    parser_health=(st.session_state.get("cs2_board_status") or {}).get("v45_parser_health") or parser_consistency_report(board,st.session_state.get("cs2_board_status") or {})
+    # Always recompute with the active model version. Do not reuse an older v4.5 parser snapshot.
+    parser_health=parser_consistency_report(board,st.session_state.get("cs2_board_status") or {})
     st.markdown('<div class="section-title-pro">Parser Consistency Circuit</div>', unsafe_allow_html=True)
     p1,p2,p3=st.columns(3);p1.metric("Parser Health",f"{parser_health.get('score',0):.1f}/100");p2.metric("Parser Grade",parser_health.get("grade","—"));p3.metric("Official Enabled","YES" if parser_health.get("official_enabled") else "NO")
     if parser_health.get("checks"):st.dataframe(pd.DataFrame(parser_health["checks"]),use_container_width=True,hide_index=True)
     st.markdown('<div class="section-title-pro">Source Status</div>', unsafe_allow_html=True)
+    provider=(st.session_state.get("cs2_board_status") or {}).get("v47_provider_recovery") or {}
+    if provider:
+        s1,s2,s3,s4,s5=st.columns(5)
+        s1.metric("Underdog Lines",provider.get("lines_loaded",0))
+        s2.metric("Verified Profiles",provider.get("verified_profiles",0))
+        s3.metric("BO3 Profiles",provider.get("bo3_profiles",0))
+        s4.metric("Matched Events",provider.get("matched_events",0))
+        s5.metric("Projections",provider.get("projections_generated",0))
+        if provider.get("projections_generated",0):
+            st.success(provider.get("message") or "Verified projection pipeline is working.")
+        else:
+            st.error(provider.get("message") or "Lines loaded, but no verified statistics profiles were available.")
+    circuit_cols=st.columns(3)
+    hltv_state=_source_circuit_state("hltv");bo3_state=_source_circuit_state("bo3")
+    circuit_cols[0].metric("HLTV", "PAUSED" if _source_circuit_open("hltv") else "OPTIONAL")
+    circuit_cols[1].metric("BO3", "PAUSED" if _source_circuit_open("bo3") else "PRIMARY")
+    if circuit_cols[2].button("Reset source circuits",use_container_width=True,key="reset_v47_source_circuits"):
+        _close_source_circuit("hltv");_close_source_circuit("bo3");st.success("Source circuits reset. Refresh the board once.");st.rerun()
+    if _source_circuit_open("hltv"):
+        st.info("HLTV is paused after a 403. V4.7 does not depend on it; BO3, local history, and demos remain active.")
     st.write("Line source status")
     st.json(st.session_state.get("cs2_line_source_status") or {}, expanded=False)
     st.write("Projection source status")
