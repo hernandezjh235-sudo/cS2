@@ -56,8 +56,8 @@ import streamlit as st
 # ============================================================
 
 APP_NAME = "ONE WAY PICKZ — CS2"
-APP_VERSION = "CS2 v4.5 — FULL LINEUP + DEMO CENTER + BACKFILL + REVIEWED GRADING"
-MODEL_VERSION = "OWP_CS2_KILLS_M12_4.5"
+APP_VERSION = "CS2 v4.6 — SOURCE RECOVERY + VERIFIED FALLBACKS + MATCHING FIX"
+MODEL_VERSION = "OWP_CS2_KILLS_M12_4.6"
 SEED_VERSION = "CS2_ACCURACY_SEED_2026_07_14_V45"
 
 # The Underdog board endpoint is public but undocumented and can change.
@@ -4695,7 +4695,7 @@ def board_dataframe(board: List[Dict[str, Any]]) -> pd.DataFrame:
             row["market_probability"] = round(float(x["market_probability"]) * 100, 1)
         if x.get("market_edge") is not None:
             row["market_edge"] = round(float(x["market_edge"]) * 100, 1)
-        row["likely_maps"] = " / ".join(x.get("likely_maps") or []) or "Unconfirmed"
+        row["likely_maps"] = format_likely_maps(x.get("likely_maps"))
         row["flags"] = " | ".join(x.get("flags") or [])
         rows.append(row)
     return pd.DataFrame(rows)
@@ -4716,7 +4716,7 @@ def render_pick_card(row: Dict[str, Any], official_style: bool = False) -> None:
     lean_color = "#00a84f" if lean == "OVER" else "#e00020" if lean == "UNDER" else "#b96d00"
     flags = row.get("flags") or []
     flag_html = "".join(f'<span class="badge badge-warn">{_esc(x)}</span>' for x in flags)
-    map_text = " / ".join(row.get("likely_maps") or []) or "Unconfirmed"
+    map_text = format_likely_maps(row.get("likely_maps"))
     matchup = row.get("matchup") or " @ ".join(x for x in [row.get("team"), row.get("opponent")] if x) or "Match not linked"
     status_class = "badge-dark" if official_style else ("badge-good" if row.get("status") in {"OFFICIAL", "PLAYABLE"} else "badge-warn")
     market_text = "No odds saved"
@@ -7064,6 +7064,254 @@ def run_v45_collector_maintenance(board: Sequence[Dict[str,Any]],status: Optiona
     side=sum(record_side_choice_observations(r) for r in board);parser=parser_consistency_report(board,status or {}) if board else {"score":0,"grade":"NO BOARD","official_enabled":False};return {"side_choices_added":side,"parser_health":parser,"full_lineup_exact":sum(bool((r.get("full_lineup_model") or {}).get("exact_starters")) for r in board)}
 
 
+
+# ============================================================
+# V4.6 SOURCE RECOVERY / PLAYER MATCHING / DIAGNOSTICS PATCH
+# ============================================================
+
+MODEL_SCHEMA_FINGERPRINT = "v46_source_recovery_verified_local_demo_alias_hltvsearch_schema1"
+SOURCE_RECOVERY_VERSION = "4.6"
+
+
+def format_likely_maps(value: Any) -> str:
+    """Never split a string into characters when exporting/displaying maps."""
+    if value is None:
+        return "Unconfirmed"
+    if isinstance(value, str):
+        text=value.strip()
+        return text if text else "Unconfirmed"
+    if isinstance(value, (list, tuple, set)):
+        items=[str(x).strip() for x in value if str(x).strip()]
+        return " / ".join(items) if items else "Unconfirmed"
+    return str(value)
+
+
+def _blocked_public_page(text: Optional[str]) -> Tuple[bool,str]:
+    blob=str(text or "").lower()
+    tests=[
+        ("cloudflare", ["cf-chl-", "cloudflare ray id", "attention required", "just a moment"]),
+        ("access denied", ["access denied", "request blocked", "forbidden"]),
+        ("captcha", ["captcha", "verify you are human", "checking your browser"]),
+        ("empty shell", ["enable javascript and cookies to continue"]),
+    ]
+    for reason,needles in tests:
+        if any(x in blob for x in needles): return True,reason
+    return False,""
+
+
+_v46_http_get_text_base=http_get_text
+
+def http_get_text(url: str, source: str, ttl: int=900, params: Optional[Dict[str,Any]]=None,
+                  headers: Optional[Dict[str,str]]=None, timeout: int=18,
+                  allow_stale: bool=True, stale_ttl: Optional[int]=None) -> Tuple[Optional[str],Dict[str,Any]]:
+    text,status=_v46_http_get_text_base(url,source,ttl,params,headers,timeout,allow_stale,stale_ttl)
+    blocked,reason=_blocked_public_page(text)
+    if blocked:
+        status={**status,"ok":False,"blocked":True,"block_reason":reason,"warning":f"{source} returned {reason} protection page","content_length":len(text or "")}
+        return None,status
+    if text is not None:
+        status={**status,"content_length":len(text),"content_type":"html/text"}
+    return text,status
+
+
+def _alias_record(player: str) -> Dict[str,Any]:
+    raw=load_json(PLAYER_ALIAS_FILE,{})
+    if not isinstance(raw,dict): return {}
+    val=raw.get(normalize_name(player))
+    if isinstance(val,dict): return dict(val)
+    if isinstance(val,str) and val.strip(): return {"alias":val.strip()}
+    return {}
+
+
+def _deep_first(obj: Any, keys: Sequence[str]) -> Any:
+    wanted={normalize_name(x).replace(" ","") for x in keys}
+    if isinstance(obj,dict):
+        for k,v in obj.items():
+            nk=normalize_name(k).replace(" ","")
+            if nk in wanted and v not in [None,"",[],{}]:
+                if isinstance(v,dict):
+                    for sk in ["name","display_name","title","value","id"]:
+                        if v.get(sk) not in [None,""]: return v.get(sk)
+                elif not isinstance(v,(list,dict)): return v
+        for v in obj.values():
+            found=_deep_first(v,keys)
+            if found not in [None,""]: return found
+    elif isinstance(obj,list):
+        for v in obj:
+            found=_deep_first(v,keys)
+            if found not in [None,""]: return found
+    return None
+
+
+def _teams_from_matchup(text: Any) -> Tuple[str,str]:
+    raw=html_lib.unescape(str(text or "")).strip()
+    raw=re.sub(r"\s+"," ",raw)
+    pats=[r"^(.+?)\s+(?:vs\.?|versus|@)\s+(.+?)(?:\s*[-|].*)?$",r"^(.+?)\s+v\s+(.+?)(?:\s*[-|].*)?$"]
+    for pat in pats:
+        m=re.search(pat,raw,re.I)
+        if m:
+            a,b=m.group(1).strip(),m.group(2).strip()
+            if a and b and len(a)<80 and len(b)<80:return a,b
+    return "",""
+
+
+_v46_ud_top_base=_parse_underdog_top_level
+
+def _parse_underdog_top_level(data: Any) -> List[Dict[str,Any]]:
+    rows=_v46_ud_top_base(data)
+    if not isinstance(data,dict): return rows
+    appearances=_record_map(data.get("appearances") or [])
+    players=_record_map(data.get("players") or [])
+    games=_record_map(data.get("games") or data.get("matches") or data.get("events") or [])
+    teams=_record_map(data.get("teams") or [])
+    for row in rows:
+        appearance=appearances.get(str(row.get("appearance_id") or ""),{})
+        player_obj={}
+        pid=_deep_first(appearance,["player_id","playerId"])
+        if pid is not None: player_obj=players.get(str(pid),{})
+        game=games.get(str(row.get("game_id") or ""),{})
+        if not row.get("team"):
+            tid=_deep_first(appearance,["team_id","teamId","current_team_id"])
+            team_obj=teams.get(str(tid),{}) if tid is not None else {}
+            row["team"]=str(_deep_first(team_obj,["name","display_name"]) or _deep_first(player_obj,["team_name","team","organization"]) or _deep_first(appearance,["team_name","team"]) or "").strip()
+        if not row.get("matchup"):
+            row["matchup"]=str(_deep_first(game,["title","display_title","name","matchup"]) or "").strip()
+        a,b=_teams_from_matchup(row.get("matchup") or row.get("evidence"))
+        if not row.get("team") and a: row["team"]=a
+        if not row.get("opponent"):
+            if row.get("team") and a and b:
+                row["opponent"]=b if _team_name_matches(row["team"],a) else a if _team_name_matches(row["team"],b) else ""
+            elif a and b: row["opponent"]=b
+        row["underdog_identity_enriched"]=bool(row.get("team") or row.get("opponent") or row.get("matchup"))
+    return rows
+
+
+def _direct_hltv_player_search(player: str) -> Tuple[Dict[str,Any],Dict[str,Any]]:
+    alias=_alias_record(player)
+    if alias.get("hltv_player_id") or alias.get("player_id"):
+        pid=str(alias.get("hltv_player_id") or alias.get("player_id"));slug=str(alias.get("hltv_slug") or alias.get("slug") or normalize_name(alias.get("alias") or player).replace(" ","-"))
+        return {"player":alias.get("hltv_name") or alias.get("alias") or player,"player_id":pid,"slug":slug,"team":alias.get("team") or "","href":f"/stats/players/{pid}/{slug}","maps":safe_int(alias.get("maps"),0) or 0,"rounds":safe_int(alias.get("rounds"),0) or 0,"kd":safe_float(alias.get("kd"),1.0) or 1.0,"rating":safe_float(alias.get("rating"),1.0) or 1.0,"_source_fresh":True,"_source_cache":"manual alias"},{"ok":True,"method":"saved exact player ID"}
+    url=f"{HLTV_BASE}/search"
+    page,status=http_get_text(url,"HLTV player search",ttl=60*60,params={"query":player},timeout=20,allow_stale=True,stale_ttl=SOURCE_MAX_STALE_SECONDS["player_form"])
+    if not page:return {},status
+    candidates=[]
+    for m in re.finditer(r'href=["\']/(?:stats/players|player)/(\d+)/([^"\'/?#]+)[^"\']*["\'][^>]*>(.*?)</a>',page,re.I|re.S):
+        pid,slug,label=m.group(1),m.group(2),strip_tags(m.group(3)).split("\n")[0]
+        score=max(name_similarity(player,label),name_similarity(player,slug.replace("-"," ")))
+        candidates.append((score,{"player":label or slug.replace("-"," "),"player_id":pid,"slug":slug,"team":"","href":f"/stats/players/{pid}/{slug}","maps":0,"rounds":0,"kd":1.0,"rating":1.0,"_source_fresh":source_freshness_ok(status,SOURCE_MAX_STALE_SECONDS["player_form"]),"_source_cache":status.get("cache")}))
+    if not candidates:return {},{**status,"ok":False,"warning":"No player result in HLTV search","search_player":player}
+    score,row=max(candidates,key=lambda x:x[0])
+    if score<.82:return {},{**status,"ok":False,"warning":"HLTV search result similarity too low","best_score":score}
+    return row,{**status,"ok":True,"method":"direct HLTV search","match_score":round(score,3)}
+
+
+def _demo_aggregate_profile(player: str) -> Dict[str,Any]:
+    key=normalize_name(player)
+    try:
+        with _sqlite_connect() as conn:
+            rows=conn.execute("SELECT * FROM demo_events WHERE player_key=?",(key,)).fetchall()
+    except Exception: rows=[]
+    if not rows:return {}
+    denoms={}
+    for r in rows:
+        mr=safe_int(r["match_rounds"],0) or 0
+        if mr>0: denoms[(str(r["match_id"] or ""),str(r["map_name"] or ""))]=max(denoms.get((str(r["match_id"] or ""),str(r["map_name"] or "")),0),mr)
+    rounds=sum(denoms.values());kills=len(rows)
+    if rounds<=0:return {"player":rows[0]["player"],"kills":kills,"rounds":0,"maps":len(denoms),"denominator_verified":False}
+    teams=Counter(str(r["team"] or "") for r in rows if str(r["team"] or "").strip())
+    opponents=Counter(str(r["opponent"] or "") for r in rows if str(r["opponent"] or "").strip())
+    ct=sum(1 for r in rows if str(r["side"] or "").upper()=="CT");tt=sum(1 for r in rows if str(r["side"] or "").upper() in {"T","TERRORIST"})
+    hs=sum(int(r["is_headshot"] or 0) for r in rows);openings=sum(int(r["is_opening"] or 0) for r in rows)
+    return {"player":rows[0]["player"],"team":teams.most_common(1)[0][0] if teams else "","opponent":opponents.most_common(1)[0][0] if opponents else "","kills":kills,"rounds":rounds,"maps":len(denoms),"kpr":kills/rounds,"hs_pct":hs/kills*100 if kills else None,"opening_kpr":openings/rounds,"ct_kill_share":ct/kills if kills else None,"t_kill_share":tt/kills if kills else None,"denominator_verified":True,"source":"verified demo telemetry"}
+
+
+def _playerstats_from_local(player: str) -> Tuple[Optional[PlayerStats],Dict[str,Any]]:
+    alias=_alias_record(player);db=lookup_database_player(player);demo=_demo_aggregate_profile(player)
+    override=load_json(PLAYER_OVERRIDES_FILE,{})
+    ov=override.get(normalize_name(player),{}) if isinstance(override,dict) else {}
+    source="";rec={}
+    if db and safe_int(db.get("profile_maps"),0)>0 and safe_float(db.get("base_kpr"),None) is not None:
+        rec=db;source="persistent verified player database"
+    elif demo.get("denominator_verified") and safe_int(demo.get("maps"),0)>0:
+        rec=demo;source="verified demo telemetry"
+    elif ov and safe_int(ov.get("maps"),0)>0 and safe_float(ov.get("kpr"),None) is not None:
+        rec=ov;source="manual verified player profile"
+    if not rec:return None,{"matched":False,"sources_checked":["persistent database","demo telemetry","manual profile"]}
+    maps=safe_int(rec.get("profile_maps"),safe_int(rec.get("maps"),0)) or 0
+    rounds=safe_int(rec.get("profile_rounds"),safe_int(rec.get("rounds"),0)) or 0
+    kpr=safe_float(rec.get("base_kpr"),safe_float(rec.get("kpr"),None))
+    if maps<=0 or kpr is None:return None,{"matched":False,"warning":"local record lacked real maps/KPR"}
+    pid=str(alias.get("hltv_player_id") or alias.get("player_id") or (rec.get("identity_ids") or {}).get("player_id") or "")
+    slug=str(alias.get("hltv_slug") or alias.get("slug") or normalize_name(player).replace(" ","-"))
+    p=PlayerStats(player=player,player_id=pid,slug=slug,team=str(alias.get("team") or rec.get("team") or demo.get("team") or ""),maps=maps,rounds=rounds,kills=safe_int(rec.get("kills"),0) or 0,deaths=safe_int(rec.get("deaths"),0) or 0,kpr=float(kpr),dpr=safe_float(rec.get("dpr"),.68) or .68,adr=safe_float(rec.get("adr"),LEAGUE_ADR) or LEAGUE_ADR,rating=safe_float(rec.get("rating"),1.0) or 1.0,kd=safe_float(rec.get("kd"),1.0) or 1.0,hs_pct=safe_float(rec.get("hs_pct"),safe_float(demo.get("hs_pct"),None)),opening_kpr=safe_float(rec.get("opening_kpr"),safe_float(demo.get("opening_kpr"),None)),ct_kpr=safe_float(rec.get("ct_kpr"),None),t_kpr=safe_float(rec.get("t_kpr"),None),source=source,href=str(rec.get("profile_href") or alias.get("profile_href") or ""),data_warnings=["LIVE HLTV PROFILE UNAVAILABLE — VERIFIED LOCAL SAMPLE USED"],kpr_source="verified_local_sample")
+    return p,{"matched":True,"match_score":1.0,"source_fresh":True,"core_kpr_verified":True,"kpr_source":"verified_local_sample","local_fallback":True,"source":source,"demo":demo}
+
+
+_v46_build_player_profile_base=build_player_profile
+
+def build_player_profile(player_name: str,long_table: Dict[str,Dict[str,Any]],medium_table: Dict[str,Dict[str,Any]],recent30_table: Dict[str,Dict[str,Any]],recent15_table: Dict[str,Dict[str,Any]]) -> Tuple[PlayerStats,Dict[str,Any]]:
+    profile,meta=_v46_build_player_profile_base(player_name,long_table,medium_table,recent30_table,recent15_table)
+    if meta.get("matched") and safe_int(profile.maps,0)>0:
+        return profile,{**meta,"recovery_path":"HLTV table"}
+    direct,dstatus=_direct_hltv_player_search(player_name)
+    if direct:
+        key=normalize_name(direct.get("player") or player_name)
+        merged=dict(long_table);merged[key]=direct
+        profile2,meta2=_v46_build_player_profile_base(player_name,merged,medium_table,recent30_table,recent15_table)
+        if meta2.get("matched") and safe_int(profile2.maps,0)>0:
+            return profile2,{**meta2,"direct_search_status":dstatus,"recovery_path":"direct HLTV search"}
+    local,lmeta=_playerstats_from_local(player_name)
+    if local is not None:
+        return local,{**lmeta,"direct_search_status":dstatus,"recovery_path":"verified local database/demo"}
+    return profile,{**meta,"direct_search_status":dstatus,"recovery_path":"failed","source_failure":"No HLTV table/search result and no verified local/demo profile"}
+
+
+def _enrich_prop_identity_v46(prop: Dict[str,Any]) -> Dict[str,Any]:
+    out=dict(prop);alias=_alias_record(str(out.get("player") or ""))
+    for field,keys in {"team":["team"],"opponent":["opponent"],"match_url":["match_url","hltv_match_url"],"matchup":["matchup"]}.items():
+        if not out.get(field):
+            for k in keys:
+                if alias.get(k):out[field]=alias[k];break
+    a,b=_teams_from_matchup(out.get("matchup") or out.get("evidence"))
+    if not out.get("team") and a:out["team"]=a
+    if not out.get("opponent") and a and b:
+        if out.get("team") and _team_name_matches(out["team"],a):out["opponent"]=b
+        elif out.get("team") and _team_name_matches(out["team"],b):out["opponent"]=a
+        else:out["opponent"]=b
+    return out
+
+
+_v46_build_full_board_base=build_full_board
+
+def build_full_board(props: List[Dict[str,Any]],deep_enabled: bool=True) -> Tuple[List[Dict[str,Any]],Dict[str,Any]]:
+    enriched=[_enrich_prop_identity_v46(p) for p in props]
+    board,status=_v46_build_full_board_base(enriched,deep_enabled)
+    projections=sum(r.get("projection") is not None for r in board);matched=sum((safe_int(r.get("profile_maps"),0) or 0)>0 for r in board)
+    teams=sum(bool(r.get("team")) for r in board);matches=sum(bool(r.get("match_url")) for r in board)
+    source_failure=bool(board and projections==0)
+    diagnosis={"props":len(board),"projections":projections,"player_profiles":matched,"teams":teams,"matches":matches,"source_failure":source_failure,"message":"Underdog lines loaded, but no verified CS2 player profiles/matches were available. Check Source Status, add a mapping, or upload demos." if source_failure else "Projection pipeline produced verified rows."}
+    if source_failure:
+        for r in board:
+            r["flags"]=list(dict.fromkeys(list(r.get("flags") or [])+["CS2 STATISTICS SOURCE UNAVAILABLE — NO PROJECTION GENERATED"]))
+    return board,{**status,"v46_source_recovery":diagnosis,"model_version":MODEL_VERSION,"feature_fingerprint":MODEL_SCHEMA_FINGERPRINT}
+
+
+_v45_parser_consistency_report_base=parser_consistency_report
+
+def parser_consistency_report(board: Sequence[Dict[str,Any]],status: Optional[Dict[str,Any]]=None) -> Dict[str,Any]:
+    base=_v45_parser_consistency_report_base(board,status) if '_v45_parser_consistency_report_base' in globals() else {"score":0,"grade":"UNKNOWN","official_enabled":False,"checks":[]}
+    # The active v4.5 parser report may be captured under a different name. Fall back to simple checks.
+    if not isinstance(base,dict) or not base.get("checks"):
+        n=len(board);proj=sum(r.get("projection") is not None for r in board);profiles=sum((safe_int(r.get("profile_maps"),0) or 0)>0 for r in board)
+        ratio=proj/max(n,1);score=100*ratio
+        base={"score":score,"grade":"HEALTHY" if score>=86 else "DEGRADED","official_enabled":score>=V45_PARSER_SHUTDOWN_SCORE,"checks":[]}
+    n=len(board);proj=sum(r.get("projection") is not None for r in board);profile_ratio=sum((safe_int(r.get("profile_maps"),0) or 0)>0 for r in board)/max(n,1)
+    base["checks"]=list(base.get("checks") or [])+[{"check":"verified player profile coverage","value":round(profile_ratio*100,1),"pass":profile_ratio>=.45},{"check":"projection coverage","value":round(proj/max(n,1)*100,1),"pass":proj/max(n,1)>=.35}]
+    if n>=10 and (profile_ratio<.20 or proj/max(n,1)<.10):
+        base["score"]=min(float(base.get("score",0)),20.0);base["grade"]="SOURCE FAILURE";base["official_enabled"]=False;base["shutdown_reason"]="Player/profile source coverage collapsed"
+    return base
+
+
 # ============================================================
 # SESSION BOARD LOAD
 # ============================================================
@@ -7659,6 +7907,36 @@ with tab_data:
         except Exception as exc:
             st.error(f"Profile CSV error: {exc}")
 
+    st.markdown('<div class="section-title-pro">Player / Team Mapping Recovery</div>', unsafe_allow_html=True)
+    st.caption("Use this only when a public source cannot match an Underdog player. Save an exact HLTV player ID plus optional team, opponent, and match URL. The mapping persists on the Railway volume.")
+    map_file=st.file_uploader("Upload player mapping CSV",type=["csv"],key="v46_mapping_upload")
+    if map_file is not None:
+        try:
+            mdf=pd.read_csv(map_file);st.dataframe(mdf,use_container_width=True,hide_index=True)
+            if st.button("SAVE PLAYER / MATCH MAPPINGS",use_container_width=True):
+                cmap={normalize_name(c):c for c in mdf.columns};aliases=load_json(PLAYER_ALIAS_FILE,{})
+                if not isinstance(aliases,dict):aliases={}
+                saved=0
+                for _,rr in mdf.iterrows():
+                    pcol=cmap.get("player") or cmap.get("underdog player");player=str(rr.get(pcol,"")).strip() if pcol else ""
+                    if not player:continue
+                    def gv(*names):
+                        for n in names:
+                            c=cmap.get(normalize_name(n))
+                            if c and rr.get(c) not in [None,""] and not pd.isna(rr.get(c)):return rr.get(c)
+                        return ""
+                    aliases[normalize_name(player)]={"alias":str(gv("HLTV Name","Alias") or player),"hltv_player_id":str(gv("HLTV Player ID","Player ID") or ""),"hltv_slug":str(gv("HLTV Slug","Slug") or normalize_name(player).replace(" ","-")),"team":str(gv("Team") or ""),"opponent":str(gv("Opponent") or ""),"match_url":str(gv("Match URL","HLTV Match URL") or ""),"saved_at":now_iso()};saved+=1
+                save_json(PLAYER_ALIAS_FILE,aliases,force=True);st.success(f"Saved {saved} exact mappings. Refresh projections.");st.rerun()
+        except Exception as exc:st.error(f"Mapping CSV error: {exc}")
+    with st.expander("Add one mapping manually",expanded=False):
+        mp=st.text_input("Underdog player",key="v46_map_player");mid=st.text_input("HLTV player ID",key="v46_map_pid");mslug=st.text_input("HLTV slug",key="v46_map_slug");mteam=st.text_input("Team",key="v46_map_team");mopp=st.text_input("Opponent",key="v46_map_opp");murl=st.text_input("HLTV match URL",key="v46_map_url")
+        if st.button("SAVE THIS MAPPING",use_container_width=True):
+            if not mp.strip():st.error("Player is required.")
+            else:
+                aliases=load_json(PLAYER_ALIAS_FILE,{})
+                if not isinstance(aliases,dict):aliases={}
+                aliases[normalize_name(mp)]={"alias":mp.strip(),"hltv_player_id":mid.strip(),"hltv_slug":mslug.strip() or normalize_name(mp).replace(" ","-"),"team":mteam.strip(),"opponent":mopp.strip(),"match_url":murl.strip(),"saved_at":now_iso()};save_json(PLAYER_ALIAS_FILE,aliases,force=True);st.success("Mapping saved. Refresh projections.");st.rerun()
+
     st.markdown('<div class="section-title-pro">Optional Free PandaScore Connection</div>', unsafe_allow_html=True)
     panda_rows, panda_status = fetch_pandascore_upcoming()
     if panda_status.get("configured"):
@@ -7699,7 +7977,7 @@ with tab_debug:
             debug_rows.append({
                 "Player": row.get("player"), "Source": row.get("source"), "Profile Source": row.get("profile_source"),
                 "Profile Maps": row.get("profile_maps"), "Match URL": bool(row.get("match_url")),
-                "Format": row.get("match_format"), "Maps": " / ".join(row.get("likely_maps") or []),
+                "Format": row.get("match_format"), "Maps": format_likely_maps(row.get("likely_maps")),
                 "Map Conf": row.get("map_confidence"), "Role": row.get("role"), "Data Score": row.get("data_score"),
                 "Flags": " | ".join(row.get("flags") or []), "Error": row.get("error", ""),
             })
