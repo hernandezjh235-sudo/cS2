@@ -33,6 +33,8 @@ import math
 import os
 import random
 import re
+import sqlite3
+import threading
 import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -41,6 +43,7 @@ from dataclasses import dataclass, asdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from statistics import NormalDist
 from urllib.parse import quote, urljoin
 
 import numpy as np
@@ -53,9 +56,9 @@ import streamlit as st
 # ============================================================
 
 APP_NAME = "ONE WAY PICKZ — CS2"
-APP_VERSION = "CS2 v2.0 — DEEP MAP/VETO/ROSTER ENGINE"
-MODEL_VERSION = "OWP_CS2_KILLS_M12_2.0"
-SEED_VERSION = "CS2_DEEP_DATA_SEED_2026_07"
+APP_VERSION = "CS2 v4.5 — FULL LINEUP + DEMO CENTER + BACKFILL + REVIEWED GRADING"
+MODEL_VERSION = "OWP_CS2_KILLS_M12_4.5"
+SEED_VERSION = "CS2_ACCURACY_SEED_2026_07_14_V45"
 
 # The Underdog board endpoint is public but undocumented and can change.
 # UNDERDOG_URL_OVERRIDE lets Railway use a replacement endpoint without a code edit.
@@ -93,11 +96,11 @@ MIN_TRACK_PROB = 0.535
 MIN_PROFILE_MAPS = 15
 MIN_OFFICIAL_PROFILE_MAPS = 25
 MIN_MAP_CONFIDENCE = 52
-MAX_LEARNING_PROJECTION_SHIFT = 1.00
+MAX_LEARNING_PROJECTION_SHIFT = 0.40
 MAX_LEARNING_PROB_SHIFT = 0.045
 SIMULATIONS = 30000
-DEEP_PULL_MATCH_LIMIT = int(os.getenv("CS2_DEEP_MATCH_LIMIT", "6") or 6)
-DEEP_PULL_MAPSTATS_LIMIT = int(os.getenv("CS2_DEEP_MAPSTATS_LIMIT", "6") or 6)
+DEEP_PULL_MATCH_LIMIT = int(max(6, min(50, float(os.getenv("CS2_DEEP_MATCH_LIMIT", "30") or 30))))
+DEEP_PULL_MAPSTATS_LIMIT = int(max(6, min(50, float(os.getenv("CS2_DEEP_MAPSTATS_LIMIT", "30") or 30))))
 DEEP_DATA_ENABLED_DEFAULT = os.getenv("CS2_DEEP_DATA", "true").strip().lower() not in {"0", "false", "no", "off"}
 MIN_MAP_PROFILE_MAPS = 4
 MIN_CURRENT_ROSTER_MAPS = 4
@@ -109,6 +112,31 @@ LEAGUE_DPR = 0.680
 LEAGUE_ADR = 72.0
 LEAGUE_RATING = 1.00
 DEFAULT_TWO_MAP_ROUNDS = 42.8
+MIN_M12_KILL_LINE = 12.0
+MAX_M12_KILL_LINE = 55.0
+DATABASE_SCHEMA_VERSION = 8
+MIN_CALIBRATION_PRELIMINARY = 100
+MIN_CALIBRATION_USABLE = 300
+MIN_CALIBRATION_STRONG = 500
+MIN_MARKET_VALUE_EDGE = 0.02
+MIN_PLAYER_LEARNING_SAMPLES = 40
+MIN_CONTEXT_LEARNING_SAMPLES = 80
+MIN_ROLE_LEARNING_SAMPLES = 100
+MIN_BLEND_TRAINING_SAMPLES = 30
+MIN_ROUND_KILL_TRAINING_ROUNDS = 250
+SOURCE_MAX_STALE_SECONDS = {
+    "underdog": 0,
+    "prizepicks": 0,
+    "match": 300,
+    "lineup": 300,
+    "veto": 120,
+    "roster": 4 * 3600,
+    "player_form": 24 * 3600,
+    "team_maps": 24 * 3600,
+    "completed_history": 14 * 24 * 3600,
+}
+CURRENT_ACTIVE_MAPS = ["Ancient", "Anubis", "Cache", "Dust2", "Inferno", "Mirage", "Nuke"]
+AUTO_HARVEST_HISTORY = os.getenv("CS2_AUTO_HARVEST_HISTORY", "true").strip().lower() not in {"0","false","no","off"}
 
 KNOWN_MAPS = [
     "Ancient", "Anubis", "Dust2", "Inferno", "Mirage", "Nuke",
@@ -174,6 +202,27 @@ DEEP_PLAYER_MAP_FILE = os.path.join(STORAGE_DIR, "cs2_player_map_profiles.json")
 VETO_HISTORY_FILE = os.path.join(STORAGE_DIR, "cs2_veto_history.json")
 ROSTER_HISTORY_FILE = os.path.join(STORAGE_DIR, "cs2_roster_history.json")
 MARKET_CONSENSUS_FILE = os.path.join(STORAGE_DIR, "cs2_market_consensus.json")
+PLAYER_DATABASE_FILE = os.path.join(STORAGE_DIR, "player_database.json")
+TEAM_DATABASE_FILE = os.path.join(STORAGE_DIR, "team_database.json")
+MATCH_DATABASE_FILE = os.path.join(STORAGE_DIR, "match_database.json")
+MAP_DATABASE_FILE = os.path.join(STORAGE_DIR, "map_database.json")
+VETO_DATABASE_FILE = os.path.join(STORAGE_DIR, "veto_database.json")
+ROSTER_DATABASE_FILE = os.path.join(STORAGE_DIR, "roster_database.json")
+DATABASE_META_FILE = os.path.join(STORAGE_DIR, "database_meta.json")
+PLAYER_ALIAS_FILE = os.path.join(STORAGE_DIR, "player_aliases.json")
+HISTORICAL_ASOF_FILE = os.path.join(STORAGE_DIR, "cs2_asof_projection_history.jsonl")
+CALIBRATION_FILE = os.path.join(STORAGE_DIR, "cs2_probability_calibration.json")
+PATCH_ERAS_FILE = os.path.join(STORAGE_DIR, "cs2_patch_map_pool_eras.json")
+ROLE_TIMELINE_FILE = os.path.join(STORAGE_DIR, "cs2_role_timeline.json")
+DEMO_DATABASE_FILE = os.path.join(STORAGE_DIR, "cs2_demo_telemetry.json")
+BOOK_ODDS_HISTORY_FILE = os.path.join(STORAGE_DIR, "cs2_book_odds_history.json")
+SLIP_HISTORY_FILE = os.path.join(STORAGE_DIR, "cs2_slip_history.json")
+LIVE_STATE_FILE = os.path.join(STORAGE_DIR, "cs2_live_watch_history.json")
+CORE_DB_FILE = os.path.join(STORAGE_DIR, "cs2_core_v42.sqlite3")
+DEMO_DROP_DIR = os.path.join(STORAGE_DIR, "incoming_demos")
+os.makedirs(DEMO_DROP_DIR, exist_ok=True)
+
+_JSON_LOCK = threading.RLock()
 
 PROTECTED_FILES = {
     os.path.basename(PICK_LOG),
@@ -448,9 +497,10 @@ def object_id(obj: Any) -> str:
 
 def load_json(path: str, default: Any) -> Any:
     try:
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as fh:
-                return json.load(fh)
+        with _JSON_LOCK:
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as fh:
+                    return json.load(fh)
     except Exception:
         pass
     return default
@@ -464,29 +514,278 @@ def _payload_len(obj: Any) -> int:
 
 def save_json(path: str, payload: Any, github_backup: bool = False, force: bool = False) -> bool:
     try:
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        name = os.path.basename(path)
-        if (not force) and name in PROTECTED_FILES and os.path.exists(path):
-            old = load_json(path, None)
-            old_n, new_n = _payload_len(old), _payload_len(payload)
-            if old_n >= 30 and (new_n == 0 or new_n < int(old_n * 0.85)):
-                log_request("storage", path, 0, f"blocked suspicious shrink {old_n}->{new_n}")
-                return False
-            try:
-                with open(path + ".bak", "w", encoding="utf-8") as fh:
-                    json.dump(old, fh, indent=2, ensure_ascii=False)
-            except Exception:
-                pass
-        temp = path + ".tmp"
-        with open(temp, "w", encoding="utf-8") as fh:
-            json.dump(payload, fh, indent=2, ensure_ascii=False, default=str)
-        os.replace(temp, path)
+        with _JSON_LOCK:
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            name = os.path.basename(path)
+            if (not force) and name in PROTECTED_FILES and os.path.exists(path):
+                old = load_json(path, None)
+                old_n, new_n = _payload_len(old), _payload_len(payload)
+                if old_n >= 30 and (new_n == 0 or new_n < int(old_n * 0.85)):
+                    return False
+                try:
+                    with open(path + ".bak", "w", encoding="utf-8") as fh:
+                        json.dump(old, fh, indent=2, ensure_ascii=False)
+                except Exception:
+                    pass
+            temp = path + ".tmp"
+            with open(temp, "w", encoding="utf-8") as fh:
+                json.dump(payload, fh, indent=2, ensure_ascii=False, default=str)
+            os.replace(temp, path)
         if github_backup:
             github_backup_file(path)
         return True
-    except Exception as exc:
-        log_request("storage", path, 0, f"save error: {exc}")
+    except Exception:
         return False
+
+
+
+def _sqlite_connect() -> sqlite3.Connection:
+    conn = sqlite3.connect(CORE_DB_FILE, timeout=30)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
+    return conn
+
+
+def init_core_database() -> None:
+    with _sqlite_connect() as conn:
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS projections (
+          snapshot_id TEXT PRIMARY KEY, prop_id TEXT, player TEXT, player_key TEXT,
+          match_url TEXT, start_time TEXT, line REAL, lean TEXT,
+          raw_probability REAL, probability REAL, status TEXT, veto_state TEXT,
+          event_tier TEXT, payload_json TEXT NOT NULL, created_at TEXT NOT NULL,
+          graded_result TEXT, actual_kills REAL, graded_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_projection_pending ON projections(graded_result,start_time);
+        CREATE INDEX IF NOT EXISTS idx_projection_player ON projections(player_key,start_time);
+        CREATE TABLE IF NOT EXISTS demo_events (
+          event_hash TEXT PRIMARY KEY, player TEXT, player_key TEXT, map_name TEXT,
+          match_id TEXT, round_num INTEGER, match_rounds INTEGER, team TEXT,
+          opponent TEXT, opponent_rank REAL, event_tier TEXT, side TEXT, weapon TEXT,
+          is_headshot INTEGER, is_opening INTEGER, is_trade INTEGER, event_time TEXT,
+          source TEXT, ingested_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_demo_player_map ON demo_events(player_key,map_name,event_time);
+        CREATE TABLE IF NOT EXISTS demo_rounds (
+          round_hash TEXT PRIMARY KEY, match_id TEXT, map_name TEXT, round_num INTEGER,
+          ct_team TEXT, t_team TEXT, winner_team TEXT, winner_side TEXT,
+          event_time TEXT, source TEXT, ingested_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_demo_round_team_map ON demo_rounds(map_name,ct_team,t_team,event_time);
+        CREATE TABLE IF NOT EXISTS roster_events (
+          event_id TEXT PRIMARY KEY, player_key TEXT, player TEXT, team_key TEXT,
+          team TEXT, event_type TEXT, effective_at TEXT, confidence REAL,
+          source TEXT, payload_json TEXT, created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_roster_player ON roster_events(player_key,effective_at);
+        CREATE TABLE IF NOT EXISTS model_parameters (
+          name TEXT PRIMARY KEY, payload_json TEXT NOT NULL, updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS entity_snapshots (
+          snapshot_key TEXT PRIMARY KEY, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL,
+          as_of TEXT NOT NULL, source TEXT, source_age_seconds REAL, payload_json TEXT NOT NULL,
+          checksum TEXT NOT NULL, created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_entity_snapshots_lookup ON entity_snapshots(entity_type,entity_id,as_of);
+        CREATE TABLE IF NOT EXISTS market_ticks (
+          tick_id TEXT PRIMARY KEY, prop_id TEXT, player_key TEXT, market TEXT, line REAL,
+          source TEXT, observed_at TEXT, start_time TEXT, payload_json TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_market_ticks_prop ON market_ticks(prop_id,observed_at);
+        CREATE TABLE IF NOT EXISTS grading_audit (
+          audit_id TEXT PRIMARY KEY, snapshot_id TEXT, match_id TEXT, player_key TEXT,
+          map1_id TEXT, map2_id TEXT, map1_name TEXT, map2_name TEXT,
+          map1_kills INTEGER, map2_kills INTEGER, total_kills INTEGER,
+          void_reason TEXT, confidence REAL, payload_json TEXT NOT NULL, created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_grading_audit_snapshot ON grading_audit(snapshot_id);
+        CREATE TABLE IF NOT EXISTS model_fit_history (
+          fit_id TEXT PRIMARY KEY, fit_type TEXT, scope_key TEXT, sample_size INTEGER,
+          payload_json TEXT NOT NULL, fitted_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS team_map_observations (
+          observation_id TEXT PRIMARY KEY, team_id TEXT NOT NULL, team_name TEXT, match_id TEXT NOT NULL,
+          match_url TEXT, map_name TEXT NOT NULL, played_at TEXT, team_score INTEGER, opponent_score INTEGER,
+          rounds INTEGER, margin INTEGER, overtime INTEGER, opponent_rank REAL, same_core INTEGER,
+          environment TEXT, payload_json TEXT NOT NULL, created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_team_map_obs_lookup ON team_map_observations(team_id,map_name,played_at);
+        """)
+
+
+def sqlite_store_entity_snapshot(entity_type: str, entity_id: str, payload: Dict[str, Any], source: str = "", source_age_seconds: Optional[float] = None, as_of: Any = None) -> bool:
+    if not entity_type or not entity_id or not isinstance(payload, dict) or not payload:
+        return False
+    observed = (_parse_iso_datetime(as_of) or datetime.now(timezone.utc)).isoformat()
+    body = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+    checksum = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    raw = f"{entity_type}|{entity_id}|{observed[:16]}|{checksum}"
+    key = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    try:
+        with _sqlite_connect() as conn:
+            conn.execute("""INSERT OR IGNORE INTO entity_snapshots(
+                snapshot_key,entity_type,entity_id,as_of,source,source_age_seconds,payload_json,checksum,created_at
+            ) VALUES(?,?,?,?,?,?,?,?,?)""",
+            (key,entity_type,str(entity_id),observed,source,safe_float(source_age_seconds,None),body,checksum,now_iso()))
+        return True
+    except Exception:
+        return False
+
+
+def sqlite_latest_entity_snapshot(entity_type: str, entity_id: str, max_age_seconds: Optional[int] = None, as_of: Any = None) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    cutoff = _parse_iso_datetime(as_of) or datetime.now(timezone.utc)
+    try:
+        with _sqlite_connect() as conn:
+            rec = conn.execute("""SELECT payload_json,as_of,source,source_age_seconds FROM entity_snapshots
+                                WHERE entity_type=? AND entity_id=? AND as_of<=? ORDER BY as_of DESC LIMIT 1""",
+                               (entity_type,str(entity_id),cutoff.isoformat())).fetchone()
+        if not rec:
+            return {}, {"ok":False,"warning":"no SQLite snapshot"}
+        observed = _parse_iso_datetime(rec["as_of"])
+        age = (cutoff-observed).total_seconds() if observed else None
+        if max_age_seconds is not None and (age is None or age>max_age_seconds):
+            return {}, {"ok":False,"warning":"SQLite snapshot too old","age_seconds":age}
+        return json.loads(rec["payload_json"]), {"ok":True,"source":rec["source"] or "SQLite historical snapshot","age_seconds":age,"cache":"sqlite"}
+    except Exception as exc:
+        return {}, {"ok":False,"warning":str(exc)}
+
+
+def sqlite_store_market_ticks(props: Sequence[Dict[str, Any]]) -> int:
+    added=0
+    try:
+        with _sqlite_connect() as conn:
+            for prop in props:
+                line=safe_float(prop.get("line"),None)
+                if line is None: continue
+                observed=str(prop.get("source_pulled_at") or now_iso())
+                raw=f"{prop.get('prop_id')}|{normalize_name(prop.get('player'))}|{prop.get('market')}|{line}|{observed[:19]}|{prop.get('source')}"
+                tick_id=hashlib.sha256(raw.encode()).hexdigest()
+                cur=conn.execute("""INSERT OR IGNORE INTO market_ticks(tick_id,prop_id,player_key,market,line,source,observed_at,start_time,payload_json)
+                                  VALUES(?,?,?,?,?,?,?,?,?)""",
+                                 (tick_id,str(prop.get("prop_id") or ""),normalize_name(prop.get("player")),str(prop.get("market") or ""),float(line),str(prop.get("source") or ""),observed,str(prop.get("start_time") or ""),json.dumps(dict(prop),default=str)))
+                added += int(cur.rowcount or 0)
+    except Exception:
+        pass
+    return added
+
+
+def sqlite_store_grading_audit(snapshot_id: str, player: str, meta: Dict[str, Any]) -> None:
+    details=list(meta.get("details") or [])
+    maps=list(meta.get("map_results") or [])
+    map1=details[0] if len(details)>0 else {}; map2=details[1] if len(details)>1 else {}
+    result1=maps[0] if len(maps)>0 else {}; result2=maps[1] if len(maps)>1 else {}
+    payload=json.dumps(meta,ensure_ascii=False,default=str)
+    raw=f"{snapshot_id}|{player}|{meta.get('team_total_kills')}|{meta.get('void_reason')}"
+    audit_id=hashlib.sha256(raw.encode()).hexdigest()
+    try:
+        with _sqlite_connect() as conn:
+            conn.execute("""INSERT OR REPLACE INTO grading_audit(audit_id,snapshot_id,match_id,player_key,map1_id,map2_id,map1_name,map2_name,map1_kills,map2_kills,total_kills,void_reason,confidence,payload_json,created_at)
+                          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                         (audit_id,snapshot_id,str(meta.get("match_id") or ""),normalize_name(player),str(map1.get("map_id") or ""),str(map2.get("map_id") or ""),str(result1.get("map") or result1.get("name") or ""),str(result2.get("map") or result2.get("name") or ""),safe_int(map1.get("kills"),None),safe_int(map2.get("kills"),None),safe_int(meta.get("total_kills"),None),str(meta.get("void_reason") or ""),safe_float(meta.get("confidence"),0.0),payload,now_iso()))
+    except Exception:
+        pass
+
+
+def save_model_fit(name: str, payload: Dict[str, Any]) -> None:
+    try:
+        with _sqlite_connect() as conn:
+            conn.execute("INSERT OR REPLACE INTO model_parameters(name,payload_json,updated_at) VALUES(?,?,?)",(name,json.dumps(payload,default=str),now_iso()))
+            fit_id=hashlib.sha256(f"{name}|{now_iso()}|{payload.get('sample',payload.get('sample_size',0))}".encode()).hexdigest()
+            conn.execute("INSERT OR REPLACE INTO model_fit_history(fit_id,fit_type,scope_key,sample_size,payload_json,fitted_at) VALUES(?,?,?,?,?,?)",(fit_id,str(payload.get('fit_type') or name.split(':')[0]),name,safe_int(payload.get('sample',payload.get('sample_size',0)),0),json.dumps(payload,default=str),now_iso()))
+    except Exception:
+        pass
+
+
+def load_model_fit(name: str) -> Dict[str, Any]:
+    try:
+        with _sqlite_connect() as conn:
+            rec=conn.execute("SELECT payload_json,updated_at FROM model_parameters WHERE name=?",(name,)).fetchone()
+        if rec:
+            out=json.loads(rec["payload_json"]); out["updated_at"]=rec["updated_at"]; return out
+    except Exception:
+        pass
+    return {}
+
+
+def invalidate_model_fits(prefixes: Sequence[str]) -> int:
+    deleted=0
+    try:
+        with _sqlite_connect() as conn:
+            for prefix in prefixes:
+                cur=conn.execute("DELETE FROM model_parameters WHERE name LIKE ?",(f"{prefix}%",))
+                deleted += int(cur.rowcount or 0)
+    except Exception:
+        pass
+    return deleted
+
+
+def sqlite_store_projection(row: Dict[str, Any]) -> bool:
+    if safe_float(row.get("projection"), None) is None or not row.get("match_url"):
+        return False
+    sid = snapshot_key(row)
+    payload = dict(row)
+    payload["snapshot_id"] = sid
+    created = str(row.get("projection_time") or now_iso())
+    try:
+        with _sqlite_connect() as conn:
+            conn.execute("""INSERT INTO projections(
+              snapshot_id,prop_id,player,player_key,match_url,start_time,line,lean,
+              raw_probability,probability,status,veto_state,event_tier,payload_json,created_at,
+              graded_result,actual_kills,graded_at)
+              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'PENDING',NULL,NULL)
+              ON CONFLICT(snapshot_id) DO UPDATE SET
+                payload_json=excluded.payload_json, probability=excluded.probability,
+                raw_probability=excluded.raw_probability, status=excluded.status
+            """, (sid,str(row.get("prop_id") or ""),str(row.get("player") or ""),normalize_name(row.get("player")),
+                   str(row.get("match_url") or ""),str(row.get("start_time") or ""),safe_float(row.get("line"),None),
+                   str(row.get("lean") or ""),safe_float(row.get("raw_probability"),None),safe_float(row.get("probability"),None),
+                   str(row.get("status") or ""),str(row.get("veto_state") or ""),str(row.get("event_tier") or ""),
+                   json.dumps(payload,ensure_ascii=False,default=str),created))
+        return True
+    except Exception:
+        return False
+
+
+def sqlite_graded_projection_rows() -> List[Dict[str, Any]]:
+    rows=[]
+    try:
+        with _sqlite_connect() as conn:
+            for rec in conn.execute("SELECT payload_json,graded_result,actual_kills,graded_at FROM projections WHERE graded_result IN ('WIN','LOSS','PUSH') ORDER BY created_at"):
+                payload=json.loads(rec["payload_json"])
+                payload.update({"graded_result":rec["graded_result"],"actual_kills":rec["actual_kills"],"graded_at":rec["graded_at"]})
+                rows.append(payload)
+    except Exception:
+        pass
+    return rows
+
+
+def sqlite_pending_projection_rows(limit: int = 180) -> List[Dict[str, Any]]:
+    rows=[]
+    try:
+        with _sqlite_connect() as conn:
+            for rec in conn.execute("SELECT snapshot_id,payload_json FROM projections WHERE graded_result IS NULL OR graded_result='PENDING' ORDER BY start_time LIMIT ?",(limit,)):
+                payload=json.loads(rec["payload_json"]); payload["snapshot_id"]=rec["snapshot_id"]
+                start=_parse_iso_datetime(payload.get("start_time"))
+                if start is None or start <= datetime.now(timezone.utc)-timedelta(hours=1): rows.append(payload)
+    except Exception:
+        pass
+    return rows
+
+
+def sqlite_mark_projection_graded(snapshot_id: str, result: str, actual: float, grade_meta: Optional[Dict[str, Any]] = None) -> None:
+    with _sqlite_connect() as conn:
+        rec=conn.execute("SELECT payload_json FROM projections WHERE snapshot_id=?",(snapshot_id,)).fetchone()
+        payload=json.loads(rec["payload_json"]) if rec else {}
+        if grade_meta:
+            payload["grade_meta"]=grade_meta
+            payload["team_total_kills"]=grade_meta.get("team_total_kills")
+            payload["observed_player_share"]=grade_meta.get("observed_player_share")
+        conn.execute("UPDATE projections SET graded_result=?,actual_kills=?,graded_at=?,payload_json=? WHERE snapshot_id=?",(result,float(actual),now_iso(),json.dumps(payload,default=str),snapshot_id))
+
+
+init_core_database()
 
 
 def log_request(source: str, url: str, status: int, message: str = "") -> None:
@@ -548,6 +847,14 @@ def cache_path(key: str, ext: str = "txt") -> str:
     return os.path.join(CACHE_DIR, f"{digest}.{ext}")
 
 
+def cache_age_seconds(key: str) -> Optional[float]:
+    path = cache_path(key)
+    try:
+        return max(0.0, time.time() - os.path.getmtime(path)) if os.path.exists(path) else None
+    except Exception:
+        return None
+
+
 def read_cache(key: str, max_age_seconds: int) -> Optional[str]:
     path = cache_path(key)
     try:
@@ -567,6 +874,24 @@ def write_cache(key: str, content: str) -> None:
         pass
 
 
+def _source_stale_limit(source: str, fallback: int = 0) -> int:
+    text=normalize_name(source)
+    if "underdog" in text: return SOURCE_MAX_STALE_SECONDS["underdog"]
+    if "prize" in text: return SOURCE_MAX_STALE_SECONDS["prizepicks"]
+    if "grade" in text or "recent team match" in text or "deep mapstats" in text: return SOURCE_MAX_STALE_SECONDS["completed_history"]
+    if "match" in text: return SOURCE_MAX_STALE_SECONDS["match"]
+    if "roster" in text: return SOURCE_MAX_STALE_SECONDS["roster"]
+    if "player" in text: return SOURCE_MAX_STALE_SECONDS["player_form"]
+    if "team maps" in text: return SOURCE_MAX_STALE_SECONDS["team_maps"]
+    return fallback
+
+
+def source_freshness_ok(status: Dict[str, Any], max_age_seconds: int) -> bool:
+    if not status or not status.get("ok"): return False
+    age=safe_float(status.get("age_seconds"),None)
+    return age is not None and age<=max_age_seconds and status.get("cache") != "stale"
+
+
 def http_get_text(
     url: str,
     source: str,
@@ -575,11 +900,12 @@ def http_get_text(
     headers: Optional[Dict[str, str]] = None,
     timeout: int = 18,
     allow_stale: bool = True,
+    stale_ttl: Optional[int] = None,
 ) -> Tuple[Optional[str], Dict[str, Any]]:
     full_key = url + "?" + json.dumps(params or {}, sort_keys=True)
     cached = read_cache(full_key, ttl)
     if cached is not None:
-        return cached, {"ok": True, "source": source, "cache": "fresh", "status": 200, "url": url}
+        return cached, {"ok": True, "source": source, "cache": "fresh", "status": 200, "url": url, "age_seconds": cache_age_seconds(full_key)}
     merged = dict(DEFAULT_HEADERS)
     if headers:
         merged.update(headers)
@@ -588,15 +914,16 @@ def http_get_text(
         log_request(source, response.url, response.status_code, response.reason)
         if response.ok and response.text:
             write_cache(full_key, response.text)
-            return response.text, {"ok": True, "source": source, "cache": "live", "status": response.status_code, "url": response.url}
+            return response.text, {"ok": True, "source": source, "cache": "live", "status": response.status_code, "url": response.url, "age_seconds": 0.0, "fetched_at": now_iso()}
         message = f"HTTP {response.status_code}"
     except Exception as exc:
         message = str(exc)
         log_request(source, url, 0, message)
     if allow_stale:
-        stale = read_cache(full_key, 60 * 60 * 24 * 14)
+        limit = _source_stale_limit(source, 0) if stale_ttl is None else max(0,int(stale_ttl))
+        stale = read_cache(full_key, limit) if limit>0 else None
         if stale is not None:
-            return stale, {"ok": True, "source": source, "cache": "stale", "status": 200, "url": url, "warning": message}
+            return stale, {"ok": True, "source": source, "cache": "stale", "status": 200, "url": url, "warning": message, "age_seconds": cache_age_seconds(full_key), "stale_limit_seconds":limit}
     return None, {"ok": False, "source": source, "status": 0, "url": url, "warning": message}
 
 
@@ -608,8 +935,9 @@ def http_get_json(
     headers: Optional[Dict[str, str]] = None,
     timeout: int = 18,
     allow_stale: bool = True,
+    stale_ttl: Optional[int] = None,
 ) -> Tuple[Optional[Any], Dict[str, Any]]:
-    text, status = http_get_text(url, source, ttl, params, headers, timeout, allow_stale)
+    text, status = http_get_text(url, source, ttl, params, headers, timeout, allow_stale, stale_ttl)
     if text is None:
         return None, status
     try:
@@ -760,7 +1088,8 @@ def _parse_iso_datetime(value: Any) -> Optional[datetime]:
     if not text:
         return None
     try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+        dt=datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
     except Exception:
         return None
 
@@ -833,6 +1162,11 @@ def _parse_underdog_top_level(data: Any) -> List[Dict[str, Any]]:
         line = _extract_line(line_obj, over_under, appearance_stat)
         if not player or line is None:
             continue
+        # Maps 1-2 kill lines are normally far above single-map lines. Reject
+        # obvious Map 1 / specialty markets even if Underdog's relationship text
+        # contains a nearby "Maps 1-2" label.
+        if not (MIN_M12_KILL_LINE <= float(line) <= MAX_M12_KILL_LINE):
+            continue
 
         team = str(team_obj.get("name") or team_obj.get("display_name") or player_obj.get("team_name") or appearance.get("team_name") or "").strip()
         home_id = game_obj.get("home_team_id")
@@ -860,6 +1194,14 @@ def _parse_underdog_top_level(data: Any) -> List[Dict[str, Any]]:
             "matchup": matchup,
             "start_time": start_time,
             "market": "Maps 1-2 Kills",
+            "market_scope": "maps_1_2",
+            "market_scope_verified": True,
+            "market_identity_method": "Underdog relationship + exact Maps 1-2 kill label",
+            "source_line_id": str(line_obj.get("id") or ""),
+            "appearance_id": str(appearance_id or ""),
+            "game_id": str(game_id or ""),
+            "sport_id": str(sport_id or ""),
+            "stat_name": str(stat_name or ""),
             "line": float(line),
             "evidence": text[:900],
             "source_pulled_at": now_iso(),
@@ -915,6 +1257,9 @@ def fetch_underdog_cs2_board() -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
             player = _extract_player_name(player_obj, appearance_obj, ou_obj, line_obj)
             line = _extract_line(line_obj, ou_obj, appearance_obj)
             if not player or line is None:
+                continue
+            if not (MIN_M12_KILL_LINE <= float(line) <= MAX_M12_KILL_LINE):
+                rejected += 1
                 continue
             team = _first_attr(linked, ["team_name", "team", "organization", "current_team"])
             opponent = _first_attr(linked, ["opponent_name", "opponent", "versus", "away_team", "home_team"])
@@ -1032,6 +1377,218 @@ def parse_manual_board_dataframe(df: pd.DataFrame) -> List[Dict[str, Any]]:
     return rows
 
 # ============================================================
+
+# ============================================================
+# PERSISTENT CS2 DATABASE — REAL MATCHED DATA ONLY
+# ============================================================
+
+def _load_json_dict(path: str) -> Dict[str, Any]:
+    try:
+        value = load_json(path, {})
+        return value if isinstance(value, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_json_dict(path: str, value: Dict[str, Any]) -> None:
+    save_json(path, value)
+
+
+def sqlite_store_team_map_observation(team_id: str, team_name: str, match_url: str, row: Dict[str, Any], opponent_rank: Optional[float], same_core: bool, environment: str) -> bool:
+    map_name=canonical_map_name(row.get("map")); match_id=_match_id_from_url(match_url) or hashlib.md5(str(match_url).encode()).hexdigest()[:16]
+    if not team_id or not map_name or not match_id:
+        return False
+    played=str(row.get("played_at") or row.get("match_datetime") or "")
+    team_score=safe_int(row.get("rounds_won"),None); opp_score=safe_int(row.get("rounds_lost"),None)
+    rounds=safe_int(row.get("rounds"),None)
+    if rounds is None and team_score is not None and opp_score is not None: rounds=team_score+opp_score
+    margin=abs((team_score or 0)-(opp_score or 0)) if team_score is not None and opp_score is not None else None
+    overtime=bool(row.get("overtime")) or bool(rounds and rounds>24)
+    obs_id=hashlib.sha256(f"{team_id}|{match_id}|{map_name}".encode()).hexdigest()
+    payload={**row,"team_id":team_id,"team_name":team_name,"match_id":match_id,"match_url":match_url,"opponent_rank":opponent_rank,"same_core":bool(same_core),"environment":environment}
+    try:
+        with _sqlite_connect() as conn:
+            conn.execute("""INSERT OR REPLACE INTO team_map_observations(observation_id,team_id,team_name,match_id,match_url,map_name,played_at,team_score,opponent_score,rounds,margin,overtime,opponent_rank,same_core,environment,payload_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (obs_id,str(team_id),team_name,match_id,match_url,map_name,played,team_score,opp_score,rounds,margin,int(overtime),safe_float(opponent_rank,None),int(bool(same_core)),environment,json.dumps(payload,default=str),now_iso()))
+        return True
+    except Exception:
+        return False
+
+
+def sqlite_team_map_observations(team_id: str, days: int = 365, limit: int = 300) -> List[Dict[str, Any]]:
+    if not team_id: return []
+    cutoff=(datetime.now(timezone.utc)-timedelta(days=days)).isoformat()
+    rows=[]
+    try:
+        with _sqlite_connect() as conn:
+            records=conn.execute("""SELECT * FROM team_map_observations WHERE team_id=? AND (played_at='' OR played_at IS NULL OR played_at>=?) ORDER BY played_at DESC,created_at DESC LIMIT ?""",(str(team_id),cutoff,int(limit))).fetchall()
+        for rec in records:
+            payload=json.loads(rec["payload_json"] or "{}")
+            payload.update({"map":rec["map_name"],"rounds_won":rec["team_score"],"rounds_lost":rec["opponent_score"],"rounds":rec["rounds"],"margin":rec["margin"],"overtime":bool(rec["overtime"]),"opponent_rank":rec["opponent_rank"],"same_core":bool(rec["same_core"]),"match_id":rec["match_id"],"match_url":rec["match_url"],"match_datetime":rec["played_at"]})
+            rows.append(payload)
+    except Exception:
+        pass
+    return rows
+
+
+def database_status() -> Dict[str, Any]:
+    files = {
+        "players": PLAYER_DATABASE_FILE,
+        "teams": TEAM_DATABASE_FILE,
+        "matches": MATCH_DATABASE_FILE,
+        "maps": MAP_DATABASE_FILE,
+        "vetoes": VETO_DATABASE_FILE,
+        "rosters": ROSTER_DATABASE_FILE,
+    }
+    out: Dict[str, Any] = {"schema_version": DATABASE_SCHEMA_VERSION}
+    for key, path in files.items():
+        data = _load_json_dict(path)
+        out[key] = len(data)
+        out[f"{key}_file"] = path
+    out["meta"] = _load_json_dict(DATABASE_META_FILE)
+    out["team_map_observations"]=_sqlite_count("team_map_observations")
+    out["sqlite_projections"]=_sqlite_count("projections")
+    out["demo_events"]=_sqlite_count("demo_events")
+    out["demo_rounds"]=_sqlite_count("demo_rounds")
+    return out
+
+
+def _sqlite_count(table: str, where: str = "", params: Sequence[Any] = ()) -> int:
+    allowed={"projections","demo_events","demo_rounds","roster_events","entity_snapshots","market_ticks","grading_audit","model_fit_history","team_map_observations"}
+    if table not in allowed:
+        return 0
+    try:
+        with _sqlite_connect() as conn:
+            row=conn.execute(f"SELECT COUNT(*) AS n FROM {table}" + (f" WHERE {where}" if where else ""),tuple(params)).fetchone()
+        return int(row["n"] if row else 0)
+    except Exception:
+        return 0
+
+
+def model_health_report(board: Optional[List[Dict[str, Any]]] = None, line_status: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    board=list(board or [])
+    valid=[r for r in board if safe_float(r.get("projection"),None) is not None]
+    exact=[r for r in valid if r.get("market_scope_verified") and safe_float(r.get("market_identity_confidence"),0)>=0.90]
+    ids=[r for r in valid if ((r.get("identity_ids") or {}).get("player_id") and (r.get("identity_ids") or {}).get("match_id") and (r.get("identity_ids") or {}).get("team_id") and (r.get("identity_ids") or {}).get("opponent_id"))]
+    lineups=[r for r in valid if bool(r.get("player_in_lineup"))]
+    fresh=[r for r in valid if not any("STALE" in str(f).upper() for f in (r.get("flags") or []))]
+    confirmed=[r for r in valid if r.get("veto_state")=="CONFIRMED"]
+    graded=_sqlite_count("projections","graded_result IN ('WIN','LOSS')")
+    demos=_sqlite_count("demo_events"); demo_rounds=_sqlite_count("demo_rounds")
+    snapshots=_sqlite_count("entity_snapshots"); ticks=_sqlite_count("market_ticks"); audits=_sqlite_count("grading_audit"); team_obs=_sqlite_count("team_map_observations")
+    cal=calibration_metrics()
+    round_fit=load_model_fit("round_kill_env:global")
+    def ratio(rows): return len(rows)/len(valid) if valid else 0.0
+    integrity=25*(.30*ratio(exact)+.25*ratio(ids)+.25*ratio(lineups)+.20*ratio(fresh))
+    depth=25*min(1.0,(snapshots/1000)*.20+(demos/5000)*.20+(demo_rounds/5000)*.20+(ticks/1000)*.20+(team_obs/1000)*.20)
+    calibration=25*min(1.0,graded/max(MIN_CALIBRATION_STRONG,1))
+    simulation=25*(.35*min(1.0,demo_rounds/max(MIN_ROUND_KILL_TRAINING_ROUNDS,1))+.25*min(1.0,safe_int(round_fit.get("sample"),0)/max(MIN_ROUND_KILL_TRAINING_ROUNDS,1))+.20*ratio(confirmed)+.20*min(1.0,audits/max(graded,1)))
+    score=round(clamp(integrity+depth+calibration+simulation,0,100),1)
+    grade="A" if score>=85 else "B" if score>=72 else "C" if score>=58 else "D" if score>=42 else "BUILDING"
+    return {
+        "score":score,"grade":grade,"board_rows":len(board),"valid_projections":len(valid),
+        "exact_market_ratio":ratio(exact),"verified_id_ratio":ratio(ids),"confirmed_lineup_ratio":ratio(lineups),
+        "fresh_source_ratio":ratio(fresh),"confirmed_veto_ratio":ratio(confirmed),
+        "graded_binary":graded,"calibration_tier":("UNREADY" if graded<MIN_CALIBRATION_PRELIMINARY else "PRELIMINARY" if graded<MIN_CALIBRATION_USABLE else "USABLE" if graded<MIN_CALIBRATION_STRONG else "STRONG"),
+        "brier":cal.get("brier"),"log_loss":cal.get("log_loss"),"demo_events":demos,"demo_rounds":demo_rounds,
+        "entity_snapshots":snapshots,"market_ticks":ticks,"grading_audits":audits,"team_map_observations":team_obs,
+        "round_environment_sample":safe_int(round_fit.get("sample"),0),
+        "components":{"integrity":round(integrity,1),"data_depth":round(depth,1),"calibration":round(calibration,1),"simulation_training":round(simulation,1)},
+        "line_status":line_status or {},
+        "note":"Health score measures data readiness and validation depth; it is not a promised win rate."
+    }
+
+
+def upsert_database_record(path: str, key: str, record: Dict[str, Any]) -> None:
+    if not key:
+        return
+    data = _load_json_dict(path)
+    old = data.get(key, {}) if isinstance(data.get(key), dict) else {}
+    merged = {**old, **record, "updated_at": now_iso(), "schema_version": DATABASE_SCHEMA_VERSION}
+    data[key] = merged
+    _save_json_dict(path, data)
+
+
+def save_projection_entities(row: Dict[str, Any]) -> None:
+    """Persist only verified entities. Never turn fallback defaults into database facts."""
+    player = str(row.get("player") or "").strip()
+    team = str(row.get("team") or "").strip()
+    opponent = str(row.get("opponent") or "").strip()
+    if player and int(row.get("profile_maps") or 0) > 0 and row.get("profile_href"):
+        upsert_database_record(PLAYER_DATABASE_FILE, normalize_name(player), {
+            k: row.get(k) for k in [
+                "player", "team", "profile_href", "profile_maps", "profile_rounds", "base_kpr",
+                "dpr", "adr", "rating", "kd", "kast_pct", "impact", "opening_kpr",
+                "opening_deaths_pr", "multi_kill_rate", "awp_kill_share", "ct_kpr", "t_kpr",
+                "role", "role_confidence", "profile_source", "player_map_profiles"
+            ]
+        })
+    if team and row.get("match_url"):
+        upsert_database_record(TEAM_DATABASE_FILE, normalize_name(team), {
+            "team": team, "world_ranks": row.get("world_ranks"), "recent_maps": row.get("team_recent_maps"),
+            "current_roster_maps": row.get("current_roster_maps"), "roster_stability": row.get("roster_stability")
+        })
+    if opponent and row.get("opponent_mapstats_samples", 0):
+        upsert_database_record(TEAM_DATABASE_FILE, normalize_name(opponent), {
+            "team": opponent, "deaths_allowed_per_round": row.get("opponent_deaths_allowed_pr"),
+            "mapstats_samples": row.get("opponent_mapstats_samples")
+        })
+    if row.get("match_url") and team and opponent:
+        upsert_database_record(MATCH_DATABASE_FILE, str(row.get("match_url")), {
+            k: row.get(k) for k in ["match_url", "team", "opponent", "start_time", "event", "stage", "event_tier", "environment", "match_format", "likely_maps", "map_scenarios"]
+        })
+    for map_name, profile in (row.get("player_map_profiles") or {}).items():
+        if isinstance(profile, dict) and int(profile.get("maps") or 0) > 0:
+            upsert_database_record(MAP_DATABASE_FILE, f"{normalize_name(player)}|{normalize_name(map_name)}", {
+                "player": player, "map": map_name, **profile
+            })
+    # Also retain immutable as-of snapshots in SQLite for chronological backtests.
+    as_of=row.get("projection_time") or now_iso()
+    if player and int(row.get("profile_maps") or 0)>0:
+        sqlite_store_entity_snapshot("player",str((row.get("identity_ids") or {}).get("player_id") or normalize_name(player)),{k:row.get(k) for k in ["player","team","profile_maps","profile_rounds","base_kpr","dpr","adr","rating","kd","role","role_confidence","player_map_profiles","kpr_source"]},row.get("profile_source") or "HLTV",None,as_of)
+    if team:
+        sqlite_store_entity_snapshot("team",str((row.get("identity_ids") or {}).get("team_id") or normalize_team(team)),{"team":team,"world_ranks":row.get("world_ranks"),"recent_maps":row.get("team_recent_maps"),"current_roster_maps":row.get("current_roster_maps"),"roster_stability":row.get("roster_stability")},"HLTV team history",None,as_of)
+    if opponent:
+        sqlite_store_entity_snapshot("opponent",str((row.get("identity_ids") or {}).get("opponent_id") or normalize_team(opponent)),{"team":opponent,"deaths_allowed_per_round":row.get("opponent_deaths_allowed_pr"),"mapstats_samples":row.get("opponent_mapstats_samples")},"HLTV opponent history",None,as_of)
+    if row.get("match_url"):
+        sqlite_store_entity_snapshot("match",str((row.get("identity_ids") or {}).get("match_id") or row.get("match_url")),{k:row.get(k) for k in ["match_url","team","opponent","start_time","event","stage","event_tier","environment","match_format","likely_maps","map_scenarios","veto_state"]},"HLTV match page",safe_float((row.get("source_freshness") or {}).get("match_age_seconds"),None),as_of)
+    meta = _load_json_dict(DATABASE_META_FILE)
+    meta.update({"last_updated": now_iso(), "schema_version": DATABASE_SCHEMA_VERSION})
+    _save_json_dict(DATABASE_META_FILE, meta)
+
+
+def lookup_database_player(player: str) -> Dict[str, Any]:
+    aliases = _load_json_dict(PLAYER_ALIAS_FILE)
+    key = normalize_name(player)
+    alias = normalize_name(str(aliases.get(key) or key))
+    players = _load_json_dict(PLAYER_DATABASE_FILE)
+    if alias in players:
+        return players[alias]
+    candidates = [(name_similarity(player, rec.get("player", k)), rec) for k, rec in players.items() if isinstance(rec, dict)]
+    if candidates:
+        score, rec = max(candidates, key=lambda x: x[0])
+        if score >= 0.91:
+            return rec
+    return {}
+
+
+def projection_integrity_errors(row: Dict[str, Any]) -> List[str]:
+    errors: List[str] = []
+    line = safe_float(row.get("line"), None)
+    if line is None or not (MIN_M12_KILL_LINE <= line <= MAX_M12_KILL_LINE):
+        errors.append("INVALID MAPS 1-2 LINE")
+    if int(row.get("profile_maps") or 0) <= 0:
+        errors.append("NO REAL PLAYER PROFILE")
+    if not row.get("team"):
+        errors.append("TEAM UNMATCHED")
+    if not row.get("opponent"):
+        errors.append("OPPONENT UNMATCHED")
+    if not row.get("match_url"):
+        errors.append("MATCH UNMATCHED")
+    if str(row.get("likely_maps") or "").lower() in {"", "unconfirmed"} and float(row.get("map_confidence") or 0) < 50:
+        errors.append("MAPS UNVERIFIED")
+    return errors
+
 # FREE HLTV PUBLIC-DATA ADAPTER
 # ============================================================
 
@@ -1074,6 +1631,7 @@ class PlayerStats:
     source: str = ""
     href: str = ""
     data_warnings: List[str] = None
+    kpr_source: str = "unknown"
 
     def to_dict(self) -> Dict[str, Any]:
         out = asdict(self)
@@ -1130,9 +1688,15 @@ def fetch_hltv_player_table(days: int) -> Tuple[Dict[str, Dict[str, Any]], Dict[
     start, end = _period_dates(days)
     url = f"{HLTV_BASE}/stats/players"
     params = {"startDate": start, "endDate": end, "minMapCount": 1}
-    page, status = http_get_text(url, "HLTV player table", ttl=60 * 60, params=params, timeout=20)
+    page, status = http_get_text(url, "HLTV player table", ttl=60 * 60, params=params, timeout=20, allow_stale=True, stale_ttl=SOURCE_MAX_STALE_SECONDS["player_form"])
     rows = _extract_hltv_player_rows(page or "")
+    for row in rows.values():
+        row["_source_age_seconds"]=safe_float(status.get("age_seconds"),None)
+        row["_source_cache"]=status.get("cache")
+        row["_source_fresh"]=source_freshness_ok(status,SOURCE_MAX_STALE_SECONDS["player_form"])
     status.update({"rows": len(rows), "period_days": days})
+    if rows:
+        sqlite_store_entity_snapshot("player_table",f"{days}d",{"rows":len(rows),"players":rows},"HLTV player table",status.get("age_seconds"),now_iso())
     return rows, status
 
 
@@ -1265,7 +1829,7 @@ def fetch_hltv_player_overview_profile(player_id: str, slug: str, days: int = 18
     if map_name and map_name in HLTV_MAP_KEYS:
         params["maps"] = HLTV_MAP_KEYS[map_name]
     url = f"{HLTV_BASE}/stats/players/{player_id}/{slug}"
-    page, status = http_get_text(url, "HLTV player overview", ttl=60 * 60 * 4, params=params, timeout=20)
+    page, status = http_get_text(url, "HLTV player overview", ttl=60 * 60 * 4, params=params, timeout=20, allow_stale=True, stale_ttl=SOURCE_MAX_STALE_SECONDS["player_form"])
     if not page:
         return {}, status
     kpr_values = _extract_labeled_metrics_all(page, "Kills per round", limit=6)
@@ -1296,7 +1860,7 @@ def fetch_hltv_filtered_player_profile(player_id: str, slug: str, days: int = 18
     if side:
         params["side"] = side
     url = f"{HLTV_BASE}/stats/players/individual/{player_id}/{slug}"
-    page, status = http_get_text(url, "HLTV filtered individual", ttl=60 * 60 * 4, params=params, timeout=20)
+    page, status = http_get_text(url, "HLTV filtered individual", ttl=60 * 60 * 4, params=params, timeout=20, allow_stale=True, stale_ttl=SOURCE_MAX_STALE_SECONDS["player_form"])
     if not page:
         return {}, status
     profile = {
@@ -1323,48 +1887,76 @@ def fetch_hltv_filtered_player_profile(player_id: str, slug: str, days: int = 18
     return profile, status
 
 
-def build_player_map_profiles(profile: PlayerStats, likely_maps: Sequence[str]) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+
+def era_recency_weight(observed_at: Any, target_at: Any = None, era: Optional[Dict[str, Any]] = None) -> float:
+    target = _parse_iso_datetime(target_at) if target_at else datetime.now(timezone.utc)
+    observed = _parse_iso_datetime(observed_at)
+    if not target or not observed:
+        return 0.55
+    half_life = max(safe_float((era or {}).get("decay_half_life_days"), 120) or 120, 20)
+    age = max(0.0, (target-observed).total_seconds()/86400.0)
+    weight = 0.5 ** (age/half_life)
+    era_start = _parse_iso_datetime((era or {}).get("effective_from"))
+    if era_start and observed < era_start:
+        weight *= 0.30
+    return clamp(weight, 0.03, 1.0)
+
+
+def build_player_map_profiles(profile: PlayerStats, likely_maps: Sequence[str], target_time: Any = None, patch_era: Optional[Dict[str, Any]] = None) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
     out: Dict[str, Dict[str, Any]] = {}
     statuses: Dict[str, Any] = {}
     if not profile.player_id or not likely_maps:
         return out, {"ok": False, "message": "player id or likely maps unavailable"}
+    era = patch_era or patch_era_for_time(target_time)
+    target_dt = _parse_iso_datetime(target_time) or datetime.now(timezone.utc)
+    era_start = _parse_iso_datetime(era.get("effective_from"))
+    days_in_era = max(1.0, (target_dt-(era_start or target_dt-timedelta(days=180))).total_seconds()/86400.0)
+    long_era_factor = clamp(days_in_era/180.0, 0.20, 1.0)
     for map_name in list(dict.fromkeys(likely_maps))[:3]:
         long_row, long_status = fetch_hltv_filtered_player_profile(profile.player_id, profile.slug, 180, map_name)
         recent_row, recent_status = fetch_hltv_filtered_player_profile(profile.player_id, profile.slug, 60, map_name)
+        demo = demo_profile_for(profile.player, map_name)
         long_maps = safe_int(long_row.get("maps"), 0) or 0
         recent_maps = safe_int(recent_row.get("maps"), 0) or 0
         long_kpr = safe_float(long_row.get("kpr"), None)
         recent_kpr = safe_float(recent_row.get("kpr"), None)
-        if long_kpr is None:
-            statuses[map_name] = {"long": long_status, "recent": recent_status, "usable": False}
+        demo_kpr = safe_float(demo.get("kpr"), None) if demo.get("denominator_verified") else None
+        if long_kpr is None and demo_kpr is None:
+            statuses[map_name] = {"long": long_status, "recent": recent_status, "demo": demo, "usable": False}
             continue
-        sample_weight = clamp(long_maps / (long_maps + 12.0), 0.0, 0.88)
-        recent_weight = clamp(recent_maps / (recent_maps + 8.0), 0.0, 0.45) if recent_kpr is not None else 0.0
-        shrunk_long = profile.kpr * (1.0 - sample_weight) + long_kpr * sample_weight
-        blended = shrunk_long * (1.0 - recent_weight) + (recent_kpr or shrunk_long) * recent_weight
-        out[map_name] = {
-            "map": map_name,
-            "maps": long_maps,
-            "rounds": safe_int(long_row.get("rounds"), 0) or 0,
-            "kpr": round(float(long_kpr), 4),
-            "recent_maps": recent_maps,
-            "recent_kpr": round(float(recent_kpr), 4) if recent_kpr is not None else None,
-            "blended_kpr": round(clamp(float(blended), 0.44, 0.98), 4),
-            "dpr": safe_float(long_row.get("dpr"), None),
-            "adr": safe_float(long_row.get("adr"), None),
-            "rating": safe_float(long_row.get("rating"), None),
-            "opening_kpr": (safe_float(long_row.get("opening_kills"), 0) or 0) / max(safe_float(long_row.get("rounds"), 0) or 0, 1),
-            "source": long_row.get("href", ""),
+        center = long_kpr if long_kpr is not None else profile.kpr
+        sample_weight = clamp(long_maps/(long_maps+12.0),0.0,0.88) * long_era_factor
+        recent_weight = clamp(recent_maps/(recent_maps+8.0),0.0,0.48) if recent_kpr is not None else 0.0
+        shrunk = profile.kpr*(1-sample_weight)+center*sample_weight
+        blended = shrunk*(1-recent_weight)+(recent_kpr if recent_kpr is not None else shrunk)*recent_weight
+        demo_rounds=safe_int(demo.get("rounds"),0) or 0
+        demo_weight=0.0
+        if demo_kpr is not None:
+            demo_weight=clamp(demo_rounds/(demo_rounds+180.0),0.0,0.58)*era_recency_weight(demo.get("latest_event_time"),target_time,era)
+            blended=blended*(1-demo_weight)+demo_kpr*demo_weight
+        sources=[]
+        if long_kpr is not None: sources.append("HLTV map KPR")
+        if recent_kpr is not None: sources.append("HLTV recent map KPR")
+        if demo_kpr is not None: sources.append("demo full-round KPR")
+        out[map_name]={
+            "map":map_name,"maps":long_maps,"rounds":safe_int(long_row.get("rounds"),0) or 0,
+            "kpr":round(float(center),4),"recent_maps":recent_maps,
+            "recent_kpr":round(float(recent_kpr),4) if recent_kpr is not None else None,
+            "demo_rounds":demo_rounds,"demo_kpr":round(float(demo_kpr),4) if demo_kpr is not None else None,
+            "demo_weight":round(demo_weight,4),"blended_kpr":round(clamp(float(blended),0.44,0.98),4),
+            "dpr":safe_float(long_row.get("dpr"),None),"adr":safe_float(long_row.get("adr"),None),
+            "rating":safe_float(long_row.get("rating"),None),
+            "opening_kpr":safe_float(demo.get("opening_kpr"),None) or ((safe_float(long_row.get("opening_kills"),0) or 0)/max(safe_float(long_row.get("rounds"),0) or 0,1)),
+            "hs_pct":safe_float(demo.get("hs_pct"),None),"awp_kill_share":safe_float(demo.get("awp_kill_share"),None),
+            "source":" + ".join(sources),"core_map_kpr_verified":long_kpr is not None or demo_kpr is not None,
+            "patch_era_weight":round(long_era_factor,4),
         }
-        statuses[map_name] = {"long": long_status, "recent": recent_status, "usable": True}
-    # Persist the latest real map profile for inspection and fallback learning.
-    saved = load_json(DEEP_PLAYER_MAP_FILE, {})
-    if not isinstance(saved, dict):
-        saved = {}
+        statuses[map_name]={"long":long_status,"recent":recent_status,"demo":demo,"usable":True}
+    saved=load_json(DEEP_PLAYER_MAP_FILE,{})
+    if not isinstance(saved,dict): saved={}
     if out:
-        saved[normalize_name(profile.player)] = {"updated_at": now_iso(), "maps": out}
-        save_json(DEEP_PLAYER_MAP_FILE, saved)
-    return out, {"ok": bool(out), "maps": list(out), "statuses": statuses}
+        saved[normalize_name(profile.player)]={"updated_at":now_iso(),"maps":out}; save_json(DEEP_PLAYER_MAP_FILE,saved)
+    return out,{"ok":bool(out),"maps":list(out),"statuses":statuses,"patch_era":era.get("name")}
 
 
 @st.cache_data(ttl=60 * 60 * 4, show_spinner=False)
@@ -1373,7 +1965,7 @@ def fetch_hltv_individual_profile(player_id: str, slug: str, days: int = 180) ->
         return {}, {"ok": False, "warning": "no player id"}
     start, end = _period_dates(days)
     url = f"{HLTV_BASE}/stats/players/individual/{player_id}/{slug}"
-    page, status = http_get_text(url, "HLTV individual", ttl=60 * 60 * 4, params={"startDate": start, "endDate": end}, timeout=20)
+    page, status = http_get_text(url, "HLTV individual", ttl=60 * 60 * 4, params={"startDate": start, "endDate": end}, timeout=20, allow_stale=True, stale_ttl=SOURCE_MAX_STALE_SECONDS["player_form"])
     if not page:
         return {}, status
     profile = {
@@ -1401,11 +1993,13 @@ def build_player_profile(
     player_name: str,
     long_table: Dict[str, Dict[str, Any]],
     medium_table: Dict[str, Dict[str, Any]],
-    recent_table: Dict[str, Dict[str, Any]],
+    recent30_table: Dict[str, Dict[str, Any]],
+    recent15_table: Dict[str, Dict[str, Any]],
 ) -> Tuple[PlayerStats, Dict[str, Any]]:
     long_row, match_score = fuzzy_lookup_player(player_name, long_table)
     medium_row, medium_score = fuzzy_lookup_player(player_name, medium_table)
-    recent_row, recent_score = fuzzy_lookup_player(player_name, recent_table)
+    recent30_row, recent30_score = fuzzy_lookup_player(player_name, recent30_table)
+    recent15_row, recent15_score = fuzzy_lookup_player(player_name, recent15_table)
     overrides = load_json(PLAYER_OVERRIDES_FILE, {})
     override = overrides.get(normalize_name(player_name), {}) if isinstance(overrides, dict) else {}
     warnings: List[str] = []
@@ -1419,7 +2013,7 @@ def build_player_profile(
 
     if not long_row:
         return PlayerStats(player=player_name, source="NO PROFILE", data_warnings=["Player not found in free statistics source"]), {
-            "matched": False, "match_score": match_score, "recent_score": recent_score,
+            "matched": False, "match_score": match_score, "recent30_score": recent30_score, "recent15_score": recent15_score,
         }
 
     individual, individual_status = fetch_hltv_individual_profile(str(long_row.get("player_id", "")), str(long_row.get("slug", "")), 180)
@@ -1431,17 +2025,20 @@ def build_player_profile(
     kd = safe_float(individual.get("kd"), safe_float(long_row.get("kd"), 1.0)) or 1.0
     rating = safe_float(individual.get("rating"), safe_float(long_row.get("rating"), 1.0)) or 1.0
     kpr = safe_float(individual.get("kpr"), None)
+    kpr_source = "hltv_reported_kpr" if kpr is not None else "unknown"
     dpr = safe_float(individual.get("dpr"), None)
     adr = safe_float(individual.get("adr"), None)
 
     if kpr is None and rounds > 0 and kills > 0:
         kpr = kills / rounds
+        kpr_source = "real_kills_div_rounds"
     if dpr is None and rounds > 0 and deaths > 0:
         dpr = deaths / rounds
     if kpr is None:
         # Data-driven fallback from the real player's K/D and rating.
         kpr = LEAGUE_KPR * clamp(0.50 * kd + 0.50 * rating, 0.78, 1.28)
         warnings.append("KPR estimated from player K/D and rating")
+        kpr_source = "estimated_from_kd_rating"
     if dpr is None:
         dpr = clamp(kpr / max(kd, 0.65), 0.52, 0.86)
         warnings.append("DPR estimated")
@@ -1449,30 +2046,42 @@ def build_player_profile(
         adr = LEAGUE_ADR * clamp(0.55 * rating + 0.45 * (kpr / LEAGUE_KPR), 0.78, 1.30)
         warnings.append("ADR estimated")
 
-    # Apply current-form signal from free aggregated tables, capped tightly.
+    # Current form uses the requested 15/30-day windows, shrunk toward 60/180-day baselines.
+    # This reduces overreaction to one hot series while still catching genuine role/form changes.
     long_rating = safe_float(long_row.get("rating"), rating) or rating
     medium_rating = safe_float((medium_row or {}).get("rating"), long_rating) or long_rating
-    recent_rating = safe_float((recent_row or {}).get("rating"), medium_rating) or medium_rating
+    r30_rating = safe_float((recent30_row or {}).get("rating"), medium_rating) or medium_rating
+    r15_rating = safe_float((recent15_row or {}).get("rating"), r30_rating) or r30_rating
     medium_maps = safe_int((medium_row or {}).get("maps"), 0) or 0
-    recent_maps = safe_int((recent_row or {}).get("maps"), 0) or 0
-    medium_weight = clamp(medium_maps / 30.0, 0.0, 1.0)
-    recent_weight = clamp(recent_maps / 18.0, 0.0, 1.0)
-    form_rating = (
-        0.58 * long_rating +
-        0.27 * (medium_weight * medium_rating + (1 - medium_weight) * long_rating) +
-        0.15 * (recent_weight * recent_rating + (1 - recent_weight) * medium_rating)
-    )
-    form_factor = clamp(form_rating / max(long_rating, 0.75), 0.92, 1.08)
+    r30_maps = safe_int((recent30_row or {}).get("maps"), 0) or 0
+    r15_maps = safe_int((recent15_row or {}).get("maps"), 0) or 0
+    w60 = clamp(medium_maps / 35.0, 0.0, 1.0)
+    w30 = clamp(r30_maps / 22.0, 0.0, 1.0)
+    w15 = clamp(r15_maps / 12.0, 0.0, 1.0)
+    adj60 = w60 * medium_rating + (1-w60) * long_rating
+    adj30 = w30 * r30_rating + (1-w30) * adj60
+    adj15 = w15 * r15_rating + (1-w15) * adj30
+    form_rating = 0.50*long_rating + 0.20*adj60 + 0.18*adj30 + 0.12*adj15
+    form_factor = clamp(form_rating / max(long_rating, 0.75), 0.91, 1.09)
     kpr = clamp(kpr * form_factor, 0.47, 0.92)
 
     # Manual profile fields override only the supplied metric, never the line.
     if override:
+        if safe_float(override.get("kpr"), None) is not None:
+            kpr_source = "manual_override"
         kpr = safe_float(override.get("kpr"), kpr) or kpr
         dpr = safe_float(override.get("dpr"), dpr) or dpr
         adr = safe_float(override.get("adr"), adr) or adr
         rating = safe_float(override.get("rating"), rating) or rating
         maps = safe_int(override.get("maps"), maps) or maps
         rounds = safe_int(override.get("rounds"), rounds) or rounds
+
+    table_fresh=bool(long_row.get("_source_fresh",True))
+    advanced_statuses=[individual_status,overview_status]
+    advanced_fresh=any(source_freshness_ok(x,SOURCE_MAX_STALE_SECONDS["player_form"]) for x in advanced_statuses if x)
+    source_fresh=bool(table_fresh and advanced_fresh)
+    if not source_fresh:
+        warnings.append("PLAYER FORM SOURCE STALE OR UNVERIFIED")
 
     profile = PlayerStats(
         player=player_name,
@@ -1512,19 +2121,27 @@ def build_player_profile(
         source="HLTV public stats + advanced profile" if (individual_status.get("ok") or overview_status.get("ok")) else "HLTV aggregate + estimated KPR",
         href=str(individual.get("href") or long_row.get("href") or ""),
         data_warnings=warnings,
+        kpr_source=kpr_source,
     )
     return profile, {
         "matched": True,
         "match_score": round(match_score, 3),
         "medium_score": round(medium_score, 3),
-        "recent_score": round(recent_score, 3),
+        "recent30_score": round(recent30_score, 3),
+        "recent15_score": round(recent15_score, 3),
         "long_row": long_row,
         "medium_row": medium_row,
-        "recent_row": recent_row,
+        "recent30_row": recent30_row,
+        "recent15_row": recent15_row,
+        "form_windows": {"180d_maps":safe_int(long_row.get("maps"),0) or 0,"60d_maps":medium_maps,"30d_maps":r30_maps,"15d_maps":r15_maps},
         "individual_status": individual_status,
         "overview_status": overview_status,
         "overview": overview,
         "form_factor": round(form_factor, 4),
+        "kpr_source": kpr_source,
+        "source_fresh":source_fresh,
+        "source_ages": {"table":long_row.get("_source_age_seconds"),"individual":individual_status.get("age_seconds"),"overview":overview_status.get("age_seconds")},
+        "core_kpr_verified": kpr_source in {"hltv_reported_kpr", "real_kills_div_rounds"},
     }
 
 # ============================================================
@@ -1533,7 +2150,7 @@ def build_player_profile(
 
 @st.cache_data(ttl=10 * 60, show_spinner=False)
 def fetch_hltv_matches_page() -> Tuple[str, Dict[str, Any]]:
-    page, status = http_get_text(f"{HLTV_BASE}/matches", "HLTV matches", ttl=10 * 60, timeout=20)
+    page, status = http_get_text(f"{HLTV_BASE}/matches", "HLTV matches", ttl=2 * 60, timeout=20, allow_stale=False)
     return page or "", status
 
 
@@ -1795,11 +2412,11 @@ def fetch_event_context(event_url: str) -> Tuple[Dict[str, Any], Dict[str, Any]]
     }, status
 
 
-@st.cache_data(ttl=10 * 60, show_spinner=False)
+@st.cache_data(ttl=2 * 60, show_spinner=False)
 def fetch_match_context(match_url: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     if not match_url:
         return {}, {"ok": False, "warning": "no match URL"}
-    page, status = http_get_text(match_url, "HLTV match", ttl=10 * 60, timeout=20)
+    page, status = http_get_text(match_url, "HLTV match", ttl=2 * 60, timeout=20, allow_stale=False)
     if not page:
         return {}, status
     text = strip_tags(page)
@@ -1845,7 +2462,7 @@ def fetch_team_map_pool(team_id: str, slug: str, days: int = 90) -> Tuple[Dict[s
         return {}, {"ok": False, "warning": "no team id"}
     start, end = _period_dates(days)
     url = f"{HLTV_BASE}/stats/teams/maps/{team_id}/{slug}"
-    page, status = http_get_text(url, "HLTV team maps", ttl=60 * 60 * 4, params={"startDate": start, "endDate": end}, timeout=20)
+    page, status = http_get_text(url, "HLTV team maps", ttl=60 * 60 * 4, params={"startDate": start, "endDate": end}, timeout=20, allow_stale=True, stale_ttl=SOURCE_MAX_STALE_SECONDS["team_maps"])
     if not page:
         return {}, status
     pool: Dict[str, Dict[str, Any]] = {}
@@ -1883,7 +2500,7 @@ def fetch_team_roster(team_id: str, slug: str) -> Tuple[List[str], Dict[str, Any
     if not team_id:
         return [], {"ok": False, "warning": "no team id"}
     url = f"{HLTV_BASE}/team/{team_id}/{slug}"
-    page, status = http_get_text(url, "HLTV team roster", ttl=60 * 60 * 4, timeout=20)
+    page, status = http_get_text(url, "HLTV team roster", ttl=60 * 60, timeout=20, allow_stale=True, stale_ttl=SOURCE_MAX_STALE_SECONDS["roster"])
     if not page:
         return [], status
     players: List[str] = []
@@ -1907,7 +2524,7 @@ def fetch_team_recent_match_links(team_id: str, slug: str, days: int = 120, limi
     links: List[str] = []
     statuses: List[Dict[str, Any]] = []
     for url in candidates:
-        page, status = http_get_text(url, "HLTV team recent matches", ttl=60 * 60 * 6,
+        page, status = http_get_text(url, "HLTV team recent matches", ttl=60 * 60 * 6, stale_ttl=SOURCE_MAX_STALE_SECONDS["completed_history"],
                                      params={"startDate": start, "endDate": end, "csVersion": "CS2"} if "/stats/" in url else None,
                                      timeout=20)
         statuses.append(status)
@@ -1930,7 +2547,7 @@ def fetch_recent_team_match_summaries(team_id: str, slug: str, limit: int = DEEP
     summaries: List[Dict[str, Any]] = []
     statuses: List[Dict[str, Any]] = []
     for match_url in links[:limit]:
-        page, status = http_get_text(match_url, "HLTV recent team match", ttl=60 * 60 * 6, timeout=20)
+        page, status = http_get_text(match_url, "HLTV recent team match", ttl=60 * 60 * 6, timeout=20, allow_stale=True, stale_ttl=SOURCE_MAX_STALE_SECONDS["completed_history"])
         statuses.append(status)
         if not page:
             continue
@@ -1947,6 +2564,7 @@ def fetch_recent_team_match_summaries(team_id: str, slug: str, limit: int = DEEP
             "environment": _extract_match_environment(page),
             "stage": _extract_match_stage(page),
             "event_url": _extract_event_link(page),
+            "world_ranks": _extract_world_ranks(page),
         })
     return summaries, {"ok": bool(summaries), "rows": len(summaries), "link_status": link_status, "statuses": statuses}
 
@@ -1955,7 +2573,7 @@ def _team_name_matches(target: str, candidate: str) -> bool:
     if not target or not candidate:
         return False
     a, b = normalize_team(target), normalize_team(candidate)
-    return a == b or a in b or b in a or name_similarity(a, b) >= 0.79
+    return a == b or (len(a)>=5 and len(b)>=5 and (a in b or b in a)) or name_similarity(a, b) >= 0.86
 
 
 def parse_mapstats_team_tables(page: str, fallback_team_names: Sequence[str] = ()) -> List[Dict[str, Any]]:
@@ -2001,7 +2619,7 @@ def parse_mapstats_team_tables(page: str, fallback_team_names: Sequence[str] = (
 
 @st.cache_data(ttl=60 * 60 * 12, show_spinner=False)
 def fetch_mapstats_team_summary(map_url: str, team_names: Tuple[str, ...] = ()) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    page, status = http_get_text(map_url, "HLTV deep mapstats", ttl=60 * 60 * 12, timeout=20)
+    page, status = http_get_text(map_url, "HLTV deep mapstats", ttl=60 * 60 * 12, timeout=20, allow_stale=True, stale_ttl=SOURCE_MAX_STALE_SECONDS["completed_history"])
     tables = parse_mapstats_team_tables(page or "", team_names)
     return tables, {**status, "tables": len(tables)}
 
@@ -2040,13 +2658,23 @@ def build_team_deep_profile(team_id: str, slug: str, team_name: str) -> Tuple[Di
     kills_for_num = 0.0
     environment_counts: Counter = Counter()
     match_dates: List[datetime] = []
+    historical_opponent_ranks: List[float] = []
 
     roster_norm = {normalize_name(x) for x in roster[:5]}
+    roster_fingerprint=hashlib.sha256("|".join(sorted(roster_norm)).encode()).hexdigest()[:16] if roster_norm else ""
     for summary in summaries:
         environment_counts[summary.get("environment") or "UNKNOWN"] += 1
+        summary_opp_rank=None
         dt = _parse_iso_datetime(summary.get("match_datetime"))
         if dt:
             match_dates.append(dt)
+        sranks=summary.get("world_ranks") or []; steams=summary.get("teams") or []
+        if len(sranks)>=2 and len(steams)>=2:
+            t_idx=next((i for i,t in enumerate(steams[:2]) if _team_name_matches(team_name,t.get("name",""))),None)
+            if t_idx in {0,1}:
+                opp_rank=safe_float(sranks[1-int(t_idx)],None)
+                if opp_rank and opp_rank>0:
+                    summary_opp_rank=float(opp_rank); historical_opponent_ranks.append(float(opp_rank))
         for action in summary.get("veto_actions") or []:
             if _team_name_matches(team_name, action.get("team", "")):
                 if action.get("action") == "picked":
@@ -2065,8 +2693,9 @@ def build_team_deep_profile(team_id: str, slug: str, team_name: str) -> Tuple[Di
                 team_score, opp_score = result.get("score2", 0), result.get("score1", 0)
             else:
                 continue
-            row = {**result, "rounds_won": team_score, "rounds_lost": opp_score}
+            row = {**result, "rounds_won": team_score, "rounds_lost": opp_score, "match_datetime": summary.get("match_datetime"), "played_at": summary.get("match_datetime"), "opponent_rank": summary_opp_rank, "same_core": same_core, "roster_fingerprint":roster_fingerprint}
             map_rows[result.get("map", "Unknown")].append(row)
+            sqlite_store_team_map_observation(team_id,team_name,str(summary.get("match_url") or ""),row,summary_opp_rank,same_core,str(summary.get("environment") or "UNKNOWN"))
             if same_core:
                 current_roster_maps += 1
 
@@ -2082,9 +2711,7 @@ def build_team_deep_profile(team_id: str, slug: str, team_name: str) -> Tuple[Di
             if not rounds or rounds <= 0:
                 continue
             target_idx = next((i for i, table in enumerate(tables) if _team_name_matches(team_name, table.get("team", ""))), None)
-            if target_idx is None:
-                # Fallback to match-page team order.
-                target_idx = next((i for i, name in enumerate(team_names[:2]) if _team_name_matches(team_name, name)), None)
+            # Never infer team table identity from page ordering.
             if target_idx not in {0, 1}:
                 continue
             opponent_idx = 1 - int(target_idx)
@@ -2093,14 +2720,25 @@ def build_team_deep_profile(team_id: str, slug: str, team_name: str) -> Tuple[Di
             mapstats_rounds += float(rounds)
             mapstats_used += 1
 
+    cumulative=sqlite_team_map_observations(team_id,180,300)
+    if cumulative:
+        map_rows=defaultdict(list)
+        for obs in cumulative:
+            map_name=canonical_map_name(obs.get("map"))
+            if map_name: map_rows[map_name].append(obs)
+        historical_opponent_ranks=[float(x.get("opponent_rank")) for x in cumulative if safe_float(x.get("opponent_rank"),None)]
+        current_roster_maps=sum(1 for x in cumulative if x.get("same_core") and roster_fingerprint and str(x.get("roster_fingerprint") or "")==roster_fingerprint)
+
     map_profiles: Dict[str, Dict[str, Any]] = {}
     all_maps = set(pool) | set(map_rows)
     for map_name in all_maps:
         observed = _summarize_map_observations(map_rows.get(map_name, []))
         base = pool.get(map_name, {})
+        demo_side=demo_team_side_profile(team_name,map_name)
         map_profiles[map_name] = {
             **base,
             **{k: v for k, v in observed.items() if v is not None},
+            **({k:v for k,v in demo_side.items() if v is not None} if safe_int(demo_side.get("rounds"),0)>=24 else {}),
             "pick_count": int(pick_counts.get(map_name, 0)),
             "ban_count": int(ban_counts.get(map_name, 0)),
         }
@@ -2118,6 +2756,7 @@ def build_team_deep_profile(team_id: str, slug: str, team_name: str) -> Tuple[Di
         "current_roster": roster[:7],
         "recent_matches": len(summaries),
         "recent_maps": total_recent_maps,
+        "cumulative_map_observations":len(cumulative),
         "same_core_matches": same_core_matches,
         "current_roster_maps": current_roster_maps,
         "roster_stability": round(clamp(roster_stability, 0, 1), 3),
@@ -2130,6 +2769,8 @@ def build_team_deep_profile(team_id: str, slug: str, team_name: str) -> Tuple[Di
         "environment_counts": dict(environment_counts),
         "latest_match": latest_match,
         "rest_days": round(rest_days, 2) if rest_days is not None else None,
+        "historical_opponent_rank_avg":round(float(np.mean(historical_opponent_ranks)),2) if historical_opponent_ranks else None,
+        "historical_opponent_rank_samples":len(historical_opponent_ranks),
         "updated_at": now_iso(),
     }
     status = {
@@ -2138,7 +2779,11 @@ def build_team_deep_profile(team_id: str, slug: str, team_name: str) -> Tuple[Di
         "roster": roster_status,
         "summaries": summaries_status,
         "mapstats_samples": mapstats_used,
+        "roster_fresh":source_freshness_ok(roster_status,SOURCE_MAX_STALE_SECONDS["roster"]),
+        "pool_fresh":source_freshness_ok(pool_status,SOURCE_MAX_STALE_SECONDS["team_maps"]),
     }
+    if profile.get("team_id"):
+        sqlite_store_entity_snapshot("team_deep",str(profile["team_id"]),profile,"HLTV team/map/roster history",max([safe_float(pool_status.get("age_seconds"),0) or 0,safe_float(roster_status.get("age_seconds"),0) or 0]),now_iso())
     return profile, status
 
 
@@ -2156,7 +2801,14 @@ def enrich_match_context(context: Dict[str, Any], deep_enabled: bool = True) -> 
         statuses.append(status)
     enriched = dict(context)
     enriched["team_deep_profiles"] = profiles
-    return enriched, {"ok": all(bool(x) for x in profiles), "statuses": statuses}
+    health={
+        "roster_fresh":all(bool(x.get("roster_fresh")) for x in statuses),
+        "team_map_fresh":all(bool(x.get("pool_fresh")) for x in statuses),
+        "history_maps":sum(safe_int(p.get("recent_maps"),0) or 0 for p in profiles),
+        "mapstats_samples":sum(safe_int(p.get("mapstats_samples"),0) or 0 for p in profiles),
+    }
+    enriched["deep_source_health"]=health
+    return enriched, {"ok": all(bool(x) for x in profiles), "statuses": statuses, "health":health}
 
 
 def _sample_weighted(rng: np.random.Generator, choices: Sequence[str], weights: Sequence[float]) -> str:
@@ -2171,20 +2823,12 @@ def simulate_veto_scenarios(team_profiles: Sequence[Dict[str, Any]], simulations
     if len(team_profiles) < 2:
         return []
     profiles = list(team_profiles[:2])
-    candidate_maps = []
-    for map_name in KNOWN_MAPS:
-        sample = sum(safe_int((p.get("map_profiles") or {}).get(map_name, {}).get("maps"), 0) or 0 for p in profiles)
-        picks = sum(safe_int((p.get("pick_counts") or {}).get(map_name), 0) or 0 for p in profiles)
-        if sample > 0 or picks > 0:
-            candidate_maps.append(map_name)
-    # A BO3 veto normally operates on a seven-map pool. Keep the seven maps with
-    # the strongest recent evidence instead of relying on a hardcoded active pool.
-    if len(candidate_maps) > 7:
-        candidate_maps.sort(
-            key=lambda m: sum(safe_int((p.get("map_profiles") or {}).get(m, {}).get("maps"), 0) or 0 for p in profiles),
-            reverse=True,
-        )
-        candidate_maps = candidate_maps[:7]
+    active=set((patch_era_for_time().get("active_maps") or CURRENT_ACTIVE_MAPS))
+    candidate_maps = [m for m in KNOWN_MAPS if m in active and any((safe_int((p.get("map_profiles") or {}).get(m,{}).get("maps"),0) or 0)>0 or (safe_int((p.get("pick_counts") or {}).get(m),0) or 0)>0 for p in profiles)]
+    # Use the official configured seven-map pool; missing team samples are represented as uncertainty, not replaced by inactive maps.
+    for m in active:
+        if m not in candidate_maps: candidate_maps.append(m)
+    candidate_maps=candidate_maps[:7]
     if len(candidate_maps) < 4:
         return []
     rng = np.random.default_rng(stable_seed("veto", *(p.get("team") for p in profiles), MODEL_VERSION))
@@ -2369,11 +3013,8 @@ def _resolve_team_profiles(context: Dict[str, Any], team: str, opponent: str) ->
             team_profile = profile
         if opponent and _team_name_matches(opponent, name):
             opponent_profile = profile
-    if not team_profile and profiles:
-        # Use player/team ordering only as a last fallback.
-        team_profile = profiles[0]
-    if not opponent_profile and len(profiles) >= 2:
-        opponent_profile = profiles[1] if profiles[1] is not team_profile else profiles[0]
+    # Never infer team identity from page ordering. Incorrect side assignment is
+    # worse than missing matchup data and blocks Official status downstream.
     return team_profile, opponent_profile
 
 
@@ -2408,6 +3049,120 @@ def match_competitiveness(context: Dict[str, Any], team: str = "", opponent: str
     return clamp(comp, 0.18, 1.0), {"method": "blended competitiveness", "components": [{"value": round(v, 4), "weight": w, "source": n} for v, w, n in components]}
 
 
+
+MAP_CT_BASE = {"Nuke":0.535,"Ancient":0.515,"Anubis":0.495,"Dust2":0.505,"Inferno":0.505,"Mirage":0.505,"Overpass":0.525,"Train":0.535,"Vertigo":0.505,"Cache":0.505}
+
+def _mr12_round_sample(rng: np.random.Generator, n: int, p_ct: float, p_t: float) -> np.ndarray:
+    n=max(int(n),1); p_ct=clamp(p_ct,.25,.75); p_t=clamp(p_t,.25,.75)
+    starts_ct=rng.random(n)<.5
+    a=np.zeros(n,dtype=int); b=np.zeros(n,dtype=int)
+    for r in range(12):
+        p=np.where(starts_ct,p_ct,p_t); win=rng.random(n)<p; a+=win; b+=~win
+    active=(a<13)&(b<13)
+    for r in range(12):
+        if not active.any(): break
+        p=np.where(starts_ct,p_t,p_ct); win=(rng.random(n)<p)&active; lose=(~win)&active
+        a+=win; b+=lose; active=(a<13)&(b<13)&((a+b)<24)
+    tied=(a==12)&(b==12)
+    ot_blocks=0
+    while tied.any() and ot_blocks<5:
+        idx=np.where(tied)[0]; wins=np.zeros(len(idx),dtype=int)
+        for rr in range(6):
+            p=np.where(starts_ct[idx], p_ct if rr<3 else p_t, p_t if rr<3 else p_ct)
+            wins += rng.random(len(idx))<p
+        a[idx]+=wins; b[idx]+=6-wins
+        tied=np.zeros(n,dtype=bool); tied[idx]=(wins==3); ot_blocks+=1
+    # Rare unresolved cap: award one deciding round without changing regulation distribution materially.
+    if tied.any():
+        idx=np.where(tied)[0]; win=rng.random(len(idx))<.5; a[idx]+=win; b[idx]+=~win
+    return a+b
+
+
+def learned_round_kill_environment(map_name: str = "") -> Dict[str, Any]:
+    """Fit team kills in won/lost rounds from uploaded demos; zero-kill rounds are retained."""
+    map_key=canonical_map_name(map_name); key=f"round_kill_env:{map_key or 'GLOBAL'}"
+    cached=load_model_fit(key); updated=_parse_iso_datetime(cached.get("updated_at")) if cached else None
+    if cached and updated and (datetime.now(timezone.utc)-updated).total_seconds()<24*3600: return cached
+    won=[]; lost=[]
+    try:
+        with _sqlite_connect() as conn:
+            rounds=conn.execute("SELECT match_id,round_num,ct_team,t_team,winner_team FROM demo_rounds WHERE (?='' OR map_name=?)",(map_key,map_key)).fetchall()
+            counts=conn.execute("SELECT match_id,round_num,team,COUNT(*) kills FROM demo_events WHERE (?='' OR map_name=?) AND team<>'' GROUP BY match_id,round_num,team",(map_key,map_key)).fetchall()
+        count_map={(r["match_id"],r["round_num"],normalize_team(r["team"])):int(r["kills"]) for r in counts}
+        for r in rounds:
+            winner=normalize_team(r["winner_team"]); teams=[normalize_team(r["ct_team"]),normalize_team(r["t_team"])]
+            if not winner or len([x for x in teams if x])<2: continue
+            for t in teams:
+                k=count_map.get((r["match_id"],r["round_num"],t),0)
+                (won if t==winner else lost).append(k)
+    except Exception:
+        won=[]; lost=[]
+    sample=len(won)+len(lost)
+    if len(won)>=MIN_ROUND_KILL_TRAINING_ROUNDS//2 and len(lost)>=MIN_ROUND_KILL_TRAINING_ROUNDS//2:
+        out={"winner_mean":clamp(float(np.mean(won)),3.2,4.8),"loser_mean":clamp(float(np.mean(lost)),0.5,3.4),"winner_sd":float(np.std(won)),"loser_sd":float(np.std(lost)),"sample":sample,"trained":True,"source":"uploaded demo round outcomes","fit_type":"round_kill_environment"}
+    else:
+        out={"winner_mean":4.10,"loser_mean":2.05,"winner_sd":1.05,"loser_sd":1.25,"sample":sample,"trained":False,"source":"conservative CS2 round prior","fit_type":"round_kill_environment"}
+    save_model_fit(key,out); return out
+
+def _simulate_mr12_round_environment(rng: np.random.Generator, n: int, p_ct: float, p_t: float, map_name: str = "") -> Dict[str, Any]:
+    n=max(int(n),1); p_ct=clamp(p_ct,.25,.75); p_t=clamp(p_t,.25,.75)
+    starts_ct=rng.random(n)<.5; a=np.zeros(n,dtype=int); b=np.zeros(n,dtype=int)
+    ak=np.zeros(n,dtype=int); bk=np.zeros(n,dtype=int); env=learned_round_kill_environment(map_name)
+    win_p=clamp(env["winner_mean"]/5.0,.50,.96); lose_p=clamp(env["loser_mean"]/4.0,.08,.82)
+    def outcome(mask: np.ndarray, probs: np.ndarray) -> Tuple[np.ndarray,np.ndarray]:
+        win=(rng.random(n)<probs)&mask; lose=(~win)&mask
+        wk=rng.binomial(5,win_p,size=n); lk=rng.binomial(4,lose_p,size=n)
+        ak[:] += np.where(win,wk,np.where(lose,lk,0)); bk[:] += np.where(win,lk,np.where(lose,wk,0))
+        return win,lose
+    active=np.ones(n,dtype=bool)
+    for _ in range(12):
+        win,lose=outcome(active,np.where(starts_ct,p_ct,p_t)); a+=win; b+=lose
+    active=(a<13)&(b<13)
+    for _ in range(12):
+        if not active.any(): break
+        win,lose=outcome(active,np.where(starts_ct,p_t,p_ct)); a+=win; b+=lose
+        active=(a<13)&(b<13)&((a+b)<24)
+    tied=(a==12)&(b==12); blocks=0
+    while tied.any() and blocks<5:
+        ba=np.zeros(n,dtype=int); bb=np.zeros(n,dtype=int); block_active=tied.copy()
+        for rr in range(6):
+            if not block_active.any(): break
+            probs=np.where(starts_ct,p_ct if rr<3 else p_t,p_t if rr<3 else p_ct)
+            win,lose=outcome(block_active,probs); a+=win; b+=lose; ba+=win; bb+=lose
+            block_active=tied&(ba<4)&(bb<4)&((ba+bb)<6)
+        tied=tied&(ba==3)&(bb==3); blocks+=1
+    if tied.any():
+        win,lose=outcome(tied,np.full(n,.5)); a+=win; b+=lose
+    return {"rounds":a+b,"team_score":a,"opponent_score":b,"team_kills":ak,"opponent_kills":bk,"round_kill_environment":env}
+
+def learned_simulation_blend(player: str, role: str) -> Dict[str, Any]:
+    rows=sqlite_graded_projection_rows(); scopes=[("player",lambda r:normalize_name(r.get("player"))==normalize_name(player),MIN_BLEND_TRAINING_SAMPLES),("role",lambda r:str(r.get("role") or "")==str(role),80),("global",lambda r:True,150)]
+    for scope,pred,min_n in scopes:
+        pairs=[]
+        for r in rows:
+            comp=r.get("model_components") or {}; actual=safe_float(r.get("actual_kills"),None); d=safe_float(comp.get("direct_projection"),None); sh=safe_float(comp.get("share_projection"),None)
+            if pred(r) and None not in (actual,d,sh): pairs.append((abs(actual-d),abs(actual-sh)))
+        if len(pairs)>=min_n:
+            d_mae=float(np.mean([x[0] for x in pairs])); s_mae=float(np.mean([x[1] for x in pairs])); weight=clamp(d_mae/max(d_mae+s_mae,1e-6),.20,.80)
+            out={"share_weight":weight,"direct_weight":1-weight,"sample":len(pairs),"scope":scope,"direct_mae":d_mae,"share_mae":s_mae,"trained":True,"fit_type":"simulation_blend"}; save_model_fit(f"simulation_blend:{scope}:{normalize_name(player) if scope=='player' else role if scope=='role' else 'all'}",out); return out
+    return {"share_weight":.50,"direct_weight":.50,"sample":0,"scope":"prior","trained":False,"source":"neutral untrained blend"}
+
+
+def _map_side_probabilities(context: Dict[str, Any], map_name: str, team: str, opponent: str) -> Tuple[float,float,Dict[str,Any]]:
+    tp,op=_resolve_team_profiles(context,team,opponent)
+    tr_row=(tp.get("map_profiles") or {}).get(map_name,{}); orow=(op.get("map_profiles") or {}).get(map_name,{})
+    tr=safe_float(tr_row.get("round_win_pct"),50) or 50; OR=safe_float(orow.get("round_win_pct"),50) or 50
+    team_ct=safe_float(tr_row.get("ct_round_win_pct"),None); team_t=safe_float(tr_row.get("t_round_win_pct"),None)
+    opp_ct=safe_float(orow.get("ct_round_win_pct"),None); opp_t=safe_float(orow.get("t_round_win_pct"),None)
+    diff=clamp((tr-OR)/100.0,-.22,.22); ct=MAP_CT_BASE.get(map_name,.505)
+    baseline_ct=clamp(.5+diff*.75+(ct-.5)*.65,.31,.69); baseline_t=clamp(.5+diff*.75-(ct-.5)*.65,.31,.69)
+    if team_ct is not None and opp_t is not None: p_ct=clamp(.5*((team_ct/100)+(1-opp_t/100)),.28,.72)
+    else: p_ct=baseline_ct
+    if team_t is not None and opp_ct is not None: p_t=clamp(.5*((team_t/100)+(1-opp_ct/100)),.28,.72)
+    else: p_t=baseline_t
+    return p_ct,p_t,{"team_map_round_win_pct":tr,"opponent_map_round_win_pct":OR,"team_ct":team_ct,"team_t":team_t,"opponent_ct":opp_ct,"opponent_t":opp_t,"map_ct_base":ct,"side_data_verified":all(x is not None for x in [team_ct,team_t,opp_ct,opp_t])}
+
+
 def _map_round_model(context: Dict[str, Any], map_name: str, team: str = "", opponent: str = "") -> Dict[str, Any]:
     base = MAP_ROUND_BASE.get(map_name, 21.1)
     profiles = context.get("team_deep_profiles") or []
@@ -2429,15 +3184,22 @@ def _map_round_model(context: Dict[str, Any], map_name: str, team: str = "", opp
     ot = float(np.mean(ot_rates)) if ot_rates else 0.055
     mean = 0.44 * base + 0.56 * observed
     mean += (comp - 0.60) * 3.0 + close * 0.85 - blowout * 1.10 - strength_gap * 4.0 + ot * 2.3
-    mean = clamp(mean, 17.0, 25.8)
-    sd_values = [safe_float(x.get("rounds_sd"), None) for x in rows]
-    sd_values = [float(x) for x in sd_values if x is not None and 1.5 <= x <= 8]
-    sd = float(np.mean(sd_values)) if sd_values else 3.75
-    sd = clamp(sd + blowout * 0.55 - close * 0.35 + strength_gap * 1.2, 2.8, 5.2)
+    p_ct,p_t,side_meta=_map_side_probabilities(context,map_name,team,opponent)
+    rng=np.random.default_rng(stable_seed("mr12",map_name,team,opponent,p_ct,p_t,MODEL_VERSION))
+    mr12=_simulate_mr12_round_environment(rng,5000,p_ct,p_t,map_name)["rounds"]
+    mr12_mean=float(np.mean(mr12)); mr12_sd=float(np.std(mr12))
+    # Keep a small empirical blend while enforcing an actual MR12 score process.
+    mean=clamp(.82*mr12_mean+.18*clamp(mean,17.0,25.8),17.0,30.0)
+    sd_values=[safe_float(x.get("rounds_sd"),None) for x in rows]
+    sd_values=[float(x) for x in sd_values if x is not None and 1.5<=x<=8]
+    empirical_sd=float(np.mean(sd_values)) if sd_values else mr12_sd
+    sd=clamp(.82*mr12_sd+.18*empirical_sd,2.5,7.5)
     return {
         "map": map_name,
         "mean_rounds": round(mean, 4),
         "rounds_sd": round(sd, 4),
+        "team_ct_round_win_prob":round(p_ct,5),"team_t_round_win_prob":round(p_t,5),"side_meta":side_meta,
+        "round_model":"MR12 regulation + MR3 overtime",
         "close_rate": round(close, 4),
         "blowout_rate": round(blowout, 4),
         "ot_rate": round(ot, 4),
@@ -2470,7 +3232,7 @@ def project_expected_rounds(context: Dict[str, Any], likely_maps: Sequence[str],
     sd = math.sqrt(max(second - mean ** 2, 0.01))
     if context.get("format") == "BO1":
         return mean, sd, {"invalid_format": True, "format": "BO1", "scenarios": normalized}
-    return clamp(mean, 33.5, 51.0), clamp(sd, 3.4, 7.8), {
+    return clamp(mean, 26.0, 64.0), clamp(sd, 2.8, 10.5), {
         "invalid_format": False,
         "format": context.get("format", "UNKNOWN"),
         "scenarios": normalized,
@@ -2573,7 +3335,14 @@ def match_context_adjustment(profile: PlayerStats, context: Dict[str, Any], team
 
 
 def build_learning_profiles(results: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
-    rows = results if results is not None else load_json(RESULT_LOG, [])
+    if results is not None:
+        rows=results
+    else:
+        rows=sqlite_graded_projection_rows()
+        legacy=load_json(RESULT_LOG,[])
+        if isinstance(legacy,list):
+            seen={str(x.get("snapshot_id") or "") for x in rows}
+            rows += [x for x in legacy if str(x.get("snapshot_id") or "") not in seen]
     graded = [x for x in rows if x.get("graded_result") in {"WIN", "LOSS", "PUSH"} and safe_float(x.get("actual_kills"), None) is not None]
     profiles: Dict[str, Any] = {"global": {}, "players": {}, "roles": {}, "line_buckets": {}, "maps": {}, "event_tiers": {}, "data_buckets": {}, "updated_at": now_iso()}
     if not graded:
@@ -2625,27 +3394,27 @@ def learning_adjustment(player: str, role: str, line: float, likely_maps: Sequen
         profiles = build_learning_profiles()
     pieces = []
     global_row = profiles.get("global", {}) if isinstance(profiles, dict) else {}
-    if safe_int(global_row.get("samples"), 0) >= 25:
-        pieces.append((safe_float(global_row.get("bias"), 0.0) or 0.0, 0.35, "global"))
+    if safe_int(global_row.get("samples"), 0) >= 100:
+        pieces.append((safe_float(global_row.get("bias"), 0.0) or 0.0, 0.40, "global"))
     player_row = profiles.get("players", {}).get(normalize_name(player), {}) if isinstance(profiles, dict) else {}
-    if safe_int(player_row.get("samples"), 0) >= 8:
-        pieces.append((safe_float(player_row.get("bias"), 0.0) or 0.0, 0.40, "player"))
+    if safe_int(player_row.get("samples"), 0) >= MIN_PLAYER_LEARNING_SAMPLES:
+        pieces.append((safe_float(player_row.get("bias"), 0.0) or 0.0, 0.25, "player"))
     role_row = profiles.get("roles", {}).get(role, {}) if isinstance(profiles, dict) else {}
-    if safe_int(role_row.get("samples"), 0) >= 12:
+    if safe_int(role_row.get("samples"), 0) >= MIN_ROLE_LEARNING_SAMPLES:
         pieces.append((safe_float(role_row.get("bias"), 0.0) or 0.0, 0.15, "role"))
     bucket = f"{int(line // 5) * 5}-{int(line // 5) * 5 + 4.5}"
     bucket_row = profiles.get("line_buckets", {}).get(bucket, {}) if isinstance(profiles, dict) else {}
-    if safe_int(bucket_row.get("samples"), 0) >= 12:
+    if safe_int(bucket_row.get("samples"), 0) >= MIN_CONTEXT_LEARNING_SAMPLES:
         pieces.append((safe_float(bucket_row.get("bias"), 0.0) or 0.0, 0.10, "line bucket"))
     map_rows = []
     for map_name in likely_maps[:2]:
         row = profiles.get("maps", {}).get(str(map_name), {}) if isinstance(profiles, dict) else {}
-        if safe_int(row.get("samples"), 0) >= 15:
+        if safe_int(row.get("samples"), 0) >= MIN_CONTEXT_LEARNING_SAMPLES:
             map_rows.append(safe_float(row.get("bias"), 0.0) or 0.0)
     if map_rows:
         pieces.append((float(np.mean(map_rows)), 0.10, "map context"))
     tier_row = profiles.get("event_tiers", {}).get(str(event_tier), {}) if isinstance(profiles, dict) else {}
-    if safe_int(tier_row.get("samples"), 0) >= 15:
+    if safe_int(tier_row.get("samples"), 0) >= MIN_CONTEXT_LEARNING_SAMPLES:
         pieces.append((safe_float(tier_row.get("bias"), 0.0) or 0.0, 0.05, "event tier"))
     if not pieces:
         return 0.0, {"applied": False, "pieces": []}
@@ -2736,6 +3505,7 @@ def annotate_market_consensus(props: List[Dict[str, Any]]) -> List[Dict[str, Any
 
 
 def update_line_history(props: List[Dict[str, Any]]) -> None:
+    sqlite_store_market_ticks(props)
     history = load_json(LINE_HISTORY_FILE, {})
     if not isinstance(history, dict):
         history = {}
@@ -2842,6 +3612,9 @@ def simulation_projection_deep(
     scenario_idx = rng.choice(len(scenarios), size=n, p=probs)
     total_kills = np.zeros(n, dtype=int)
     total_rounds = np.zeros(n, dtype=int)
+    total_direct = np.zeros(n, dtype=int)
+    total_share = np.zeros(n, dtype=int)
+    blend = learned_simulation_blend(player, role)
     map_expected: Dict[str, Dict[str, float]] = defaultdict(lambda: {"rounds": 0.0, "kills": 0.0, "weight": 0.0})
 
     profile_uncertainty = 0.025 + 0.050 / math.sqrt(max(profile_maps, 1) / 10.0 + 1.0)
@@ -2852,6 +3625,11 @@ def simulation_projection_deep(
     profile_uncertainty *= context_variance_multiplier
     common_form = rng.normal(0.0, profile_uncertainty, size=n)
     map_factors = opponent_meta.get("map_factors") or {}
+    # V4 team-total consistency: player kills are partly generated as a share
+    # of simulated team kills, preventing five independent player models from
+    # implying impossible team totals.
+    pseudo_profile = PlayerStats(player=player, maps=profile_maps, kpr=base_kpr)
+    share_params = team_kill_share_parameters(pseudo_profile, role, opponent_meta)
 
     for scenario_number, scenario in enumerate(scenarios):
         mask = scenario_idx == scenario_number
@@ -2870,8 +3648,15 @@ def simulation_projection_deep(
         for map_name, model in zip(maps, models):
             mean_rounds = safe_float(model.get("mean_rounds"), 21.4) or 21.4
             round_sd = safe_float(model.get("rounds_sd"), 3.8) or 3.8
-            map_rounds = np.rint(rng.normal(mean_rounds, round_sd, size=count)).astype(int)
-            map_rounds = np.clip(map_rounds, 13, 38)
+            p_ct=safe_float(model.get("team_ct_round_win_prob"),None)
+            p_t=safe_float(model.get("team_t_round_win_prob"),None)
+            round_env=None
+            if p_ct is not None and p_t is not None:
+                round_env=_simulate_mr12_round_environment(rng,count,p_ct,p_t,map_name)
+                map_rounds=round_env["rounds"]
+            else:
+                map_rounds=np.rint(rng.normal(mean_rounds,round_sd,size=count)).astype(int)
+                map_rounds=np.clip(map_rounds,13,42)
             map_row = player_map_profiles.get(map_name, {})
             map_kpr = safe_float(map_row.get("blended_kpr"), base_kpr) or base_kpr
             # The global opponent factor already includes all supported matchup
@@ -2883,9 +3668,18 @@ def simulation_projection_deep(
             lam = np.clip(map_rounds * latent_kpr, 0.5, 48.0)
             dispersion = 20.0 if "Entry" in role else 24.0
             gamma_rate = rng.gamma(shape=dispersion, scale=lam / dispersion)
-            kills = rng.poisson(gamma_rate)
+            direct_kills = rng.poisson(gamma_rate)
+            team_kills = round_env["team_kills"] if round_env is not None else rng.poisson(np.clip(map_rounds*share_params["team_kpr"],4.0,120.0))
+            alpha = max(share_params["player_share"] * share_params["concentration"], 0.5)
+            beta = max((1-share_params["player_share"]) * share_params["concentration"], 0.5)
+            latent_share = rng.beta(alpha, beta, size=count)
+            share_kills = rng.binomial(team_kills, np.clip(latent_share, 0.05, 0.40))
+            use_share = rng.random(count) < blend["share_weight"]
+            kills = np.where(use_share, share_kills, direct_kills)
             scenario_rounds += map_rounds
             scenario_kills += kills
+            total_direct[mask] += direct_kills
+            total_share[mask] += share_kills
             probability_weight = probs[scenario_number]
             map_expected[map_name]["rounds"] += probability_weight * float(np.mean(map_rounds))
             map_expected[map_name]["kills"] += probability_weight * float(np.mean(kills))
@@ -2931,6 +3725,8 @@ def simulation_projection_deep(
         "rounds_sd": float(np.std(total_rounds)),
         "effective_kpr": float(np.mean(total_kills) / max(np.mean(total_rounds), 1)),
         "map_breakdown": expected_map_breakdown,
+        "team_kill_share_model": {**share_params,"blend":blend},
+        "model_components": {"direct_projection":float(np.mean(total_direct)),"share_projection":float(np.mean(total_share)),"share_weight":blend.get("share_weight"),"blend_sample":blend.get("sample",0),"blend_scope":blend.get("scope")},
     }
 
 
@@ -3215,21 +4011,119 @@ def classify_play(
     return "PASS", "🚫 PASS", flags
 
 
+
+def _match_id_from_url(url: str) -> str:
+    m=re.search(r"/matches/(\d+)/",str(url or "")); return m.group(1) if m else ""
+
+
+
+def sqlite_record_roster_event(player: str, team: str, event_type: str, effective_at: str, confidence: float, payload: Dict[str, Any]) -> None:
+    raw=f"{normalize_name(player)}|{normalize_team(team)}|{event_type}|{str(effective_at)[:16]}"
+    event_id=hashlib.sha256(raw.encode()).hexdigest()
+    try:
+        with _sqlite_connect() as conn:
+            conn.execute("""INSERT OR REPLACE INTO roster_events(event_id,player_key,player,team_key,team,event_type,effective_at,confidence,source,payload_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                (event_id,normalize_name(player),player,normalize_team(team),team,event_type,effective_at,float(confidence),"verified match page + current roster",json.dumps(payload,default=str),now_iso()))
+    except Exception:
+        pass
+
+
+def roster_transaction_risk(player: str, team: str, as_of: Any = None) -> Dict[str, Any]:
+    cutoff=_parse_iso_datetime(as_of) or datetime.now(timezone.utc); rows=[]
+    try:
+        with _sqlite_connect() as conn:
+            rows=conn.execute("SELECT * FROM roster_events WHERE player_key=? ORDER BY effective_at DESC LIMIT 20",(normalize_name(player),)).fetchall()
+    except Exception:
+        rows=[]
+    changes=[]
+    for r in rows:
+        dt=_parse_iso_datetime(r["effective_at"])
+        if dt and 0 <= (cutoff-dt).total_seconds()/86400 <= 45: changes.append(dict(r))
+    teams={normalize_team(x.get("team")) for x in changes}; latest=changes[0] if changes else {}
+    risky=latest.get("event_type") in {"OUTSIDE_CURRENT_ROSTER","LINEUP_MISMATCH","POSSIBLE_STANDIN"} or len(teams)>1
+    return {"recent_events":len(changes),"recent_team_count":len(teams),"risky":risky,"latest_event_type":latest.get("event_type"),"events":changes[:8]}
+
+
+def roster_identity_assessment(player: str, team: str, opponent: str, profile: PlayerStats, context: Dict[str, Any], prop: Dict[str, Any], context_status: Dict[str, Any], map_meta: Dict[str, Any]) -> Dict[str, Any]:
+    teams=context.get("teams") or []; team_matches=[x for x in teams if _team_name_matches(team,x.get("name",""))]; opp_matches=[x for x in teams if _team_name_matches(opponent,x.get("name",""))]
+    match_id=_match_id_from_url(context.get("match_url") or prop.get("match_url") or "")
+    lineup=context.get("lineup_names") or []; lineup_score=max([name_similarity(player,x) for x in lineup] or [0]); lineup_verified=bool(lineup and lineup_score>=.84)
+    profiles=context.get("team_deep_profiles") or []; tp=next((p for p in profiles if _team_name_matches(team,p.get("team",""))),{})
+    current=tp.get("current_roster") or []; roster_score=max([name_similarity(player,x) for x in current] or [0]); current_roster_verified=bool(current and roster_score>=.84)
+    flags=[]; hard_pass=False
+    if not profile.player_id: flags.append("HLTV PLAYER ID MISSING")
+    if not match_id: flags.append("HLTV MATCH ID MISSING")
+    if not team_matches or not opp_matches: flags.append("TEAM/OPPONENT ID MATCH FAILED"); hard_pass=True
+    if lineup and not lineup_verified: flags.append("PLAYER NOT IN ANNOUNCED LINEUP"); hard_pass=True
+    elif not lineup: flags.append("LINEUP UNCONFIRMED")
+    if current and not current_roster_verified: flags.append("PLAYER OUTSIDE CURRENT TEAM ROSTER"); hard_pass=True
+    overlap=len({normalize_name(x) for x in lineup}&{normalize_name(x) for x in current}) if lineup and current else 0
+    if lineup and current and overlap<4: flags.append("ROSTER CORE MISMATCH / POSSIBLE STAND-IN"); hard_pass=True
+    line_age=max(0.0,(datetime.now(timezone.utc)-(_parse_iso_datetime(prop.get("source_pulled_at")) or datetime.now(timezone.utc))).total_seconds())
+    match_age=safe_float(context_status.get("age_seconds"),None)
+    if match_age is None: match_age=999999
+    veto_state=veto_state_from_meta(map_meta); veto_fresh=(match_age<=120 if veto_state=="CONFIRMED" else match_age<=300)
+    if line_age>180: flags.append("UNDERDOG LINE STALE")
+    if match_age>300: flags.append("MATCH/LINEUP SOURCE STALE")
+    if veto_state=="CONFIRMED" and not veto_fresh: flags.append("CONFIRMED VETO STALE")
+    event_type="VERIFIED_CURRENT_ROSTER" if lineup_verified and current_roster_verified and overlap>=4 else "POSSIBLE_STANDIN" if hard_pass else "LINEUP_UNCONFIRMED"
+    sqlite_record_roster_event(player,team,event_type,str(prop.get("start_time") or now_iso()),min(lineup_score,roster_score) if current else lineup_score,{"lineup":lineup,"current_roster":current,"overlap":overlap,"match_id":match_id})
+    transaction_risk=roster_transaction_risk(player,team,prop.get("start_time"))
+    if transaction_risk.get("risky"):
+        flags.append("RECENT STRUCTURED ROSTER TRANSACTION RISK"); hard_pass=True
+    official_ready=bool(profile.player_id and match_id and team_matches and opp_matches and lineup_verified and current_roster_verified and overlap>=4 and line_age<=180 and veto_fresh and not transaction_risk.get("risky"))
+    return {"hard_pass":hard_pass,"official_ready":official_ready,"lineup_verified":lineup_verified,"current_roster_verified":current_roster_verified,"roster_overlap":overlap,"transaction_risk":transaction_risk,
+            "match_id":match_id,"team_id":team_matches[0].get("team_id") if team_matches else "","opponent_id":opp_matches[0].get("team_id") if opp_matches else "",
+            "player_id":profile.player_id,"line_age_seconds":line_age,"match_age_seconds":match_age,"veto_fresh":veto_fresh,"flags":flags}
+
+
 def build_projection_for_prop(
     prop: Dict[str, Any],
     long_table: Dict[str, Dict[str, Any]],
     medium_table: Dict[str, Dict[str, Any]],
-    recent_table: Dict[str, Dict[str, Any]],
+    recent30_table: Dict[str, Dict[str, Any]],
+    recent15_table: Dict[str, Dict[str, Any]],
     deep_enabled: bool = True,
 ) -> Dict[str, Any]:
     player = str(prop.get("player", "")).strip()
     line = safe_float(prop.get("line"), None)
     if not player or line is None:
-        return {**prop, "error": "Missing player or real line", "status": "PASS"}
+        return {**prop, "error": "Missing player or real line", "status": "PASS", "status_label": "🚫 PASS"}
+    market_ok, market_identity_confidence, market_identity_method, market_identity_flags = market_identity_validation(prop)
+    if not market_ok:
+        return {
+            **prop, "projection": None, "lean": "PASS", "probability": 0.0, "raw_probability": 0.0,
+            "edge": None, "status": "PASS", "status_label": "🚫 PASS", "data_score": 0,
+            "market_scope_verified": False, "market_identity_confidence": market_identity_confidence,
+            "market_identity_method": market_identity_method, "flags": market_identity_flags,
+            "error": "Exact CS2 Maps 1-2 kill market identity was not verified"
+        }
+    if not (MIN_M12_KILL_LINE <= float(line) <= MAX_M12_KILL_LINE):
+        return {
+            **prop, "projection": None, "lean": "PASS", "probability": 0.0, "edge": None,
+            "status": "PASS", "status_label": "🚫 PASS", "data_score": 0,
+            "flags": ["INVALID MAPS 1-2 LINE", "LIKELY SINGLE-MAP MARKET"],
+            "error": f"Line {line} is outside valid Maps 1-2 kill range"
+        }
 
-    profile, profile_meta = build_player_profile(player, long_table, medium_table, recent_table)
+    profile, profile_meta = build_player_profile(player, long_table, medium_table, recent30_table, recent15_table)
     team = str(prop.get("team") or profile.team or "")
     opponent = str(prop.get("opponent") or "")
+    # Never manufacture a projection from league-average KPR when the player did
+    # not match a real profile. Database fallback is allowed only when it contains
+    # an actual historical sample.
+    if int(profile.maps or 0) <= 0:
+        dbp = lookup_database_player(player)
+        if not dbp or int(dbp.get("profile_maps") or 0) <= 0:
+            return {
+                **prop, "team": team, "opponent": opponent, "projection": None,
+                "lean": "PASS", "probability": 0.0, "edge": None, "expected_rounds": None,
+                "adjusted_kpr": None, "base_kpr": None, "profile_maps": 0,
+                "likely_maps": "Unconfirmed", "map_confidence": 0.0,
+                "status": "PASS", "status_label": "🚫 PASS", "data_score": 0,
+                "flags": ["NO REAL PLAYER PROFILE", "PROJECTION BLOCKED — NO DEFAULT KPR"],
+                "error": "Player could not be matched to verified historical CS2 data"
+            }
     match_url = str(prop.get("match_url") or "")
     discovery_meta: Dict[str, Any] = {}
     if not match_url:
@@ -3247,10 +4141,16 @@ def build_projection_for_prop(
 
     context, deep_status = enrich_match_context(context, deep_enabled=deep_enabled)
     likely_maps, map_confidence, map_meta = infer_likely_maps(context)
+    veto_state = veto_state_from_meta(map_meta)
+    patch_era = patch_era_for_time(prop.get("start_time"))
+    active_maps = set(patch_era.get("active_maps") or KNOWN_MAPS)
+    inactive_likely_maps = [m for m in likely_maps if m not in active_maps]
     expected_rounds, rounds_sd, rounds_meta = project_expected_rounds(context, likely_maps, map_meta, team, opponent)
     role, role_confidence, role_method = get_player_role(player, profile)
-    player_map_profiles, player_map_status = build_player_map_profiles(profile, likely_maps) if deep_enabled else ({}, {"ok": False, "message": "deep data disabled"})
+    player_map_profiles, player_map_status = build_player_map_profiles(profile, likely_maps, prop.get("start_time"), patch_era) if deep_enabled else ({}, {"ok": False, "message": "deep data disabled"})
     matchup_factor, matchup_meta = opponent_kpr_factor(profile, context, team, opponent, likely_maps, role)
+    sos_factor, sos_meta = strength_of_schedule_adjustment(context, profile, team, opponent)
+    matchup_factor = clamp(matchup_factor * sos_factor, 0.90, 1.10)
     context_factor, context_variance, context_meta = match_context_adjustment(profile, context, team, opponent)
 
     learning_shift, learning_meta = learning_adjustment(player, role, float(line), likely_maps, context.get("event_tier", ""))
@@ -3272,17 +4172,23 @@ def build_projection_for_prop(
     projection_before_learning = sim["projection"] - learning_shift
     edge = sim["projection"] - float(line)
     lean = "OVER" if edge > 0 else "UNDER"
-    probability = sim["over_prob"] if lean == "OVER" else sim["under_prob"]
+    raw_probability = sim["over_prob"] if lean == "OVER" else sim["under_prob"]
+    calibration = calibrate_probability(raw_probability, {
+        "lean": lean, "veto_state": veto_state, "event_tier": context.get("event_tier", "")
+    })
+    probability = calibration["calibrated"]
     saved_odds = get_saved_odds(player, float(line))
     over_nv, under_nv = no_vig_probs(safe_float(saved_odds.get("over_odds"), None), safe_float(saved_odds.get("under_odds"), None))
     market_prob = over_nv if lean == "OVER" else under_nv
     consensus_line = safe_float(prop.get("consensus_line"), None)
     market_source_count = safe_int(prop.get("market_source_count"), 0) or 0
     consensus_edge = (sim["projection"] - consensus_line) if consensus_line is not None else None
+    market_direction_agrees = None
     if market_prob is not None:
-        market_agreement: Optional[bool] = market_prob >= 0.50
+        market_direction_agrees = market_prob >= 0.50
         market_edge = probability - market_prob
-        market_method = "sportsbook no-vig"
+        market_agreement = bool(market_direction_agrees and market_edge >= MIN_MARKET_VALUE_EDGE)
+        market_method = "sportsbook no-vig positive-value test"
     elif consensus_line is not None and market_source_count >= 2:
         market_agreement = (consensus_edge >= 0 and lean == "OVER") or (consensus_edge <= 0 and lean == "UNDER")
         market_edge = None
@@ -3292,6 +4198,8 @@ def build_projection_for_prop(
         market_edge = None
         market_method = "single-board/no odds"
 
+    identity = roster_identity_assessment(player,team,opponent,profile,context,prop,context_status,map_meta)
+    core_kpr_verified = bool(profile_meta.get("core_kpr_verified"))
     data_score, data_notes, data_components = calculate_data_score_deep(
         profile, profile_meta, context, map_confidence, role_confidence, match_url,
         player_map_profiles, map_meta, matchup_meta, context_meta, market_source_count,
@@ -3300,11 +4208,46 @@ def build_projection_for_prop(
         lean, probability, edge, data_score, profile, context, map_confidence,
         market_agreement, player_map_profiles, matchup_meta, context_meta,
     )
+    flags.extend(identity.get("flags") or [])
+    if identity.get("hard_pass"):
+        status,status_label="PASS","🚫 PASS — ID/ROSTER FAILURE"
+    elif not core_kpr_verified:
+        if status in {"OFFICIAL","PLAYABLE"}: status,status_label="TRACK","⚠️ TRACK — CORE KPR ESTIMATED"
+        flags.append("CORE KPR NOT VERIFIED FROM REAL KILLS/ROUNDS")
+    elif not profile_meta.get("source_fresh"):
+        if status in {"OFFICIAL","PLAYABLE"}: status,status_label="TRACK","⚠️ TRACK — PLAYER DATA STALE"
+        flags.append("PLAYER FORM DATA EXCEEDS 24-HOUR FRESHNESS POLICY")
+    elif not (context.get("deep_source_health") or {}).get("roster_fresh",False):
+        if status in {"OFFICIAL","PLAYABLE"}: status,status_label="TRACK","⚠️ TRACK — ROSTER SOURCE STALE"
+        flags.append("CURRENT ROSTER DATA EXCEEDS 4-HOUR FRESHNESS POLICY")
+    elif not (context.get("deep_source_health") or {}).get("team_map_fresh",False) and status=="OFFICIAL":
+        status,status_label="PLAYABLE","✅ PLAYABLE — TEAM MAP DATA STALE"
+        flags.append("TEAM MAP PROFILE EXCEEDS 24-HOUR FRESHNESS POLICY")
+    elif not identity.get("official_ready") and status=="OFFICIAL":
+        status,status_label="TRACK","⚠️ TRACK — LINEUP/ID/FRESHNESS UNVERIFIED"
+    if inactive_likely_maps:
+        status, status_label = "PASS", "🚫 PASS"
+        flags.append("MAP OUTSIDE CONFIGURED PATCH ERA")
+    if status == "OFFICIAL" and veto_state == "PRE_VETO" and (probability < 0.645 or abs(edge) < 2.50):
+        status, status_label = "PLAYABLE", "✅ PLAYABLE — PRE-VETO"
+        flags.append("PRE-VETO REQUIRES LARGER EDGE")
+    if status == "OFFICIAL" and market_agreement is None and (probability < 0.655 or abs(edge) < 2.75):
+        status, status_label = "PLAYABLE", "✅ PLAYABLE — NO MARKET CONFIRMATION"
+        flags.append("NO EXTERNAL MARKET CONFIRMATION")
+    if status == "OFFICIAL" and not calibration.get("ready"):
+        status, status_label = "TRACK", "⚠️ TRACK — CALIBRATION NOT USABLE"
+        flags.append("FEWER THAN 300 COMPARABLE GRADED PROJECTIONS")
+    share_model=sim.get("team_kill_share_model") or {}; blend_meta=(share_model.get("blend") or {})
+    if status=="OFFICIAL" and (share_model.get("team_kpr_source") != "recent team scoreboard" or safe_int(share_model.get("trained_sample"),0)<MIN_BLEND_TRAINING_SAMPLES or safe_int(blend_meta.get("sample"),0)<MIN_BLEND_TRAINING_SAMPLES):
+        status,status_label="PLAYABLE","✅ PLAYABLE — SIMULATION PRIORS NOT TRAINED"
+        flags.append("TEAM KILL-SHARE / DIRECT-BLEND PARAMETERS NOT YET TRAINED")
     movement = line_movement(player, prop.get("market", "Maps 1-2 Kills"), prop.get("start_time", ""), float(line))
     lineup_names = context.get("lineup_names") or []
     lineup_verified = bool(lineup_names and max([name_similarity(player, x) for x in lineup_names] or [0]) >= 0.80)
     opponent_profile = matchup_meta.get("opponent_profile") or {}
     team_profile = matchup_meta.get("team_profile") or {}
+    role_timeline_update(player, team, role, role_confidence, str(prop.get("start_time") or now_iso()), safe_int(context_meta.get("current_roster_maps"), 0) or 0)
+    role_history = role_timeline_risk(player, team, role)
 
     return {
         **prop,
@@ -3319,6 +4262,16 @@ def build_projection_for_prop(
         "abs_edge": round(abs(edge), 2),
         "lean": lean,
         "probability": round(probability, 4),
+        "raw_probability": round(raw_probability, 4),
+        "calibration_sample": calibration.get("sample", 0),
+        "calibration_ready": calibration.get("ready", False),
+        "calibration_method": calibration.get("method"),
+        "calibration_empirical_rate": calibration.get("empirical_rate"),
+        "calibration_tier": calibration.get("tier"),
+        "core_kpr_verified": core_kpr_verified,
+        "player_source_fresh":bool(profile_meta.get("source_fresh")),
+        "player_source_ages":profile_meta.get("source_ages") or {},
+        "kpr_source": profile.kpr_source,
         "over_probability": round(sim["over_prob"], 4),
         "under_probability": round(sim["under_prob"], 4),
         "push_probability": round(sim["push_prob"], 4),
@@ -3361,16 +4314,31 @@ def build_projection_for_prop(
         "role": role,
         "role_confidence": round(role_confidence, 3),
         "role_method": role_method,
+        "role_history": role_history,
         "likely_maps": likely_maps,
         "map_confidence": round(map_confidence, 1),
         "map_scenarios": (map_meta.get("scenarios") or [])[:8],
+        "veto_state": veto_state,
+        "patch_era": patch_era.get("name"),
+        "patch_era_note": patch_era.get("note"),
+        "inactive_likely_maps": inactive_likely_maps,
         "match_format": context.get("format", "UNKNOWN"),
         "environment": context.get("environment", "UNKNOWN"),
         "stage": context.get("stage", ""),
         "event": context.get("event", ""),
         "event_tier": context.get("event_tier", "LOW/UNKNOWN"),
         "world_ranks": context.get("world_ranks", []),
-        "lineup_verified": lineup_verified,
+        "lineup_verified": identity.get("lineup_verified",lineup_verified),
+        "confirmed_lineup_names": list(lineup_names),
+        "confirmed_lineup_groups": context.get("lineup_groups") or [],
+        "confirmed_starting_side_hints": context.get("starting_side_hints") or {},
+        "current_roster_names": list((team_profile.get("current_roster") or [])),
+        "current_roster_verified": identity.get("current_roster_verified"),
+        "roster_overlap": identity.get("roster_overlap"),
+        "roster_transaction_risk": identity.get("transaction_risk"),
+        "identity_official_ready": identity.get("official_ready"),
+        "identity_ids": {k:identity.get(k) for k in ["player_id","match_id","team_id","opponent_id"]},
+        "source_freshness": {**{k:identity.get(k) for k in ["line_age_seconds","match_age_seconds","veto_fresh"]},**(context.get("deep_source_health") or {})},
         "standin_warning": bool(context.get("standin_warning")),
         "current_roster_maps": safe_int(context_meta.get("current_roster_maps"), 0) or 0,
         "roster_stability": round(safe_float(context_meta.get("roster_stability"), 0) or 0, 3),
@@ -3378,6 +4346,13 @@ def build_projection_for_prop(
         "opponent_deaths_allowed_pr": opponent_profile.get("deaths_allowed_per_round"),
         "opponent_mapstats_samples": safe_int(opponent_profile.get("mapstats_samples"), 0) or 0,
         "team_recent_maps": safe_int(team_profile.get("recent_maps"), 0) or 0,
+        "strength_of_schedule_factor": round(sos_factor, 4),
+        "strength_of_schedule_meta": sos_meta,
+        "team_kill_share_model": sim.get("team_kill_share_model") or {},
+        "model_components": sim.get("model_components") or {},
+        "market_scope_verified": True,
+        "market_identity_confidence": round(market_identity_confidence, 3),
+        "market_identity_method": market_identity_method,
         "data_score": data_score,
         "data_notes": data_notes,
         "data_components": data_components,
@@ -3389,6 +4364,8 @@ def build_projection_for_prop(
         "market_probability": round(market_prob, 4) if market_prob is not None else None,
         "market_edge": round(market_edge, 4) if market_edge is not None else None,
         "market_agreement": market_agreement,
+        "market_direction_agrees": market_direction_agrees,
+        "market_positive_value": bool(market_edge is not None and market_edge >= MIN_MARKET_VALUE_EDGE),
         "market_method": market_method,
         "consensus_line": consensus_line,
         "consensus_edge": round(consensus_edge, 3) if consensus_edge is not None else None,
@@ -3410,6 +4387,9 @@ def build_projection_for_prop(
             "map": map_meta,
             "rounds": rounds_meta,
             "matchup": matchup_meta,
+            "strength_of_schedule": sos_meta,
+            "patch_era": patch_era,
+            "calibration": calibration,
             "context_adjustment": context_meta,
             "learning": learning_meta,
         },
@@ -3419,16 +4399,19 @@ def build_projection_for_prop(
 def build_full_board(props: List[Dict[str, Any]], deep_enabled: bool = True) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     if not props:
         return [], {"profiles": {}, "status": "No real lines"}
+    valve_map_pool_status=refresh_active_map_pool_from_valve()
+    demo_drop_status=auto_ingest_demo_dropbox() if AUTO_HARVEST_HISTORY else {"ok":False,"disabled":True}
     long_table, long_status = fetch_hltv_player_table(180)
     medium_table, medium_status = fetch_hltv_player_table(60)
-    recent_table, recent_status = fetch_hltv_player_table(20)
+    recent30_table, recent30_status = fetch_hltv_player_table(30)
+    recent15_table, recent15_status = fetch_hltv_player_table(15)
     results: List[Dict[str, Any]] = []
     # Keep concurrency low to be respectful and reduce blocking. Cached global
     # tables make most work local; individual profiles are cached for four hours.
     max_workers = min(5, max(1, len(props)))
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {
-            pool.submit(build_projection_for_prop, prop, long_table, medium_table, recent_table, deep_enabled): prop
+            pool.submit(build_projection_for_prop, prop, long_table, medium_table, recent30_table, recent15_table, deep_enabled): prop
             for prop in props
         }
         for future in as_completed(futures):
@@ -3440,9 +4423,9 @@ def build_full_board(props: List[Dict[str, Any]], deep_enabled: bool = True) -> 
     status_order = {"OFFICIAL": 0, "PLAYABLE": 1, "TRACK": 2, "PASS": 3}
     results.sort(key=lambda x: (status_order.get(x.get("status"), 9), -safe_float(x.get("probability"), 0), -safe_float(x.get("abs_edge"), 0)))
     return results, {
-        "long": long_status, "medium": medium_status, "recent": recent_status,
-        "deep_data_enabled": deep_enabled,
-        "long_rows": len(long_table), "medium_rows": len(medium_table), "recent_rows": len(recent_table)
+        "long": long_status, "medium": medium_status, "recent30": recent30_status, "recent15": recent15_status,
+        "deep_data_enabled": deep_enabled, "valve_map_pool":valve_map_pool_status, "demo_dropbox":demo_drop_status,
+        "long_rows": len(long_table), "medium_rows": len(medium_table), "recent30_rows": len(recent30_table), "recent15_rows": len(recent15_table)
     }
 
 # ============================================================
@@ -3486,58 +4469,92 @@ def save_official_snapshots(board: List[Dict[str, Any]], include_playable: bool 
 
 
 def _mapstats_links(match_page: str) -> List[str]:
-    links = []
-    for href in re.findall(r'href=["\']([^"\']*mapstatsid/\d+/[^"\']+)["\']', match_page, flags=re.I):
-        full = urljoin(HLTV_BASE, href)
-        if full not in links:
-            links.append(full)
+    links=[]
+    for href in re.findall(r'href=["\']([^"\']*mapstatsid/(\d+)/[^"\']+)["\']',match_page,flags=re.I):
+        full=urljoin(HLTV_BASE,href[0])
+        if full not in links: links.append(full)
     return links
 
 
-def parse_map_player_kills(page: str, player: str) -> Tuple[Optional[int], Dict[str, Any]]:
+def _mapstats_id(url: str) -> str:
+    m=re.search(r"mapstatsid/(\d+)/",str(url or "")); return m.group(1) if m else ""
+
+
+def parse_mapstats_map_name(page: str) -> str:
+    if not page: return ""
+    head=strip_tags(page[:25000])
+    hits=[]
+    for m in KNOWN_MAPS:
+        pos=re.search(rf"\b{re.escape(m.replace('2',' II'))}\b|\b{re.escape(m)}\b",head,re.I)
+        if pos: hits.append((pos.start(),m))
+    return min(hits)[1] if hits else ""
+
+
+def parse_map_player_kills(page: str, player: str, player_id: str = "") -> Tuple[Optional[int], Dict[str, Any]]:
     if not page:
-        return None, {"matched": False}
-    best: Tuple[float, Optional[int], str] = (0.0, None, "")
-    for tr in re.findall(r"<tr\b[^>]*>(.*?)</tr>", page, flags=re.I | re.S):
-        player_anchor = re.search(r'href=["\']/stats/players?/\d+/[^"\']+["\'][^>]*>(.*?)</a>', tr, flags=re.I | re.S)
-        if not player_anchor:
-            player_anchor = re.search(r'href=["\']/player/\d+/[^"\']+["\'][^>]*>(.*?)</a>', tr, flags=re.I | re.S)
-        if not player_anchor:
-            continue
-        candidate = strip_tags(player_anchor.group(1)).replace("\n", " ").strip()
-        score = name_similarity(player, candidate)
-        if score < 0.75:
-            continue
-        text = strip_tags(tr).replace("\n", " ")
-        kd_match = re.search(r"\b(\d{1,2})\s*[-–]\s*(\d{1,2})\b", text)
-        kills = safe_int(kd_match.group(1), None) if kd_match else None
+        return None,{"matched":False}
+    best=(0.0,None,"","")
+    for tr in re.findall(r"<tr\b[^>]*>(.*?)</tr>",page,flags=re.I|re.S):
+        anchor=re.search(r'href=["\']/stats/players?/(\d+)/[^"\']+["\'][^>]*>(.*?)</a>',tr,flags=re.I|re.S)
+        if not anchor: anchor=re.search(r'href=["\']/player/(\d+)/[^"\']+["\'][^>]*>(.*?)</a>',tr,flags=re.I|re.S)
+        if not anchor: continue
+        pid=anchor.group(1); candidate=strip_tags(anchor.group(2)).replace("\n"," ").strip()
+        score=1.0 if player_id and pid==str(player_id) else name_similarity(player,candidate)
+        if player_id and pid!=str(player_id): continue
+        if score<.84: continue
+        text=strip_tags(tr).replace("\n"," "); kd=re.search(r"\b(\d{1,2})\s*[-–]\s*(\d{1,2})\b",text)
+        kills=safe_int(kd.group(1),None) if kd else None
         if kills is None:
-            # Standard map table usually has K-D as first numeric pair after name.
-            numbers = [safe_int(x) for x in re.findall(r"\b\d{1,2}\b", text)]
-            kills = numbers[0] if numbers else None
-        if score > best[0] and kills is not None:
-            best = (score, kills, candidate)
-    return best[1], {"matched": best[1] is not None, "score": round(best[0], 3), "name": best[2]}
+            nums=[safe_int(x) for x in re.findall(r"\b\d{1,2}\b",text)]; kills=nums[0] if nums else None
+        if score>best[0] and kills is not None: best=(score,kills,candidate,pid)
+    return best[1],{"matched":best[1] is not None,"score":round(best[0],3),"name":best[2],"player_id":best[3],"exact_id":bool(player_id and best[3]==str(player_id))}
 
 
-def fetch_actual_maps12_kills(match_url: str, player: str) -> Tuple[Optional[int], Dict[str, Any]]:
-    match_page, match_status = http_get_text(match_url, "HLTV grade match", ttl=4 * 60, timeout=20, allow_stale=False)
-    if not match_page:
-        return None, {"ok": False, "match_status": match_status}
-    links = _mapstats_links(match_page)
-    if len(links) < 2:
-        return None, {"ok": False, "message": "Fewer than two completed map-stat links", "links": links}
-    kills_total = 0
-    details = []
-    for map_url in links[:2]:
-        page, status = http_get_text(map_url, "HLTV grade map", ttl=4 * 60, timeout=20, allow_stale=False)
-        kills, meta = parse_map_player_kills(page or "", player)
-        details.append({"url": map_url, "kills": kills, "meta": meta, "status": status})
-        if kills is None:
-            return None, {"ok": False, "message": "Player not matched on one of first two maps", "details": details}
-        kills_total += kills
-    return kills_total, {"ok": True, "details": details, "map_links": links[:2]}
+def parse_player_team_total_kills(page: str, player: str) -> Tuple[Optional[int], Dict[str, Any]]:
+    tables=parse_mapstats_team_tables(page or "",())
+    best=None; best_score=0.0
+    for table in tables:
+        score=max([name_similarity(player,x.get("player","")) for x in table.get("players",[])] or [0])
+        if score>best_score:
+            best_score=score; best=table
+    if best is None or best_score<.78:
+        return None,{"matched":False,"score":best_score}
+    return safe_int(best.get("total_kills"),None),{"matched":True,"score":best_score,"team":best.get("team"),"players":len(best.get("players",[]))}
 
+
+def fetch_actual_maps12_kills(match_url: str, player: str, player_id: str = "") -> Tuple[Optional[int], Dict[str, Any]]:
+    match_page,match_status=http_get_text(match_url,"HLTV grade match",ttl=4*60,timeout=20,allow_stale=False)
+    if not match_page: return None,{"ok":False,"match_status":match_status}
+    lower=strip_tags(match_page).lower()
+    void_terms=[x for x in ["walkover","forfeit","technical win","match cancelled","match postponed"] if x in lower]
+    if void_terms: return None,{"ok":False,"void_reason":", ".join(void_terms),"message":"Match requires manual/void review"}
+    map_results=_extract_map_results(match_page); links=_mapstats_links(match_page)
+    if len(map_results)<2: return None,{"ok":False,"message":"Two chronological completed maps not confirmed","map_results":map_results}
+    if len(links)<2: return None,{"ok":False,"message":"Fewer than two completed map-stat links","links":links}
+    fetched=[]
+    for url in links[:5]:
+        page,status=http_get_text(url,"HLTV grade map",ttl=4*60,timeout=20,allow_stale=False)
+        fetched.append({"url":url,"map_id":_mapstats_id(url),"map":parse_mapstats_map_name(page or ""),"page":page or "","status":status})
+    ordered=[]; used=set()
+    for result in map_results[:2]:
+        target=result.get("map"); candidates=[x for x in fetched if x["map_id"] not in used and x.get("map")==target]
+        if len(candidates)!=1:
+            return None,{"ok":False,"message":f"Could not uniquely match chronological {target} map-stat page","map_results":map_results[:2],"fetched_maps":[{k:x.get(k) for k in ["url","map_id","map"]} for x in fetched]}
+        ordered.append(candidates[0]); used.add(candidates[0]["map_id"])
+    kills_total=0; team_total=0; team_verified=True; details=[]; scores=[]
+    for rec in ordered:
+        kills,meta=parse_map_player_kills(rec["page"],player,player_id); tk,tm=parse_player_team_total_kills(rec["page"],player)
+        scores.append(safe_float(meta.get("score"),0) or 0)
+        if tk is None: team_verified=False
+        else: team_total+=int(tk)
+        detail={"url":rec["url"],"map_id":rec["map_id"],"map":rec["map"],"kills":kills,"meta":meta,"team_total_kills":tk,"team_meta":tm,"status":rec["status"]}; details.append(detail)
+        if kills is None: return None,{"ok":False,"message":"Player not matched on one of first two chronological maps","details":details}
+        kills_total+=int(kills)
+    confidence=min(scores) if scores else 0.0
+    if player_id and not all((x.get("meta") or {}).get("exact_id") for x in details): confidence=min(confidence,.70)
+    meta={"ok":confidence>=.84,"confidence":confidence,"details":details,"map_links":[x["url"] for x in ordered],"map_results":map_results[:2],"team_total_kills":team_total if team_verified else None,"observed_player_share":kills_total/team_total if team_verified and team_total>0 else None,"total_kills":kills_total,"match_id":_match_id_from_url(match_url)}
+    if confidence<.84: return None,{**meta,"message":"Grading identity confidence below 0.84"}
+    return kills_total,meta
 
 def grade_result(lean: str, line: float, actual: float) -> str:
     if actual == line:
@@ -3567,7 +4584,8 @@ def grade_pending_automatically() -> Dict[str, Any]:
             pending += 1
             diagnostics.append({"player": row.get("player"), "status": "NO MATCH URL"})
             continue
-        actual, meta = fetch_actual_maps12_kills(match_url, str(row.get("player", "")))
+        actual, meta = fetch_actual_maps12_kills(match_url, str(row.get("player", "")), str((row.get("identity_ids") or {}).get("player_id") or ""))
+        sqlite_store_grading_audit(str(row.get("snapshot_id") or snapshot_key(row)),str(row.get("player") or ""),meta)
         if actual is None:
             pending += 1
             diagnostics.append({"player": row.get("player"), "status": "PENDING", "detail": meta.get("message")})
@@ -3578,6 +4596,8 @@ def grade_pending_automatically() -> Dict[str, Any]:
             "actual_kills": int(actual), "graded_result": graded_label,
             "graded_at": now_iso(), "grade_source": "HLTV first two map stat pages",
             "grade_meta": meta,
+            "team_total_kills": meta.get("team_total_kills"),
+            "observed_player_share": meta.get("observed_player_share"),
         })
         results.append(result_row)
         result_ids.add(row.get("snapshot_id"))
@@ -3587,9 +4607,20 @@ def grade_pending_automatically() -> Dict[str, Any]:
         graded += 1
     save_json(PICK_LOG, picks)
     save_json(RESULT_LOG, results, github_backup=bool(get_secret("GITHUB_AUTO_BACKUP", "").lower() in {"1", "true", "yes"}))
+    # Grade every valid board projection saved in SQLite, not only selected picks.
+    for row in sqlite_pending_projection_rows():
+        sid=row.get("snapshot_id")
+        if not sid or not row.get("match_url"): continue
+        player_id=str((row.get("identity_ids") or {}).get("player_id") or "")
+        actual,meta=fetch_actual_maps12_kills(str(row.get("match_url")),str(row.get("player","")),player_id)
+        sqlite_store_grading_audit(str(sid),str(row.get("player") or ""),meta)
+        if actual is None: continue
+        label=grade_result(str(row.get("lean")),float(row.get("line")),float(actual))
+        sqlite_mark_projection_graded(str(sid),label,float(actual),meta); graded+=1
     if graded:
-        build_learning_profiles(results)
-    return {"graded": graded, "pending": pending, "errors": errors, "diagnostics": diagnostics[:100]}
+        build_learning_profiles()
+        save_calibration_state()
+    return {"graded": graded, "pending": pending, "errors": errors, "diagnostics": diagnostics[:100], "all_board_calibration_rows": len(sqlite_graded_projection_rows())}
 
 
 def grade_from_manual_dataframe(df: pd.DataFrame, overwrite: bool = False) -> Dict[str, Any]:
@@ -3635,7 +4666,8 @@ def grade_from_manual_dataframe(df: pd.DataFrame, overwrite: bool = False) -> Di
     save_json(PICK_LOG, picks)
     save_json(RESULT_LOG, results, github_backup=bool(get_secret("GITHUB_AUTO_BACKUP", "").lower() in {"1", "true", "yes"}))
     if graded:
-        build_learning_profiles(results)
+        build_learning_profiles()
+        save_calibration_state()
     return {"graded": graded, "unmatched": unmatched}
 
 # ============================================================
@@ -3651,6 +4683,8 @@ def board_dataframe(board: List[Dict[str, Any]]) -> pd.DataFrame:
         "environment", "event_tier", "current_roster_maps", "roster_stability",
         "opponent_deaths_allowed_pr", "opponent_mapstats_samples", "consensus_line",
         "market_source_count", "data_score", "opening_line", "line_move", "market_probability", "market_edge",
+        "raw_probability", "calibration_sample", "veto_state", "patch_era", "strength_of_schedule_factor",
+        "full_lineup_model", "multi_book_market",
         "source", "start_time", "match_url", "flags"
     ]
     rows = []
@@ -3719,6 +4753,8 @@ def render_pick_card(row: Dict[str, Any], official_style: bool = False) -> None:
     <div class="metric-box"><div class="metric-label">Player Sample</div><div class="metric-value">{_esc(row.get('profile_maps'))} maps</div><div class="small-muted">Rating {_esc(row.get('rating'))}</div></div>
     <div class="metric-box"><div class="metric-label">Data Quality</div><div class="metric-value">{_esc(row.get('data_score'))}/100</div><div class="small-muted">Format {_esc(row.get('match_format'))}</div></div>
     <div class="metric-box"><div class="metric-label">Market Check</div><div class="metric-value" style="font-size:17px;">{_esc(market_text)}</div><div class="small-muted">Line move {_esc(line_move_text)}</div></div>
+    <div class="metric-box"><div class="metric-label">Accuracy Health</div><div class="metric-value">{_esc((row.get('accuracy_health') or {}).get('score'))}/100</div><div class="small-muted">Disagreement {_esc(row.get('model_disagreement'))}</div></div>
+    <div class="metric-box"><div class="metric-label">Calibrated Range</div><div class="metric-value" style="font-size:17px;">{_fmt_pct(row.get('calibration_lower90'))}–{_fmt_pct(row.get('calibration_upper90'))}</div><div class="small-muted">Local n={_esc(row.get('calibration_local_sample'))}</div></div>
   </div>
   <div>{flag_html}</div>
 </div>
@@ -3744,6 +4780,10 @@ def render_pick_card(row: Dict[str, Any], official_style: bool = False) -> None:
                 "Under probability": _fmt_pct(row.get("under_probability")),
                 "Push probability": _fmt_pct(row.get("push_probability")),
                 "Learning shift": row.get("learning_shift"),
+                "Calibrated 90% range": [row.get("calibration_lower90"), row.get("calibration_upper90")],
+                "Local calibration sample": row.get("calibration_local_sample"),
+                "Direct/share model disagreement": row.get("model_disagreement"),
+                "Accuracy health": row.get("accuracy_health"),
             })
         st.write({
             "Advanced player data": {
@@ -3779,6 +4819,2250 @@ def render_pick_card(row: Dict[str, Any], official_style: bool = False) -> None:
         st.write("Data notes:", row.get("data_notes") or [])
         st.write("Profile warnings:", row.get("profile_warnings") or [])
         st.json(row.get("source_meta") or {}, expanded=False)
+
+
+# ============================================================
+# V4 — HISTORICAL / CALIBRATION / DEMO / CORRELATION SYSTEMS
+# ============================================================
+
+def canonical_map_name(value: Any) -> str:
+    raw = str(value or "").strip()
+    norm = normalize_name(raw).replace("de ", "")
+    for known in KNOWN_MAPS:
+        kn = normalize_name(known)
+        if norm == kn or kn in norm or norm in kn:
+            return known
+    return raw.title() if raw else ""
+
+
+def american_to_decimal(odds: float) -> Optional[float]:
+    try:
+        value = float(odds)
+    except Exception:
+        return None
+    if value == 0:
+        return None
+    return 1.0 + (100.0 / abs(value) if value < 0 else value / 100.0)
+
+def _append_jsonl(path: str, row: Dict[str, Any]) -> None:
+    try:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
+    except Exception:
+        pass
+
+
+def _read_jsonl(path: str, limit: int = 10000) -> List[Dict[str, Any]]:
+    if not os.path.exists(path):
+        return []
+    rows: List[Dict[str, Any]] = []
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    value = json.loads(line)
+                    if isinstance(value, dict):
+                        rows.append(value)
+                except Exception:
+                    continue
+        return rows[-limit:]
+    except Exception:
+        return []
+
+
+def market_identity_validation(prop: Dict[str, Any]) -> Tuple[bool, float, str, List[str]]:
+    """Require sport + stat + map scope, never line size alone."""
+    source = str(prop.get("source") or "")
+    scope = normalize_name(prop.get("market_scope") or "")
+    evidence = " | ".join(str(prop.get(k) or "") for k in [
+        "market", "stat_name", "evidence", "market_identity_method", "sport_id"
+    ])
+    explicit = _is_cs2_m12_kills(evidence)
+    verified_flag = bool(prop.get("market_scope_verified"))
+    line = safe_float(prop.get("line"), None)
+    flags: List[str] = []
+    if line is None or not (MIN_M12_KILL_LINE <= line <= MAX_M12_KILL_LINE):
+        flags.append("INVALID MAPS 1-2 LINE RANGE")
+    if scope not in {"maps 1 2", "maps_1_2", "m1 m2"} and not explicit:
+        flags.append("MAP SCOPE NOT VERIFIED")
+    if not explicit:
+        flags.append("EXACT MARKET LABEL NOT VERIFIED")
+    if source == "Underdog" and not verified_flag:
+        flags.append("UNDERDOG RELATIONSHIP SCOPE UNVERIFIED")
+    if source == "Underdog" and not str(prop.get("source_line_id") or prop.get("prop_id") or ""):
+        flags.append("UNDERDOG LINE ID MISSING")
+    confidence = 0.0
+    if explicit:
+        confidence += 0.55
+    if verified_flag:
+        confidence += 0.25
+    if prop.get("appearance_id") or prop.get("game_id"):
+        confidence += 0.10
+    if line is not None and MIN_M12_KILL_LINE <= line <= MAX_M12_KILL_LINE:
+        confidence += 0.10
+    confidence = clamp(confidence, 0.0, 1.0)
+    return not flags, confidence, "exact relationship/label validation" if not flags else "market identity incomplete", flags
+
+
+def _graded_binary_rows() -> List[Dict[str, Any]]:
+    combined=[]; seen=set()
+    raw=load_json(RESULT_LOG,[]); raw=raw if isinstance(raw,list) else []
+    for row in raw+sqlite_graded_projection_rows():
+        result=str(row.get("graded_result") or "").upper(); p=safe_float(row.get("raw_probability"),None) or safe_float(row.get("probability"),None)
+        if result not in {"WIN","LOSS"} or p is None: continue
+        key=str(row.get("snapshot_id") or snapshot_key(row))
+        if key in seen: continue
+        seen.add(key); item=dict(row); item["_p"]=clamp(float(p),.001,.999); item["_y"]=1 if result=="WIN" else 0
+        item["_time"]=str(row.get("projection_time") or row.get("saved_at") or row.get("graded_at") or ""); combined.append(item)
+    combined.sort(key=lambda x:x.get("_time","")); return combined
+
+
+def _calibration_subset(rows: List[Dict[str, Any]], context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    if not context:
+        return rows
+    lean = str(context.get("lean") or "")
+    veto = str(context.get("veto_state") or "")
+    tier = str(context.get("event_tier") or "")
+    scoped = [x for x in rows if (not lean or str(x.get("lean") or "") == lean)]
+    if len(scoped) >= 35 and veto:
+        narrower = [x for x in scoped if str(x.get("veto_state") or "") == veto]
+        if len(narrower) >= 25:
+            scoped = narrower
+    if len(scoped) >= 60 and tier:
+        narrower = [x for x in scoped if str(x.get("event_tier") or "") == tier]
+        if len(narrower) >= 25:
+            scoped = narrower
+    return scoped
+
+
+
+def _isotonic_fit_predict(rows: List[Dict[str, Any]], raw: float) -> Optional[float]:
+    if len(rows)<40: return None
+    pairs=sorted((float(x["_p"]),float(x["_y"])) for x in rows)
+    blocks=[]
+    for p,y in pairs:
+        blocks.append([p,p,y,1])
+        while len(blocks)>=2 and blocks[-2][2]/blocks[-2][3] > blocks[-1][2]/blocks[-1][3]:
+            b=blocks.pop(); a=blocks.pop(); blocks.append([a[0],b[1],a[2]+b[2],a[3]+b[3]])
+    points=[((a+b)/2,s/n) for a,b,s,n in blocks]
+    if raw<=points[0][0]: return points[0][1]
+    if raw>=points[-1][0]: return points[-1][1]
+    for (x1,y1),(x2,y2) in zip(points,points[1:]):
+        if x1<=raw<=x2:
+            t=(raw-x1)/max(x2-x1,1e-9); return y1+t*(y2-y1)
+    return None
+
+
+def calibrate_probability(raw_probability: float, context: Optional[Dict[str, Any]] = None, prior_rows: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    raw=clamp(float(raw_probability),.001,.999); rows=_calibration_subset(prior_rows if prior_rows is not None else _graded_binary_rows(),context)
+    n=len(rows); iso=_isotonic_fit_predict(rows,raw)
+    if iso is None:
+        near=[x for x in rows if abs(x["_p"]-raw)<=.075] or rows; wins=sum(x["_y"] for x in near); nn=len(near); prior=30.0
+        empirical=(wins+raw*prior)/(nn+prior) if nn else raw; reliability=nn/(nn+80.0); calibrated=raw*(1-reliability)+empirical*reliability; method="beta-bin shrinkage"
+        sample=nn; empirical_rate=wins/nn if nn else None
+    else:
+        reliability=n/(n+180.0); calibrated=raw*(1-reliability)+iso*reliability; method="walk-forward isotonic + shrinkage"; sample=n; empirical_rate=iso
+    ceiling=.70 if sample<MIN_CALIBRATION_PRELIMINARY else .76 if sample<MIN_CALIBRATION_USABLE else .82
+    calibrated=clamp(calibrated,.50,ceiling)
+    tier="UNREADY" if sample<MIN_CALIBRATION_PRELIMINARY else "PRELIMINARY" if sample<MIN_CALIBRATION_USABLE else "USABLE" if sample<MIN_CALIBRATION_STRONG else "STRONG"
+    return {"raw":raw,"calibrated":calibrated,"sample":sample,"empirical_rate":empirical_rate,"method":method,"ready":sample>=MIN_CALIBRATION_USABLE,"tier":tier}
+
+
+def calibration_metrics(rows: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    rows = rows if rows is not None else _graded_binary_rows()
+    if not rows:
+        return {"n": 0, "brier": None, "log_loss": None, "ece": None, "bins": []}
+    ps = np.array([x["_p"] for x in rows], dtype=float)
+    ys = np.array([x["_y"] for x in rows], dtype=float)
+    brier = float(np.mean((ps - ys) ** 2))
+    logloss = float(-np.mean(ys * np.log(ps) + (1 - ys) * np.log(1 - ps)))
+    bins = []
+    ece = 0.0
+    for low in np.arange(0.50, 0.76, 0.025):
+        high = low + 0.025
+        mask = (ps >= low) & (ps < high if high < 0.775 else ps <= high)
+        n = int(mask.sum())
+        if n:
+            pred = float(ps[mask].mean())
+            actual = float(ys[mask].mean())
+            ece += n / len(rows) * abs(pred - actual)
+            bins.append({"bucket": f"{low:.3f}-{high:.3f}", "n": n, "predicted": pred, "actual": actual, "gap": actual - pred})
+    return {"n": len(rows), "brier": brier, "log_loss": logloss, "ece": float(ece), "bins": bins}
+
+
+def walk_forward_calibration_report() -> Dict[str, Any]:
+    rows = _graded_binary_rows()
+    preds, ys = [], []
+    records = []
+    for i, row in enumerate(rows):
+        if i < 20:
+            continue
+        cal = calibrate_probability(row["_p"], row, prior_rows=rows[:i])
+        preds.append(cal["calibrated"])
+        ys.append(row["_y"])
+        records.append({
+            "time": row.get("_time"), "player": row.get("player"), "raw": row["_p"],
+            "calibrated": cal["calibrated"], "actual": row["_y"], "training_sample": cal["sample"],
+        })
+    if not preds:
+        return {"n": 0, "message": "At least 21 chronological graded rows are required.", "records": []}
+    p = np.clip(np.array(preds), 0.001, 0.999)
+    y = np.array(ys)
+    return {
+        "n": len(preds),
+        "brier": float(np.mean((p-y)**2)),
+        "log_loss": float(-np.mean(y*np.log(p)+(1-y)*np.log(1-p))),
+        "hit_rate": float(np.mean(y)),
+        "records": records,
+    }
+
+
+def save_calibration_state() -> Dict[str, Any]:
+    state = {"updated_at": now_iso(), "in_sample": calibration_metrics(), "walk_forward": walk_forward_calibration_report()}
+    save_json(CALIBRATION_FILE, state)
+    return state
+
+
+def seed_patch_eras() -> List[Dict[str, Any]]:
+    existing = load_json(PATCH_ERAS_FILE, [])
+    if isinstance(existing, list) and existing:
+        return existing
+    # Versioned defaults. Valve added Cache and removed Overpass on 2026-07-08.
+    eras = [
+        {
+            "name":"CS2_PRE_CACHE_2026","effective_from":"2026-01-01","effective_to":"2026-07-07",
+            "active_maps":["Ancient","Anubis","Dust2","Inferno","Mirage","Nuke","Overpass"],
+            "decay_half_life_days":90,"same_era_multiplier":1.0,"old_era_multiplier":0.35,
+            "note":"Pre-July 8 2026 Active Duty era."
+        },
+        {
+            "name":"CS2_CACHE_ERA_2026","effective_from":"2026-07-08","effective_to":None,
+            "active_maps":CURRENT_ACTIVE_MAPS,"decay_half_life_days":75,"same_era_multiplier":1.0,"old_era_multiplier":0.25,
+            "note":"Cache added and Overpass removed from Active Duty on July 8, 2026."
+        }
+    ]
+    save_json(PATCH_ERAS_FILE, eras)
+    return eras
+
+
+def refresh_active_map_pool_from_valve(force: bool = False) -> Dict[str, Any]:
+    """Best-effort official map-pool refresh. It never invents a pool if parsing fails."""
+    marker=os.path.join(STORAGE_DIR,"valve_map_pool_refresh.json")
+    old=load_json(marker,{})
+    last=_parse_iso_datetime(old.get("checked_at")) if isinstance(old,dict) else None
+    if not force and last and (datetime.now(timezone.utc)-last).total_seconds()<24*3600:
+        return old
+    url="https://www.counter-strike.net/news/updates"
+    page,status=http_get_text(url,"Valve official updates",ttl=6*3600,timeout=20,allow_stale=True,stale_ttl=24*3600)
+    result={"checked_at":now_iso(),"ok":False,"status":status}
+    if page:
+        text=strip_tags(page)
+        added=re.search(r"Added\s+([A-Za-z0-9 II]+?)\s+to the Active Duty Map Pool",text,re.I)
+        removed=re.search(r"Removed\s+([A-Za-z0-9 II]+?)\s+from the Active Duty Map Pool",text,re.I)
+        if added and removed:
+            add=canonical_map_name(added.group(1).strip()); rem=canonical_map_name(removed.group(1).strip())
+            eras=seed_patch_eras(); current=dict(eras[-1]); maps=list(current.get("active_maps") or CURRENT_ACTIVE_MAPS)
+            maps=[m for m in maps if m!=rem]
+            if add and add not in maps: maps.append(add)
+            current["active_maps"]=sorted(set(maps),key=lambda x:KNOWN_MAPS.index(x) if x in KNOWN_MAPS else 999)
+            current["official_refresh_at"]=now_iso(); current["official_added"]=add; current["official_removed"]=rem
+            eras[-1]=current; save_json(PATCH_ERAS_FILE,eras)
+            result.update({"ok":True,"added":add,"removed":rem,"active_maps":current["active_maps"]})
+    save_json(marker,result)
+    return result
+
+def patch_era_for_time(value: Any = None) -> Dict[str, Any]:
+    eras = seed_patch_eras()
+    dt = _parse_iso_datetime(value) if value else datetime.now(timezone.utc)
+    if dt is None:
+        dt = datetime.now(timezone.utc)
+    day = dt.date().isoformat()
+    candidates = []
+    for era in eras:
+        start = str(era.get("effective_from") or "0000-01-01")
+        end = str(era.get("effective_to") or "9999-12-31")
+        if start <= day <= end:
+            candidates.append(era)
+    return candidates[-1] if candidates else eras[-1]
+
+
+def veto_state_from_meta(map_meta: Dict[str, Any]) -> str:
+    method = str(map_meta.get("method") or "").lower()
+    if "confirmed veto" in method or "confirmed match" in method:
+        return "CONFIRMED"
+    if map_meta.get("veto_actions"):
+        return "PARTIAL"
+    return "PRE_VETO"
+
+
+def strength_of_schedule_adjustment(context: Dict[str, Any], profile: PlayerStats, team: str, opponent: str) -> Tuple[float, Dict[str, Any]]:
+    ranks=[safe_float(x,None) for x in (context.get("world_ranks") or [])]; ranks=[x for x in ranks if x and x>0]
+    upcoming=None; teams=context.get("teams") or []
+    if len(teams)>=2 and len(ranks)>=2:
+        for i,t in enumerate(teams[:2]):
+            if opponent and _team_name_matches(opponent,t.get("name","")): upcoming=ranks[i]
+    tp,_=_resolve_team_profiles(context,team,opponent)
+    hist=safe_float(tp.get("historical_opponent_rank_avg"),None); hist_n=safe_int(tp.get("historical_opponent_rank_samples"),0) or 0
+    if upcoming is None:
+        return 1.0,{"factor":1.0,"upcoming_opponent_rank":None,"historical_average_rank":hist,"method":"no upcoming rank evidence"}
+    current_strength=clamp((40.0-upcoming)/39.0,0.0,1.0)
+    base=1.022-0.042*current_strength
+    schedule_delta=0.0
+    if hist is not None and hist_n>=5:
+        # A player/team built its baseline against weaker opposition (larger rank number): tax it against a stronger upcoming team.
+        schedule_delta=clamp((upcoming-hist)*0.00065,-0.025,0.025)
+    factor=clamp(base+schedule_delta,.955,1.035)
+    return factor,{"factor":factor,"upcoming_opponent_rank":upcoming,"historical_average_rank":hist,"historical_samples":hist_n,"schedule_delta":schedule_delta,"method":"upcoming + historical opponent-strength normalization"}
+
+def role_timeline_update(player: str, team: str, role: str, confidence: float, start_time: str, roster_maps: int) -> None:
+    data = load_json(ROLE_TIMELINE_FILE, {})
+    if not isinstance(data, dict):
+        data = {}
+    key = normalize_name(player)
+    rows = data.get(key, []) if isinstance(data.get(key), list) else []
+    current = {"time": start_time or now_iso(), "team": team, "role": role, "confidence": confidence, "roster_maps": roster_maps}
+    if not rows or any(str(rows[-1].get(k) or "") != str(current.get(k) or "") for k in ["team", "role"]):
+        rows.append(current)
+    data[key] = rows[-100:]
+    save_json(ROLE_TIMELINE_FILE, data)
+
+
+def role_timeline_risk(player: str, team: str, role: str) -> Dict[str, Any]:
+    data = load_json(ROLE_TIMELINE_FILE, {})
+    rows = data.get(normalize_name(player), []) if isinstance(data, dict) else []
+    changes = 0
+    recent = rows[-5:] if isinstance(rows, list) else []
+    for a, b in zip(recent, recent[1:]):
+        if normalize_name(a.get("team")) != normalize_name(b.get("team")) or a.get("role") != b.get("role"):
+            changes += 1
+    return {"entries": len(rows), "recent_changes": changes, "stable": changes == 0, "current_team": team, "current_role": role}
+
+
+def save_asof_projection_history(board: List[Dict[str, Any]], source_status: Dict[str, Any]) -> int:
+    count = 0
+    for row in board:
+        compact_keys = [
+            "prop_id", "player", "team", "opponent", "start_time", "source", "source_line_id", "market",
+            "line", "opening_line", "projection", "projection_before_learning", "raw_probability", "probability",
+            "lean", "status", "data_score", "expected_rounds", "adjusted_kpr", "likely_maps", "veto_state",
+            "map_confidence", "role", "profile_maps", "current_roster_maps", "roster_stability", "event", "event_tier",
+            "patch_era", "market_scope_verified", "market_identity_confidence", "model_version", "feature_fingerprint",
+            "joint_lineup_model", "neutral_projection_correction"
+        ]
+        snap = {k: row.get(k) for k in compact_keys}
+        snap.update({"as_of": now_iso(), "snapshot_id": snapshot_key(row), "source_status": source_status})
+        _append_jsonl(HISTORICAL_ASOF_FILE, snap)
+        sqlite_store_projection(row)
+        count += 1
+    return count
+
+
+
+def ingest_demo_rounds_dataframe(df: pd.DataFrame, source_name: str, match_id: str = "", map_name: str = "", event_time: str = "") -> Dict[str, Any]:
+    if df is None or df.empty: return {"added":0}
+    cols={normalize_name(c):c for c in df.columns}
+    def col(*names): return next((cols[normalize_name(n)] for n in names if normalize_name(n) in cols),None)
+    round_c=col("round","round_num","round_number"); ct_c=col("ct_team","ct_team_name"); t_c=col("t_team","t_team_name")
+    winner_c=col("winner","winner_team","winning_team"); side_c=col("winner_side","winning_side")
+    map_c=col("map","map_name"); match_c=col("match_id","match","demo"); time_c=col("event_time","match_date","date")
+    added=0
+    with _sqlite_connect() as conn:
+        for idx,r in df.iterrows():
+            rn=safe_int(r.get(round_c),idx+1) if round_c else idx+1
+            mid=str(r.get(match_c) or match_id or source_name) if match_c else (match_id or source_name)
+            mn=canonical_map_name(r.get(map_c) if map_c else map_name)
+            ct=str(r.get(ct_c) or "") if ct_c else ""; tt=str(r.get(t_c) or "") if t_c else ""
+            winner=str(r.get(winner_c) or "") if winner_c else ""; side=str(r.get(side_c) or "").upper() if side_c else ""
+            et=str(r.get(time_c) or event_time or now_iso()) if time_c else (event_time or now_iso())
+            if not mn or (not ct and not tt): continue
+            rh=hashlib.sha256(f"{mid}|{mn}|{rn}|{ct}|{tt}|{winner}|{side}".encode()).hexdigest()
+            cur=conn.execute("INSERT OR IGNORE INTO demo_rounds(round_hash,match_id,map_name,round_num,ct_team,t_team,winner_team,winner_side,event_time,source,ingested_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                (rh,mid,mn,rn,ct,tt,winner,side,et,source_name,now_iso()))
+            added += int(cur.rowcount or 0)
+    return {"added":added}
+
+
+def demo_team_side_profile(team: str, map_name: str) -> Dict[str, Any]:
+    team_key=normalize_team(team); map_name=canonical_map_name(map_name); rows=[]
+    try:
+        with _sqlite_connect() as conn: rows=conn.execute("SELECT * FROM demo_rounds WHERE map_name=?",(map_name,)).fetchall()
+    except Exception: rows=[]
+    ct_played=ct_won=t_played=t_won=0
+    for r in rows:
+        ct_match=_team_name_matches(team_key,r["ct_team"]); t_match=_team_name_matches(team_key,r["t_team"])
+        winner_side=str(r["winner_side"] or "").upper(); winner=str(r["winner_team"] or "")
+        if ct_match:
+            ct_played+=1; ct_won+=int(winner_side=="CT" or _team_name_matches(team_key,winner))
+        elif t_match:
+            t_played+=1; t_won+=int(winner_side in {"T","TERRORIST"} or _team_name_matches(team_key,winner))
+    total=ct_played+t_played
+    return {"rounds":total,"ct_rounds":ct_played,"t_rounds":t_played,"ct_round_win_pct":100*ct_won/ct_played if ct_played else None,"t_round_win_pct":100*t_won/t_played if t_played else None,"source":"uploaded demo round table"}
+
+
+def ingest_demo_dataframe(df: pd.DataFrame, source_name: str = "uploaded export") -> Dict[str, Any]:
+    if df is None or df.empty:
+        return {"ok":False,"message":"No rows supplied","added":0}
+    cols={normalize_name(c):c for c in df.columns}
+    def col(*names):
+        return next((cols[normalize_name(n)] for n in names if normalize_name(n) in cols),None)
+    player_c=col("player","attacker_name","name"); map_c=col("map","map_name")
+    if not player_c or not map_c:
+        return {"ok":False,"message":"Required columns: player and map","added":0}
+    round_c=col("round","round_num","round_number"); match_c=col("match_id","match","demo")
+    match_rounds_c=col("match_rounds","map_total_rounds","total_rounds")
+    head_c=col("headshot","is_headshot"); side_c=col("side","attacker_side"); weapon_c=col("weapon","weapon_name")
+    opening_c=col("opening","is_opening","first_kill"); trade_c=col("trade","is_trade")
+    team_c=col("team","attacker_team_name"); opp_c=col("opponent","opponent_team")
+    rank_c=col("opponent_rank","opp_rank"); tier_c=col("event_tier","tier"); time_c=col("event_time","match_date","date")
+    inserted=duplicates=0
+    with _sqlite_connect() as conn:
+        for idx,r in df.iterrows():
+            player=str(r.get(player_c) or "").strip(); map_name=canonical_map_name(r.get(map_c))
+            if not player or not map_name: continue
+            match_id=str(r.get(match_c) or source_name).strip() if match_c else source_name
+            round_num=safe_int(r.get(round_c),None) if round_c else None
+            match_rounds=safe_int(r.get(match_rounds_c),None) if match_rounds_c else None
+            side=str(r.get(side_c) or "").upper() if side_c else ""; weapon=str(r.get(weapon_c) or "") if weapon_c else ""
+            event_time=str(r.get(time_c) or now_iso()) if time_c else now_iso()
+            values=[normalize_name(player),map_name,match_id,round_num,idx,weapon,side,source_name]
+            event_hash=hashlib.sha256("|".join(map(str,values)).encode()).hexdigest()
+            try:
+                cur=conn.execute("""INSERT OR IGNORE INTO demo_events(event_hash,player,player_key,map_name,match_id,round_num,match_rounds,team,opponent,opponent_rank,event_tier,side,weapon,is_headshot,is_opening,is_trade,event_time,source,ingested_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (event_hash,player,normalize_name(player),map_name,match_id,round_num,match_rounds,
+                     str(r.get(team_c) or "") if team_c else "",str(r.get(opp_c) or "") if opp_c else "",
+                     safe_float(r.get(rank_c),None) if rank_c else None,str(r.get(tier_c) or "") if tier_c else "",side,weapon,
+                     int(str(r.get(head_c)).lower() in {"1","true","yes"}) if head_c else 0,
+                     int(str(r.get(opening_c)).lower() in {"1","true","yes"}) if opening_c else 0,
+                     int(str(r.get(trade_c)).lower() in {"1","true","yes"}) if trade_c else 0,event_time,source_name,now_iso()))
+                if cur.rowcount: inserted+=1
+                else: duplicates+=1
+            except Exception:
+                continue
+    # Keep compact JSON summary for backwards compatibility/UI export.
+    store=load_json(DEMO_DATABASE_FILE,{})
+    if not isinstance(store,dict): store={}
+    for player_key,map_name in {(normalize_name(str(r.get(player_c) or "")),canonical_map_name(r.get(map_c))) for _,r in df.iterrows()}:
+        if player_key and map_name:
+            prof=demo_profile_for(player_key,map_name,normalized=True)
+            if prof: store[f"{player_key}|{map_name}"]=prof
+    save_json(DEMO_DATABASE_FILE,store)
+    round_rows=df.attrs.get("rounds_df") if hasattr(df,"attrs") else None
+    round_result=ingest_demo_rounds_dataframe(pd.DataFrame(round_rows),source_name,str(df.attrs.get("match_id") or ""),str(df.attrs.get("map_name") or ""),str(df.attrs.get("event_time") or now_iso())) if round_rows else {"added":0}
+    if inserted or round_result.get("added",0):
+        invalidate_model_fits(["round_kill_env:","simulation_blend:","team_kill_share:"])
+    return {"ok":True,"added":inserted,"duplicates":duplicates,"rounds_added":round_result.get("added",0),"profiles":len(store),"database":CORE_DB_FILE}
+
+
+def parse_awpy_demo_file(uploaded_file: Any) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    try:
+        from awpy import Demo
+    except Exception as exc:
+        return pd.DataFrame(),{"ok":False,"message":f"Awpy unavailable: {exc}"}
+    import tempfile
+    path=""
+    try:
+        with tempfile.NamedTemporaryFile(delete=False,suffix=".dem") as tmp:
+            tmp.write(uploaded_file.getbuffer()); path=tmp.name
+        demo=Demo(path); demo.parse()
+        kills=getattr(demo,"kills",None); rounds=getattr(demo,"rounds",None)
+        if kills is None: return pd.DataFrame(),{"ok":False,"message":"Parsed demo contained no kills table"}
+        df=kills.copy() if isinstance(kills,pd.DataFrame) else pd.DataFrame(kills)
+        round_df=rounds.copy() if isinstance(rounds,pd.DataFrame) else pd.DataFrame(rounds or [])
+        match_id=hashlib.sha256(uploaded_file.getvalue()).hexdigest()[:20]
+        total_rounds=len(round_df) if not round_df.empty else None
+        event_time=now_iso(); df["match_id"]=match_id; df["match_rounds"]=total_rounds; df["event_time"]=event_time
+        header=getattr(demo,"header",{}) or {}; header_map=header.get("map_name") if isinstance(header,dict) else getattr(header,"map_name",None)
+        map_name=getattr(demo,"map_name",None) or header_map
+        if "map_name" not in df.columns and "map" not in df.columns and map_name: df["map_name"]=map_name
+        df.attrs["rounds_df"]=round_df.to_dict("records") if not round_df.empty else []
+        df.attrs["match_id"]=match_id; df.attrs["map_name"]=map_name or ""; df.attrs["event_time"]=event_time
+        return df,{"ok":True,"rows":len(df),"rounds":total_rounds,"match_id":match_id,"columns":list(df.columns),"denominator_verified":bool(total_rounds),"round_rows":len(round_df)}
+    except Exception as exc:
+        return pd.DataFrame(),{"ok":False,"message":str(exc)}
+    finally:
+        try:
+            if path: os.unlink(path)
+        except Exception: pass
+
+
+class _LocalUpload:
+    def __init__(self,path: str):
+        self.path=path; self.name=os.path.basename(path); self._data=Path(path).read_bytes()
+    def getbuffer(self): return memoryview(self._data)
+    def getvalue(self): return self._data
+
+
+def ingest_demo_path(path: str) -> Dict[str, Any]:
+    path=str(path); suffix=Path(path).suffix.lower(); digest=hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    done=load_model_fit(f"demo_file:{digest}")
+    if done: return {"ok":True,"skipped":True,"path":path,"reason":"already ingested"}
+    try:
+        if suffix==".dem":
+            df,meta=parse_awpy_demo_file(_LocalUpload(path))
+            result=ingest_demo_dataframe(df,os.path.basename(path)) if meta.get("ok") else meta
+        elif suffix==".csv":
+            result=ingest_demo_dataframe(pd.read_csv(path),os.path.basename(path))
+        elif suffix in {".json",".jsonl"}:
+            try: df=pd.read_json(path,lines=suffix==".jsonl")
+            except Exception: df=pd.DataFrame(json.loads(Path(path).read_text()))
+            result=ingest_demo_dataframe(df,os.path.basename(path))
+        elif suffix==".zip":
+            import zipfile,tempfile
+            children=[]
+            with tempfile.TemporaryDirectory() as td:
+                with zipfile.ZipFile(path) as z: z.extractall(td)
+                for child in Path(td).rglob("*"):
+                    if child.is_file() and child.suffix.lower() in {".dem",".csv",".json",".jsonl"}: children.append(ingest_demo_path(str(child)))
+            result={"ok":any(x.get("ok") for x in children),"children":children,"archive":path}
+        else: return {"ok":False,"message":"unsupported demo file","path":path}
+        if result.get("ok"): save_model_fit(f"demo_file:{digest}",{"path":path,"sample":safe_int(result.get("added"),0) or 0,"ingested_at":now_iso(),"fit_type":"demo_file"})
+        return result
+    except Exception as exc:
+        return {"ok":False,"message":str(exc),"path":path}
+
+
+def ingest_uploaded_demo_file(uploaded_file: Any) -> Dict[str, Any]:
+    import tempfile
+    suffix=Path(str(getattr(uploaded_file,"name","upload"))).suffix.lower() or ".bin"
+    path=""
+    try:
+        with tempfile.NamedTemporaryFile(delete=False,suffix=suffix) as tmp:
+            data=uploaded_file.getvalue() if hasattr(uploaded_file,"getvalue") else bytes(uploaded_file.getbuffer())
+            tmp.write(data); path=tmp.name
+        result=ingest_demo_path(path)
+        result["uploaded_name"]=str(getattr(uploaded_file,"name","upload"))
+        return result
+    finally:
+        try:
+            if path: os.unlink(path)
+        except Exception:
+            pass
+
+
+def auto_ingest_demo_dropbox() -> Dict[str, Any]:
+    results=[]
+    try:
+        for child in sorted(Path(DEMO_DROP_DIR).glob("*")):
+            if child.is_file() and child.suffix.lower() in {".dem",".csv",".json",".jsonl",".zip"}: results.append(ingest_demo_path(str(child)))
+    except Exception as exc:
+        return {"ok":False,"message":str(exc),"directory":DEMO_DROP_DIR}
+    return {"ok":True,"directory":DEMO_DROP_DIR,"files":len(results),"results":results}
+
+
+def demo_profile_for(player: str, map_name: str, normalized: bool = False) -> Dict[str, Any]:
+    player_key=player if normalized else normalize_name(player); map_name=canonical_map_name(map_name)
+    try:
+        with _sqlite_connect() as conn:
+            rows=conn.execute("SELECT * FROM demo_events WHERE player_key=? AND map_name=?",(player_key,map_name)).fetchall()
+    except Exception:
+        rows=[]
+    if not rows: return {}
+    matches={}
+    for r in rows:
+        mid=r["match_id"] or "unknown"
+        if r["match_rounds"] and r["match_rounds"]>0: matches[mid]=max(matches.get(mid,0),int(r["match_rounds"]))
+    rounds=sum(matches.values()); kills=len(rows); hs=sum(int(r["is_headshot"] or 0) for r in rows)
+    openings=sum(int(r["is_opening"] or 0) for r in rows); trades=sum(int(r["is_trade"] or 0) for r in rows)
+    weapons=Counter(str(r["weapon"] or "Unknown") for r in rows); sides=Counter(str(r["side"] or "UNKNOWN") for r in rows)
+    sniper=sum(v for k,v in weapons.items() if any(x in normalize_name(k) for x in ["awp","ssg","scar","g3sg1"]))
+    ranks=[float(r["opponent_rank"]) for r in rows if r["opponent_rank"] is not None and r["opponent_rank"]>0]
+    avg_rank=float(np.mean(ranks)) if ranks else None
+    sos_factor=clamp(1.0+(35-(avg_rank or 35))*0.0015,.96,1.05) if avg_rank else 1.0
+    raw_kpr=kills/rounds if rounds>0 else None
+    normalized_kpr=raw_kpr*sos_factor if raw_kpr is not None else None
+    latest=max((str(r["event_time"] or "") for r in rows),default="")
+    return {"player":rows[0]["player"],"map":map_name,"kills":kills,"rounds":rounds,"matches":len(matches),
+            "kpr":normalized_kpr,"raw_kpr":raw_kpr,"denominator_verified":rounds>0,"hs_pct":hs/kills*100 if kills else None,
+            "opening_kpr":openings/rounds if rounds else None,"trade_rate":trades/kills if kills else None,
+            "awp_kill_share":sniper/kills if kills else None,"weapons":dict(weapons),"sides":dict(sides),
+            "average_opponent_rank":avg_rank,"historical_sos_factor":sos_factor,"latest_event_time":latest,"source":"SQLite demo telemetry"}
+
+
+def learned_team_kill_share_parameters(player: str, role: str) -> Dict[str, Any]:
+    rows=sqlite_graded_projection_rows()
+    scopes=[("player",lambda r:normalize_name(r.get("player"))==normalize_name(player),MIN_BLEND_TRAINING_SAMPLES),("role",lambda r:str(r.get("role") or "")==str(role),100),("global",lambda r:True,200)]
+    for scope,pred,min_n in scopes:
+        samples=[]
+        for row in rows:
+            observed=safe_float(row.get("observed_player_share"),None)
+            if observed is None: observed=safe_float((row.get("team_kill_share_model") or {}).get("observed_player_share"),None)
+            if pred(row) and observed is not None and .04<=observed<=.50: samples.append(float(observed))
+        if len(samples)>=min_n:
+            mean=float(np.mean(samples)); var=float(np.var(samples)); concentration=clamp(mean*(1-mean)/max(var,1e-4)-1,12,160)
+            return {"player_share":clamp(mean,.08,.36),"concentration":concentration,"sample":len(samples),"source":f"historical {scope} team-kill share","scope":scope}
+    return {"sample":0,"scope":"prior"}
+
+def team_kill_share_parameters(profile: PlayerStats, role: str, opponent_meta: Dict[str, Any]) -> Dict[str, Any]:
+    team_profile=opponent_meta.get("team_profile") or {}; team_kpr=safe_float(team_profile.get("kills_for_per_round"),None) or safe_float(team_profile.get("kills_per_round"),None)
+    team_source="recent team scoreboard"
+    if team_kpr is None or not (2.4<=team_kpr<=4.5):
+        team_kpr=3.35; team_source="league baseline — Track cap"
+    learned=learned_team_kill_share_parameters(profile.player,role)
+    if learned.get("sample",0)>=MIN_BLEND_TRAINING_SAMPLES:
+        share=learned["player_share"]; concentration=learned["concentration"]; source=learned["source"]
+    else:
+        share=clamp(profile.kpr/team_kpr,.11,.29)
+        if "AWPer" in role or "Star" in role: share*=1.05
+        elif "Support" in role or "IGL" in role: share*=.92
+        elif "Entry" in role: share*=1.01
+        share=clamp(share,.10,.31); concentration=48.0 if profile.maps>=30 else 28.0; source="untrained role prior"
+    return {"team_kpr":team_kpr,"player_share":share,"concentration":concentration,"source":source,"team_kpr_source":team_source,"trained_sample":learned.get("sample",0)}
+
+
+def headshot_prop_projection(row: Dict[str, Any]) -> Dict[str, Any]:
+    kills = safe_float(row.get("projection"), None)
+    hs = safe_float(row.get("hs_pct"), None)
+    awp = safe_float(row.get("awp_kill_share"), 0) or 0
+    if kills is None or hs is None:
+        return {"projection": None, "ready": False, "reason": "headshot rate unavailable"}
+    # AWP-heavy roles are lower-HS and more volatile; use observed HS% with mild shrinkage.
+    observed = clamp(hs / 100.0, 0.15, 0.80)
+    shrunk = observed * 0.75 + (0.46 - 0.18 * awp) * 0.25
+    projection = kills * shrunk
+    return {"projection": projection, "hs_rate": shrunk, "ready": safe_int(row.get("profile_maps"), 0) >= 20, "reason": "kills × shrunk role/weapon headshot rate"}
+
+
+def maps_over_25_probability(row: Dict[str, Any]) -> Dict[str, Any]:
+    if str(row.get("match_format")) != "BO3":
+        return {"probability": None, "ready": False, "reason": "BO3 required"}
+    ranks = row.get("world_ranks") or []
+    comp = 0.55
+    if len(ranks) >= 2 and all(safe_float(x, 0) > 0 for x in ranks[:2]):
+        gap = abs(math.log((float(ranks[0])+4)/(float(ranks[1])+4)))
+        comp = clamp(math.exp(-0.95*gap), 0.12, 1.0)
+    veto = str(row.get("veto_state") or "PRE_VETO")
+    depth = clamp((safe_float(row.get("map_confidence"), 50) or 50)/100.0, 0.35, 0.98)
+    p = clamp(0.31 + 0.34*comp + 0.08*depth + (0.03 if veto == "CONFIRMED" else 0), 0.24, 0.76)
+    return {"probability": p, "ready": safe_int(row.get("team_recent_maps"), 0) >= 6, "reason": "competitiveness + veto depth model"}
+
+
+def correlation_between(a: Dict[str, Any], b: Dict[str, Any]) -> float:
+    same_match = bool(a.get("match_url") and a.get("match_url") == b.get("match_url")) or (
+        normalize_name(a.get("team")) in {normalize_name(b.get("team")), normalize_name(b.get("opponent"))} and
+        normalize_name(a.get("opponent")) in {normalize_name(b.get("team")), normalize_name(b.get("opponent"))}
+    )
+    if not same_match:
+        return 0.0
+    same_team = normalize_name(a.get("team")) == normalize_name(b.get("team"))
+    same_lean = a.get("lean") == b.get("lean")
+    if same_team and same_lean == True and a.get("lean") == "OVER":
+        return 0.08
+    if same_team and not same_lean:
+        return -0.18
+    if same_lean and a.get("lean") == "OVER":
+        return 0.24
+    if same_lean and a.get("lean") == "UNDER":
+        return 0.18
+    return -0.08
+
+
+def simulate_joint_slip(rows: List[Dict[str, Any]], simulations: int = 60000) -> Dict[str, Any]:
+    rows = [x for x in rows if safe_float(x.get("probability"), None) is not None]
+    n = len(rows)
+    if n < 2:
+        return {"ok": False, "message": "Select at least two projections."}
+    probs = np.array([clamp(float(x["probability"]), 0.001, 0.999) for x in rows])
+    corr = np.eye(n)
+    for i in range(n):
+        for j in range(i+1, n):
+            corr[i,j] = corr[j,i] = correlation_between(rows[i], rows[j])
+    vals, vecs = np.linalg.eigh(corr)
+    vals = np.clip(vals, 1e-5, None)
+    corr = vecs @ np.diag(vals) @ vecs.T
+    d = np.sqrt(np.diag(corr))
+    corr = corr / np.outer(d, d)
+    rng = np.random.default_rng(stable_seed("slip", *[x.get("prop_id") for x in rows], MODEL_VERSION))
+    z = rng.multivariate_normal(np.zeros(n), corr, size=simulations)
+    thresholds = np.array([NormalDist().inv_cdf(float(p)) for p in probs])
+    hits = z <= thresholds
+    joint = float(np.mean(np.all(hits, axis=1)))
+    independent = float(np.prod(probs))
+    return {
+        "ok": True, "legs": n, "joint_probability": joint, "independent_probability": independent,
+        "correlation_adjustment": joint-independent, "correlation_matrix": corr.tolist(),
+        "leg_probabilities": probs.tolist(), "simulations": simulations,
+    }
+
+
+def bankroll_recommendation(bankroll: float, probability: float, american_odds: Optional[float], risk_pct: float = 1.5) -> Dict[str, Any]:
+    bankroll = max(float(bankroll), 0.0)
+    p = clamp(float(probability), 0.001, 0.999)
+    flat = bankroll * clamp(risk_pct, 1.0, 3.0) / 100.0
+    if american_odds is None:
+        return {"flat_stake": flat, "kelly": None, "quarter_kelly": None, "ev_per_dollar": None}
+    dec = american_to_decimal(float(american_odds))
+    if dec is None or dec <= 1:
+        return {"flat_stake": flat, "kelly": None, "quarter_kelly": None, "ev_per_dollar": None}
+    b = dec - 1
+    q = 1-p
+    k = max((b*p-q)/b, 0.0)
+    return {"flat_stake": flat, "kelly": bankroll*k, "quarter_kelly": bankroll*k*0.25, "ev_per_dollar": p*b-q, "decimal_odds": dec}
+
+
+def save_book_odds_history(df: pd.DataFrame) -> int:
+    if df is None or df.empty:
+        return 0
+    history = load_json(BOOK_ODDS_HISTORY_FILE, [])
+    if not isinstance(history, list):
+        history = []
+    count = 0
+    for _, row in df.iterrows():
+        item = {str(k): (None if pd.isna(v) else v) for k, v in row.to_dict().items()}
+        item["captured_at"] = now_iso()
+        history.append(item)
+        count += 1
+    save_json(BOOK_ODDS_HISTORY_FILE, history[-10000:])
+    return count
+
+
+def closing_line_value(row: Dict[str, Any]) -> Optional[float]:
+    opening = safe_float(row.get("opening_line"), None)
+    closing = safe_float(row.get("closing_line"), None)
+    if opening is None or closing is None:
+        return None
+    # Positive means the selected direction beat the closing line.
+    return (closing-opening) if row.get("lean") == "OVER" else (opening-closing)
+
+
+def live_watch_projection(player: str, current_kills: int, rounds_played: int, current_score_a: int, current_score_b: int, prematch_row: Dict[str, Any]) -> Dict[str, Any]:
+    base_kpr = safe_float(prematch_row.get("adjusted_kpr"), None)
+    expected_total = safe_float(prematch_row.get("expected_rounds"), None)
+    if base_kpr is None or expected_total is None or rounds_played <= 0:
+        return {"ok": False, "message": "Prematch projection and rounds played are required."}
+    live_kpr = current_kills / rounds_played
+    # Do not overreact to a few rounds; gradually blend live information.
+    live_weight = clamp(rounds_played / 30.0, 0.08, 0.58)
+    blended = base_kpr*(1-live_weight)+live_kpr*live_weight
+    remaining = max(expected_total-rounds_played, 0)
+    projected = current_kills+remaining*blended
+    economy_volatility = 1.0 + (0.08 if abs(current_score_a-current_score_b) <= 2 else -0.03)
+    return {"ok": True, "player": player, "live_kpr": live_kpr, "blended_kpr": blended, "remaining_rounds": remaining, "live_projection": projected, "volatility_multiplier": economy_volatility, "note": "Informational live pace only; verify economy, lineup and official market before betting."}
+
+# ============================================================
+# V4.3 ACCURACY LAYER — DEMO + ELO + VETO + ECONOMY + CALIBRATION
+# ============================================================
+
+V43_MIN_CURRENT_ROSTER_MAPS = 8
+V43_MIN_MAP_SAMPLE_OFFICIAL = 8
+V43_MIN_LOCAL_CALIBRATION = 40
+V43_MAX_MODEL_DISAGREEMENT = 3.25
+V43_ELO_K = 24.0
+V43_RATING_CACHE_SECONDS = 3600
+
+
+def init_v43_accuracy_schema() -> None:
+    """Idempotent schema extension. Keeps all v4.2 data on an existing Railway volume."""
+    with _sqlite_connect() as conn:
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS veto_observations (
+          observation_id TEXT PRIMARY KEY, team_id TEXT, team_name TEXT, opponent_name TEXT,
+          match_id TEXT, played_at TEXT, sequence_num INTEGER, action TEXT, map_name TEXT,
+          same_core INTEGER, payload_json TEXT NOT NULL, created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_veto_team_time ON veto_observations(team_id,played_at);
+        CREATE TABLE IF NOT EXISTS source_health_events (
+          event_id TEXT PRIMARY KEY, source TEXT, grade TEXT, observed_at TEXT,
+          payload_json TEXT NOT NULL, created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_source_health_time ON source_health_events(observed_at);
+        """)
+        existing={str(r[1]) for r in conn.execute("PRAGMA table_info(demo_rounds)").fetchall()}
+        additions={
+            "ct_equipment_value":"REAL", "t_equipment_value":"REAL",
+            "ct_buy_type":"TEXT", "t_buy_type":"TEXT", "bomb_planted":"INTEGER",
+            "ct_survivors":"INTEGER", "t_survivors":"INTEGER"
+        }
+        for name,kind in additions.items():
+            if name not in existing:
+                try: conn.execute(f"ALTER TABLE demo_rounds ADD COLUMN {name} {kind}")
+                except Exception: pass
+
+
+init_v43_accuracy_schema()
+
+
+def _buy_type(value: Any, equipment: Any = None) -> str:
+    text=normalize_name(value)
+    if "pistol" in text: return "PISTOL"
+    if "eco" in text or "save" in text: return "ECO"
+    if "force" in text or "half" in text: return "FORCE"
+    if "full" in text or "gun" in text: return "FULL"
+    eq=safe_float(equipment,None)
+    if eq is None: return "UNKNOWN"
+    if eq < 8000: return "ECO"
+    if eq < 17000: return "FORCE"
+    return "FULL"
+
+
+def ingest_demo_rounds_dataframe(df: pd.DataFrame, source_name: str, match_id: str = "", map_name: str = "", event_time: str = "") -> Dict[str, Any]:
+    """V4.3 round ingestion includes economy/survivor fields when Awpy exposes them."""
+    if df is None or df.empty: return {"added":0}
+    cols={normalize_name(c):c for c in df.columns}
+    def col(*names): return next((cols[normalize_name(n)] for n in names if normalize_name(n) in cols),None)
+    round_c=col("round","round_num","round_number"); ct_c=col("ct_team","ct_team_name"); t_c=col("t_team","t_team_name")
+    winner_c=col("winner","winner_team","winning_team"); side_c=col("winner_side","winning_side")
+    map_c=col("map","map_name"); match_c=col("match_id","match","demo"); time_c=col("event_time","match_date","date")
+    ct_eq_c=col("ct_equipment_value","ct_equip_value","ct_equipment","ct_start_equipment_value")
+    t_eq_c=col("t_equipment_value","t_equip_value","t_equipment","t_start_equipment_value")
+    ct_buy_c=col("ct_buy_type","ct_buy","ct_buy_class"); t_buy_c=col("t_buy_type","t_buy","t_buy_class")
+    bomb_c=col("bomb_planted","bomb_plant","is_bomb_planted")
+    ct_surv_c=col("ct_survivors","ct_alive_end","ct_end_alive"); t_surv_c=col("t_survivors","t_alive_end","t_end_alive")
+    added=0
+    with _sqlite_connect() as conn:
+        for idx,r in df.iterrows():
+            rn=safe_int(r.get(round_c),idx+1) if round_c else idx+1
+            mid=str(r.get(match_c) or match_id or source_name) if match_c else (match_id or source_name)
+            mn=canonical_map_name(r.get(map_c) if map_c else map_name)
+            ct=str(r.get(ct_c) or "") if ct_c else ""; tt=str(r.get(t_c) or "") if t_c else ""
+            winner=str(r.get(winner_c) or "") if winner_c else ""; side=str(r.get(side_c) or "").upper() if side_c else ""
+            et=str(r.get(time_c) or event_time or now_iso()) if time_c else (event_time or now_iso())
+            if not mn or (not ct and not tt): continue
+            ct_eq=safe_float(r.get(ct_eq_c),None) if ct_eq_c else None; t_eq=safe_float(r.get(t_eq_c),None) if t_eq_c else None
+            ct_buy=_buy_type(r.get(ct_buy_c) if ct_buy_c else "",ct_eq); t_buy=_buy_type(r.get(t_buy_c) if t_buy_c else "",t_eq)
+            bomb=int(str(r.get(bomb_c)).lower() in {"1","true","yes"}) if bomb_c else 0
+            ct_surv=safe_int(r.get(ct_surv_c),None) if ct_surv_c else None; t_surv=safe_int(r.get(t_surv_c),None) if t_surv_c else None
+            rh=hashlib.sha256(f"{mid}|{mn}|{rn}|{ct}|{tt}|{winner}|{side}".encode()).hexdigest()
+            cur=conn.execute("""INSERT OR REPLACE INTO demo_rounds(
+                round_hash,match_id,map_name,round_num,ct_team,t_team,winner_team,winner_side,event_time,source,ingested_at,
+                ct_equipment_value,t_equipment_value,ct_buy_type,t_buy_type,bomb_planted,ct_survivors,t_survivors
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (rh,mid,mn,rn,ct,tt,winner,side,et,source_name,now_iso(),ct_eq,t_eq,ct_buy,t_buy,bomb,ct_surv,t_surv))
+            added += int(cur.rowcount or 0)
+    if added: invalidate_model_fits(["economy_kill_env:","round_kill_env:","simulation_blend:","map_elo:"])
+    return {"added":added,"economy_columns":bool(ct_eq_c or t_eq_c or ct_buy_c or t_buy_c),"source":source_name}
+
+
+def demo_player_side_profile(player: str, map_name: str) -> Dict[str, Any]:
+    player_key=normalize_name(player); map_name=canonical_map_name(map_name)
+    try:
+        with _sqlite_connect() as conn:
+            events=conn.execute("SELECT * FROM demo_events WHERE player_key=? AND map_name=?",(player_key,map_name)).fetchall()
+            rounds=conn.execute("SELECT * FROM demo_rounds WHERE map_name=?",(map_name,)).fetchall()
+    except Exception:
+        return {}
+    if not events: return {}
+    by_match=defaultdict(list)
+    for e in events: by_match[str(e["match_id"] or "")].append(e)
+    round_lookup=defaultdict(list)
+    for r in rounds: round_lookup[str(r["match_id"] or "")].append(r)
+    ct_rounds=t_rounds=ct_kills=t_kills=0
+    econ_rounds=Counter(); econ_kills=Counter()
+    for mid,evs in by_match.items():
+        team_candidates=[normalize_team(e["team"]) for e in evs if str(e["team"] or "").strip()]
+        team=Counter(team_candidates).most_common(1)[0][0] if team_candidates else ""
+        rrows=round_lookup.get(mid,[])
+        for r in rrows:
+            side=""
+            if team and _team_name_matches(team,r["ct_team"]): side="CT"
+            elif team and _team_name_matches(team,r["t_team"]): side="T"
+            if side=="CT":
+                ct_rounds+=1; econ_rounds[str(r["ct_buy_type"] or "UNKNOWN")]+=1
+            elif side=="T":
+                t_rounds+=1; econ_rounds[str(r["t_buy_type"] or "UNKNOWN")]+=1
+        rmap={safe_int(r["round_num"],-1):r for r in rrows}
+        for e in evs:
+            side=str(e["side"] or "").upper()
+            if side not in {"CT","T"}:
+                rr=rmap.get(safe_int(e["round_num"],-1))
+                if rr is not None and team:
+                    side="CT" if _team_name_matches(team,rr["ct_team"]) else "T" if _team_name_matches(team,rr["t_team"]) else ""
+            if side=="CT": ct_kills+=1
+            elif side=="T": t_kills+=1
+            rr=rmap.get(safe_int(e["round_num"],-1))
+            if rr is not None:
+                buy=str(rr["ct_buy_type"] if side=="CT" else rr["t_buy_type"] if side=="T" else "UNKNOWN")
+                econ_kills[buy]+=1
+    return {
+        "ct_rounds":ct_rounds,"t_rounds":t_rounds,"ct_kills":ct_kills,"t_kills":t_kills,
+        "ct_kpr":ct_kills/ct_rounds if ct_rounds else None,"t_kpr":t_kills/t_rounds if t_rounds else None,
+        "economy_kpr":{k:econ_kills[k]/v for k,v in econ_rounds.items() if v>0},
+        "economy_rounds":dict(econ_rounds),"side_denominator_verified":bool(ct_rounds+t_rounds),
+        "source":"uploaded demos with full round table"
+    }
+
+
+_v42_demo_profile_for = demo_profile_for
+
+def demo_profile_for(player: str, map_name: str, normalized: bool = False) -> Dict[str, Any]:
+    base=_v42_demo_profile_for(player,map_name,normalized)
+    if not base: return base
+    side=demo_player_side_profile(base.get("player") or player,map_name)
+    return {**base,**side}
+
+
+def build_player_map_profiles(profile: PlayerStats, likely_maps: Sequence[str], target_time: Any = None, patch_era: Optional[Dict[str, Any]] = None) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+    """Map true talent blends HLTV long/recent data with verified demo side/economy samples."""
+    out={}; statuses={}
+    if not profile.player_id or not likely_maps:
+        return out,{"ok":False,"message":"player id or likely maps unavailable"}
+    era=patch_era or patch_era_for_time(target_time); target_dt=_parse_iso_datetime(target_time) or datetime.now(timezone.utc)
+    era_start=_parse_iso_datetime(era.get("effective_from")); days_in_era=max(1.0,(target_dt-(era_start or target_dt-timedelta(days=180))).total_seconds()/86400.0)
+    era_factor=clamp(days_in_era/180.0,.20,1.0)
+    for map_name in list(dict.fromkeys(likely_maps))[:3]:
+        long_row,long_status=fetch_hltv_filtered_player_profile(profile.player_id,profile.slug,180,map_name)
+        recent_row,recent_status=fetch_hltv_filtered_player_profile(profile.player_id,profile.slug,60,map_name)
+        demo=demo_profile_for(profile.player,map_name)
+        long_maps=safe_int(long_row.get("maps"),0) or 0; recent_maps=safe_int(recent_row.get("maps"),0) or 0
+        long_kpr=safe_float(long_row.get("kpr"),None); recent_kpr=safe_float(recent_row.get("kpr"),None)
+        demo_kpr=safe_float(demo.get("kpr"),None) if demo.get("denominator_verified") else None
+        if long_kpr is None and demo_kpr is None:
+            statuses[map_name]={"long":long_status,"recent":recent_status,"demo":demo,"usable":False}; continue
+        center=long_kpr if long_kpr is not None else profile.kpr
+        w_long=clamp(long_maps/(long_maps+16.0),0,.86)*era_factor
+        w_recent=clamp(recent_maps/(recent_maps+10.0),0,.42) if recent_kpr is not None else 0
+        blended=profile.kpr*(1-w_long)+center*w_long
+        blended=blended*(1-w_recent)+(recent_kpr if recent_kpr is not None else blended)*w_recent
+        demo_rounds=safe_int(demo.get("rounds"),0) or 0; w_demo=0.0
+        if demo_kpr is not None:
+            w_demo=clamp(demo_rounds/(demo_rounds+260.0),0,.52)*era_recency_weight(demo.get("latest_event_time"),target_time,era)
+            blended=blended*(1-w_demo)+demo_kpr*w_demo
+        ct_base=safe_float(long_row.get("ct_kpr"),None) or safe_float(profile.ct_kpr,None) or blended
+        t_base=safe_float(long_row.get("t_kpr"),None) or safe_float(profile.t_kpr,None) or blended
+        dct=safe_float(demo.get("ct_kpr"),None); dt=safe_float(demo.get("t_kpr"),None)
+        ct_rounds=safe_int(demo.get("ct_rounds"),0) or 0; t_rounds=safe_int(demo.get("t_rounds"),0) or 0
+        wct=clamp(ct_rounds/(ct_rounds+160.0),0,.55) if dct is not None else 0
+        wt=clamp(t_rounds/(t_rounds+160.0),0,.55) if dt is not None else 0
+        ct_kpr=ct_base*(1-wct)+(dct if dct is not None else ct_base)*wct
+        t_kpr=t_base*(1-wt)+(dt if dt is not None else t_base)*wt
+        effective_maps=long_maps+0.65*recent_maps+demo_rounds/20.0
+        confidence=clamp(25+effective_maps*2.2+min(demo_rounds,500)/20.0,25,98)
+        sources=[]
+        if long_kpr is not None:sources.append("HLTV map KPR")
+        if recent_kpr is not None:sources.append("HLTV 60-day map KPR")
+        if demo_kpr is not None:sources.append("demo full-round KPR")
+        if dct is not None or dt is not None:sources.append("demo CT/T KPR")
+        out[map_name]={
+            "map":map_name,"maps":long_maps,"rounds":safe_int(long_row.get("rounds"),0) or 0,
+            "kpr":round(float(center),4),"recent_maps":recent_maps,"recent_kpr":round(float(recent_kpr),4) if recent_kpr is not None else None,
+            "demo_rounds":demo_rounds,"demo_kpr":round(float(demo_kpr),4) if demo_kpr is not None else None,"demo_weight":round(w_demo,4),
+            "blended_kpr":round(clamp(float(blended),.42,1.02),4),"ct_kpr":round(clamp(float(ct_kpr),.38,1.08),4),"t_kpr":round(clamp(float(t_kpr),.38,1.08),4),
+            "ct_demo_rounds":ct_rounds,"t_demo_rounds":t_rounds,"economy_kpr":demo.get("economy_kpr") or {},"economy_rounds":demo.get("economy_rounds") or {},
+            "dpr":safe_float(long_row.get("dpr"),None),"adr":safe_float(long_row.get("adr"),None),"rating":safe_float(long_row.get("rating"),None),
+            "opening_kpr":safe_float(demo.get("opening_kpr"),None) or ((safe_float(long_row.get("opening_kills"),0) or 0)/max(safe_float(long_row.get("rounds"),0) or 0,1)),
+            "hs_pct":safe_float(demo.get("hs_pct"),None),"awp_kill_share":safe_float(demo.get("awp_kill_share"),None),
+            "source":" + ".join(sources),"core_map_kpr_verified":long_kpr is not None or demo_kpr is not None,"patch_era_weight":round(era_factor,4),
+            "map_model_confidence":round(confidence,1),"effective_map_sample":round(effective_maps,1)
+        }
+        statuses[map_name]={"long":long_status,"recent":recent_status,"demo":demo,"usable":True}
+    saved=load_json(DEEP_PLAYER_MAP_FILE,{})
+    if not isinstance(saved,dict):saved={}
+    if out:
+        saved[normalize_name(profile.player)]={"updated_at":now_iso(),"maps":out}; save_json(DEEP_PLAYER_MAP_FILE,saved)
+    return out,{"ok":bool(out),"maps":list(out),"statuses":statuses,"patch_era":era.get("name"),"side_specific_demo_connected":True}
+
+
+def sqlite_store_veto_observation(team_id: str, team_name: str, opponent_name: str, match_url: str, played_at: str, action: Dict[str, Any], sequence_num: int, same_core: bool) -> bool:
+    map_name=canonical_map_name(action.get("map")); act=str(action.get("action") or "").lower(); match_id=_match_id_from_url(match_url) or hashlib.md5(str(match_url).encode()).hexdigest()[:16]
+    if not team_id or map_name not in KNOWN_MAPS or act not in {"picked","removed","left"}:return False
+    oid=hashlib.sha256(f"{team_id}|{match_id}|{sequence_num}|{act}|{map_name}".encode()).hexdigest()
+    payload={**action,"team_id":team_id,"team_name":team_name,"opponent_name":opponent_name,"match_url":match_url,"same_core":same_core}
+    try:
+        with _sqlite_connect() as conn:
+            conn.execute("""INSERT OR REPLACE INTO veto_observations(observation_id,team_id,team_name,opponent_name,match_id,played_at,sequence_num,action,map_name,same_core,payload_json,created_at)
+                          VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",(oid,team_id,team_name,opponent_name,match_id,played_at,sequence_num,act,map_name,int(bool(same_core)),json.dumps(payload,default=str),now_iso()))
+        return True
+    except Exception:return False
+
+
+def empirical_veto_profile(team_id: str, team_name: str, opponent_name: str = "", days: int = 365) -> Dict[str, Any]:
+    cutoff=(datetime.now(timezone.utc)-timedelta(days=days)).isoformat(); rows=[]
+    try:
+        with _sqlite_connect() as conn: rows=conn.execute("SELECT * FROM veto_observations WHERE team_id=? AND (played_at='' OR played_at>=?) ORDER BY played_at DESC",(str(team_id),cutoff)).fetchall()
+    except Exception:rows=[]
+    picks=Counter(); bans=Counter(); left=Counter(); weighted=0.0; opponent_specific=0
+    now=datetime.now(timezone.utc)
+    for r in rows:
+        dt=_parse_iso_datetime(r["played_at"]); age=max(0,(now-dt).total_seconds()/86400) if dt else 180
+        w=0.5**(age/90.0); w*=1.0 if bool(r["same_core"]) else .55
+        if opponent_name and _team_name_matches(opponent_name,r["opponent_name"]): w*=1.30; opponent_specific+=1
+        target=picks if r["action"]=="picked" else bans if r["action"]=="removed" else left
+        target[canonical_map_name(r["map_name"])]+=w; weighted+=w
+    return {"pick_counts":dict(picks),"ban_counts":dict(bans),"left_counts":dict(left),"observations":len(rows),"weighted_sample":round(weighted,2),"opponent_specific":opponent_specific,"source":"cumulative chronological veto database"}
+
+
+_v42_build_team_deep_profile = build_team_deep_profile
+
+def build_team_deep_profile(team_id: str, slug: str, team_name: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    profile,status=_v42_build_team_deep_profile(team_id,slug,team_name)
+    try:
+        summaries,_=fetch_recent_team_match_summaries(team_id,slug,DEEP_PULL_MATCH_LIMIT)
+        roster_norm={normalize_name(x) for x in profile.get("current_roster") or []}
+        for summary in summaries:
+            teams=summary.get("teams") or []; opponent_name=next((x.get("name","") for x in teams if not _team_name_matches(team_name,x.get("name",""))),"")
+            lineup={normalize_name(x) for x in summary.get("lineup_names") or []}; same_core=bool(roster_norm and len(roster_norm&lineup)>=4)
+            for seq,action in enumerate(summary.get("veto_actions") or []):
+                if _team_name_matches(team_name,action.get("team","")) or action.get("action")=="left":
+                    sqlite_store_veto_observation(team_id,team_name,opponent_name,str(summary.get("match_url") or ""),str(summary.get("match_datetime") or ""),action,seq,same_core)
+    except Exception:pass
+    veto=empirical_veto_profile(team_id,team_name)
+    p=Counter(profile.get("pick_counts") or {}); b=Counter(profile.get("ban_counts") or {})
+    for k,v in (veto.get("pick_counts") or {}).items():p[k]+=float(v)
+    for k,v in (veto.get("ban_counts") or {}).items():b[k]+=float(v)
+    profile["pick_counts"]=dict(p); profile["ban_counts"]=dict(b); profile["empirical_veto_profile"]=veto
+    return profile,{**status,"veto_history_observations":veto.get("observations",0),"veto_weighted_sample":veto.get("weighted_sample",0)}
+
+
+def chronological_map_elo(force: bool = False) -> Dict[str, Any]:
+    cached=load_model_fit("map_elo:global")
+    updated=_parse_iso_datetime(cached.get("updated_at")) if cached else None
+    if cached and not force and updated and (datetime.now(timezone.utc)-updated).total_seconds()<V43_RATING_CACHE_SECONDS:return cached
+    try:
+        with _sqlite_connect() as conn: recs=conn.execute("SELECT * FROM team_map_observations ORDER BY played_at ASC,created_at ASC").fetchall()
+    except Exception:recs=[]
+    global_r=defaultdict(lambda:1500.0); map_r=defaultdict(lambda:1500.0); samples=Counter(); seen=set()
+    for rec in recs:
+        try:payload=json.loads(rec["payload_json"] or "{}")
+        except Exception:payload={}
+        team=normalize_team(rec["team_name"]); team1=normalize_team(payload.get("team1")); team2=normalize_team(payload.get("team2"))
+        opponent=team2 if _team_name_matches(team,team1) else team1 if _team_name_matches(team,team2) else normalize_team(payload.get("opponent"))
+        if not team or not opponent or team==opponent:continue
+        key=(str(rec["match_id"]),canonical_map_name(rec["map_name"]));
+        if key in seen:continue
+        seen.add(key); m=canonical_map_name(rec["map_name"]); ts=safe_float(rec["team_score"],None); oscore=safe_float(rec["opponent_score"],None)
+        if ts is None or oscore is None or ts==oscore:continue
+        actual=1.0 if ts>oscore else 0.0; margin=abs(ts-oscore); env_mult=1.06 if str(rec["environment"] or "").upper()=="LAN" else 1.0
+        for ratings,scope in [(global_r,"G"),(map_r,"M")]:
+            a=ratings[(scope,team,m if scope=="M" else "")]; b=ratings[(scope,opponent,m if scope=="M" else "")]
+            expected=1/(1+10**((b-a)/400)); k=V43_ELO_K*env_mult*(1+min(margin,10)/25.0)
+            ratings[(scope,team,m if scope=="M" else "")]=a+k*(actual-expected); ratings[(scope,opponent,m if scope=="M" else "")]=b-k*(actual-expected)
+        samples[(team,m)]+=1; samples[(opponent,m)]+=1
+    out={"global":{k[1]:v for k,v in global_r.items()},"map":{f"{k[1]}|{k[2]}":v for k,v in map_r.items()},"samples":{f"{k[0]}|{k[1]}":v for k,v in samples.items()},"matches":len(seen),"sample":len(seen),"fit_type":"chronological_map_elo"}
+    save_model_fit("map_elo:global",out); return out
+
+
+def map_elo_matchup(team: str, opponent: str, map_name: str = "") -> Dict[str, Any]:
+    model=chronological_map_elo(); t=normalize_team(team); o=normalize_team(opponent); m=canonical_map_name(map_name)
+    tg=safe_float((model.get("global") or {}).get(t),1500) or 1500; og=safe_float((model.get("global") or {}).get(o),1500) or 1500
+    tm=safe_float((model.get("map") or {}).get(f"{t}|{m}"),tg) or tg; om=safe_float((model.get("map") or {}).get(f"{o}|{m}"),og) or og
+    ts=safe_int((model.get("samples") or {}).get(f"{t}|{m}"),0) or 0; osamp=safe_int((model.get("samples") or {}).get(f"{o}|{m}"),0) or 0
+    wt=clamp(min(ts,osamp)/30.0,0,1); tr=(1-wt)*tg+wt*tm; orating=(1-wt)*og+wt*om
+    winp=1/(1+10**((orating-tr)/400)); return {"team_rating":round(tr,1),"opponent_rating":round(orating,1),"win_probability":winp,"team_map_samples":ts,"opponent_map_samples":osamp,"trained_matches":model.get("matches",0),"source":"chronological cumulative Elo"}
+
+
+_v42_map_side_probabilities = _map_side_probabilities
+
+def _map_side_probabilities(context: Dict[str, Any], map_name: str, team: str, opponent: str) -> Tuple[float,float,Dict[str,Any]]:
+    p_ct,p_t,meta=_v42_map_side_probabilities(context,map_name,team,opponent)
+    elo=map_elo_matchup(team,opponent,map_name); strength=(safe_float(elo.get("win_probability"),.5) or .5)-.5
+    reliability=clamp(min(safe_int(elo.get("team_map_samples"),0),safe_int(elo.get("opponent_map_samples"),0))/20.0,0,1)
+    shift=strength*.12*reliability
+    return clamp(p_ct+shift,.24,.76),clamp(p_t+shift,.24,.76),{**meta,"elo":elo,"elo_side_shift":round(shift,5)}
+
+
+_v42_opponent_kpr_factor = opponent_kpr_factor
+
+def opponent_kpr_factor(profile: PlayerStats, context: Dict[str, Any], team: str, opponent: str, likely_maps: Sequence[str] = (), role: str = "") -> Tuple[float, Dict[str, Any]]:
+    factor,meta=_v42_opponent_kpr_factor(profile,context,team,opponent,likely_maps,role)
+    ratings=[map_elo_matchup(team,opponent,m) for m in likely_maps[:2]] or [map_elo_matchup(team,opponent,"")]
+    probs=[safe_float(x.get("win_probability"),.5) or .5 for x in ratings]; samples=[min(safe_int(x.get("team_map_samples"),0),safe_int(x.get("opponent_map_samples"),0)) for x in ratings]
+    reliability=clamp(float(np.mean(samples))/25.0,0,1) if samples else 0
+    elo_factor=clamp(1+(float(np.mean(probs))-.5)*.10*reliability,.965,1.035)
+    return clamp(factor*elo_factor,.88,1.12),{**meta,"chronological_elo":ratings,"elo_kpr_factor":round(elo_factor,4),"elo_reliability":round(reliability,3)}
+
+
+def learned_economy_kill_environment(map_name: str = "") -> Dict[str, Any]:
+    m=canonical_map_name(map_name); key=f"economy_kill_env:{m or 'GLOBAL'}"; cached=load_model_fit(key)
+    updated=_parse_iso_datetime(cached.get("updated_at")) if cached else None
+    if cached and updated and (datetime.now(timezone.utc)-updated).total_seconds()<24*3600:return cached
+    samples=defaultdict(list)
+    try:
+        with _sqlite_connect() as conn:
+            rounds=conn.execute("SELECT * FROM demo_rounds WHERE (?='' OR map_name=?)",(m,m)).fetchall()
+            counts=conn.execute("SELECT match_id,round_num,team,COUNT(*) kills FROM demo_events WHERE (?='' OR map_name=?) AND team<>'' GROUP BY match_id,round_num,team",(m,m)).fetchall()
+        cmap={(str(r["match_id"]),safe_int(r["round_num"],-1),normalize_team(r["team"])):int(r["kills"]) for r in counts}
+        for r in rounds:
+            teams=[("CT",normalize_team(r["ct_team"]),str(r["ct_buy_type"] or "UNKNOWN")),("T",normalize_team(r["t_team"]),str(r["t_buy_type"] or "UNKNOWN"))]
+            winner=normalize_team(r["winner_team"])
+            for side,team,buy in teams:
+                if not team:continue
+                outcome="WIN" if _team_name_matches(team,winner) or str(r["winner_side"] or "").upper()==side else "LOSS"
+                samples[(buy if buy in {"FULL","FORCE","ECO","PISTOL"} else "UNKNOWN",outcome)].append(cmap.get((str(r["match_id"]),safe_int(r["round_num"],-1),team),0))
+    except Exception:pass
+    priors={("FULL","WIN"):4.05,("FULL","LOSS"):2.15,("FORCE","WIN"):4.15,("FORCE","LOSS"):1.75,("ECO","WIN"):4.45,("ECO","LOSS"):1.05,("PISTOL","WIN"):4.10,("PISTOL","LOSS"):1.85,("UNKNOWN","WIN"):4.10,("UNKNOWN","LOSS"):2.05}
+    means={}; ns={}
+    for k,prior in priors.items():
+        vals=samples.get(k,[]); n=len(vals); means[f"{k[0]}_{k[1]}"]=(sum(vals)+prior*80)/(n+80); ns[f"{k[0]}_{k[1]}"]=n
+    total=sum(ns.values()); out={"means":means,"samples":ns,"sample":total,"trained":total>=500,"source":"demo economy-round outcomes" if total else "economy priors","fit_type":"economy_kill_environment"}; save_model_fit(key,out); return out
+
+
+def _economy_state(rng: np.random.Generator, loss_streak: np.ndarray, previous_win: np.ndarray, pistol: bool) -> np.ndarray:
+    n=len(loss_streak)
+    if pistol:return np.full(n,3,dtype=int) # PISTOL
+    u=rng.random(n); state=np.zeros(n,dtype=int) # FULL=0 FORCE=1 ECO=2
+    state[previous_win]=np.where(u[previous_win]<.82,0,1)
+    mask=~previous_win
+    ls=loss_streak[mask]; uu=u[mask]
+    vals=np.where(ls<=1,np.where(uu<.20,0,np.where(uu<.78,1,2)),np.where(ls==2,np.where(uu<.18,0,np.where(uu<.55,1,2)),np.where(uu<.58,0,np.where(uu<.90,1,2))))
+    state[mask]=vals; return state
+
+
+def _simulate_mr12_round_environment(rng: np.random.Generator, n: int, p_ct: float, p_t: float, map_name: str = "") -> Dict[str, Any]:
+    """Score-, side-, and economy-coupled MR12/MR3 simulation."""
+    n=max(int(n),1); p_ct=clamp(p_ct,.22,.78); p_t=clamp(p_t,.22,.78); starts_ct=rng.random(n)<.5
+    a=np.zeros(n,dtype=int); b=np.zeros(n,dtype=int); ak=np.zeros(n,dtype=int); bk=np.zeros(n,dtype=int)
+    act=np.zeros(n,dtype=int); at=np.zeros(n,dtype=int); bct=np.zeros(n,dtype=int); bt=np.zeros(n,dtype=int)
+    loss_a=np.zeros(n,dtype=int); loss_b=np.zeros(n,dtype=int); prev_a=np.zeros(n,dtype=bool); prev_b=np.zeros(n,dtype=bool)
+    env=learned_economy_kill_environment(map_name); names=np.array(["FULL","FORCE","ECO","PISTOL"],dtype=object); econ_counts=Counter()
+    def play(mask: np.ndarray, probs: np.ndarray, team_a_ct_round: np.ndarray, pistol: bool=False):
+        nonlocal a,b,ak,bk,loss_a,loss_b,prev_a,prev_b,act,at,bct,bt
+        if not mask.any():return
+        sa=_economy_state(rng,loss_a,prev_a,pistol); sb=_economy_state(rng,loss_b,prev_b,pistol)
+        strength=np.array([1.0,.90,.70,.92]); adj=np.clip(probs+(strength[sa]-strength[sb])*.18,.12,.88)
+        awin=(rng.random(n)<adj)&mask; bwin=(~awin)&mask
+        for i,label in enumerate(names):econ_counts[str(label)]+=int(((sa==i)&mask).sum())+int(((sb==i)&mask).sum())
+        def draw(states: np.ndarray,outcome: str,max_k:int):
+            means=np.array([safe_float(env["means"].get(f"{names[s]}_{outcome}"),4.1 if outcome=="WIN" else 2.0) or 2.0 for s in states])
+            return np.minimum(rng.binomial(max_k,np.clip(means/max_k,.02,.98)),max_k)
+        aw=draw(sa,"WIN",5); al=draw(sa,"LOSS",4); bw=draw(sb,"WIN",5); bl=draw(sb,"LOSS",4)
+        ka=np.where(awin,aw,np.where(bwin,al,0)); kb=np.where(bwin,bw,np.where(awin,bl,0)); excess=np.maximum(ka+kb-9,0); kb=np.maximum(kb-excess,0)
+        ak+=ka; bk+=kb; a+=awin; b+=bwin
+        team_a_ct=np.asarray(team_a_ct_round,dtype=bool)
+        act+=mask&team_a_ct; at+=mask&(~team_a_ct); bct+=mask&(~team_a_ct); bt+=mask&team_a_ct
+        loss_a=np.where(awin,0,np.where(bwin,loss_a+1,loss_a)); loss_b=np.where(bwin,0,np.where(awin,loss_b+1,loss_b)); prev_a=awin; prev_b=bwin
+    active=np.ones(n,dtype=bool)
+    for r in range(12):play(active,np.where(starts_ct,p_ct,p_t),starts_ct,pistol=(r==0))
+    active=(a<13)&(b<13)
+    for r in range(12):
+        if not active.any():break
+        play(active,np.where(starts_ct,p_t,p_ct),~starts_ct,pistol=(r==0)); active=(a<13)&(b<13)&((a+b)<24)
+    tied=(a==12)&(b==12); blocks=0
+    while tied.any() and blocks<5:
+        ba=np.zeros(n,dtype=int); bb=np.zeros(n,dtype=int); block=tied.copy()
+        for rr in range(6):
+            if not block.any():break
+            before_a=a.copy();before_b=b.copy();play(block,np.where(starts_ct,p_ct if rr<3 else p_t,p_t if rr<3 else p_ct),starts_ct if rr<3 else ~starts_ct,False)
+            ba+=a-before_a;bb+=b-before_b;block=tied&(ba<4)&(bb<4)&((ba+bb)<6)
+        tied=tied&(ba==3)&(bb==3);blocks+=1
+    if tied.any():play(tied,np.full(n,.5),starts_ct,False)
+    return {"rounds":a+b,"team_score":a,"opponent_score":b,"team_kills":ak,"opponent_kills":bk,"team_ct_rounds":act,"team_t_rounds":at,"opponent_ct_rounds":bct,"opponent_t_rounds":bt,"economy_counts":dict(econ_counts),"economy_environment":env,"round_kill_environment":env}
+
+
+def simulation_projection_deep(player: str,line: float,base_kpr: float,player_map_profiles: Dict[str, Dict[str, Any]],rounds_meta: Dict[str, Any],opponent_factor: float,opponent_meta: Dict[str, Any],context_mean_factor: float,context_variance_multiplier: float,profile_maps: int,role: str,learning_shift: float) -> Dict[str, Any]:
+    scenarios=list(rounds_meta.get("scenarios") or []) or [{"maps":["Unknown","Unknown"],"probability":1.0,"map_models":[{"map":"Unknown","mean_rounds":21.4,"rounds_sd":3.8},{"map":"Unknown","mean_rounds":21.4,"rounds_sd":3.8}]}]
+    probs=np.array([max(safe_float(x.get("probability"),0) or 0,0) for x in scenarios],dtype=float);probs=probs/probs.sum() if probs.sum()>0 else np.ones(len(scenarios))/len(scenarios)
+    rng=np.random.default_rng(stable_seed(player,line,base_kpr,profile_maps,role,learning_shift,MODEL_VERSION));n=SIMULATIONS;idx=rng.choice(len(scenarios),size=n,p=probs)
+    total=np.zeros(n,dtype=int);trounds=np.zeros(n,dtype=int);direct_all=np.zeros(n,dtype=int);share_all=np.zeros(n,dtype=int);blend=learned_simulation_blend(player,role)
+    unc=(.025+.05/math.sqrt(max(profile_maps,1)/10+1)+(0.012 if "Unknown" in role else 0)+(0.008 if "Entry" in role else 0))*context_variance_multiplier
+    common=rng.normal(0,unc,size=n);map_factors=opponent_meta.get("map_factors") or {};pseudo=PlayerStats(player=player,maps=profile_maps,kpr=base_kpr);sharep=team_kill_share_parameters(pseudo,role,opponent_meta);breakdown={}
+    for sn,scenario in enumerate(scenarios):
+        mask=idx==sn;count=int(mask.sum())
+        if not count:continue
+        maps=list(scenario.get("maps") or [])[:2];models=list(scenario.get("map_models") or [])[:2]
+        while len(maps)<2:maps.append("Unknown")
+        while len(models)<2:models.append({"map":maps[len(models)],"mean_rounds":21.4,"rounds_sd":3.8})
+        sk=np.zeros(count,dtype=int);sr=np.zeros(count,dtype=int);cform=common[mask]
+        for map_name,model in zip(maps,models):
+            pct=safe_float(model.get("team_ct_round_win_prob"),None);pt=safe_float(model.get("team_t_round_win_prob"),None)
+            if pct is not None and pt is not None:env=_simulate_mr12_round_environment(rng,count,pct,pt,map_name);mr=env["rounds"]
+            else:
+                mr=np.clip(np.rint(rng.normal(safe_float(model.get("mean_rounds"),21.4) or 21.4,safe_float(model.get("rounds_sd"),3.8) or 3.8,size=count)).astype(int),13,42)
+                env={"team_kills":rng.poisson(np.clip(mr*sharep["team_kpr"],4,120)),"team_ct_rounds":mr//2,"team_t_rounds":mr-mr//2}
+            row=player_map_profiles.get(map_name,{}) ; mk=safe_float(row.get("blended_kpr"),base_kpr) or base_kpr; ctk=safe_float(row.get("ct_kpr"),mk) or mk; tk=safe_float(row.get("t_kpr"),mk) or mk
+            local=safe_float(map_factors.get(map_name),1) or 1;factor=opponent_factor*local*context_mean_factor
+            ctk=clamp(ctk*factor,.36,1.12);tk=clamp(tk*factor,.36,1.12);noise=rng.normal(0,.018*context_variance_multiplier,size=count)
+            ct_rounds=np.asarray(env.get("team_ct_rounds"));t_rounds=np.asarray(env.get("team_t_rounds"));lam=np.clip(ct_rounds*np.clip(ctk+cform+noise,.34,1.15)+t_rounds*np.clip(tk+cform+noise,.34,1.15),.5,52)
+            disp=18 if "Entry" in role else 24;direct=rng.poisson(rng.gamma(shape=disp,scale=lam/disp))
+            teamkills=np.asarray(env["team_kills"]);alpha=max(sharep["player_share"]*sharep["concentration"],.5);beta=max((1-sharep["player_share"])*sharep["concentration"],.5);latent=rng.beta(alpha,beta,size=count);share=rng.binomial(teamkills,np.clip(latent,.04,.42))
+            w=clamp(safe_float(blend.get("share_weight"),.5) or .5,.15,.85);mix=(1-w)*direct+w*share;frac=mix-np.floor(mix);kills=np.floor(mix).astype(int)+(rng.random(count)<frac)
+            disagreement=np.abs(direct-share);extra=np.clip((disagreement-3)/8,0,.45);kills+=rng.binomial(1,extra);kills=np.maximum(kills,0)
+            sk+=kills;sr+=mr;direct_all[mask]+=direct;share_all[mask]+=share
+            b=breakdown.setdefault(map_name,{"rounds":0.0,"kills":0.0,"weight":0.0});pw=probs[sn];b["rounds"]+=pw*float(np.mean(mr));b["kills"]+=pw*float(np.mean(kills));b["weight"]+=pw
+        total[mask]=sk;trounds[mask]=sr
+    shift=clamp(float(learning_shift or 0),-MAX_LEARNING_PROJECTION_SHIFT,MAX_LEARNING_PROJECTION_SHIFT)
+    if shift>0:total+=rng.binomial(1,min(shift,1),size=n)
+    elif shift<0:total=np.maximum(total-rng.binomial(1,min(abs(shift),1),size=n),0)
+    proj=float(np.mean(total));direct_mean=float(np.mean(direct_all));share_mean=float(np.mean(share_all));disagreement=abs(direct_mean-share_mean)
+    out_break={k:{"expected_rounds":round(v["rounds"]/max(v["weight"],1e-9),3),"expected_kills":round(v["kills"]/max(v["weight"],1e-9),3),"scenario_weight":round(v["weight"],4),"player_map_kpr":player_map_profiles.get(k,{}).get("blended_kpr"),"ct_kpr":player_map_profiles.get(k,{}).get("ct_kpr"),"t_kpr":player_map_profiles.get(k,{}).get("t_kpr")} for k,v in breakdown.items()}
+    return {"projection":proj,"median":float(np.median(total)),"over_prob":float(np.mean(total>line)),"under_prob":float(np.mean(total<line)),"push_prob":float(np.mean(total==line)) if float(line).is_integer() else 0.0,"floor_20":float(np.percentile(total,20)),"ceiling_80":float(np.percentile(total,80)),"p10":float(np.percentile(total,10)),"p90":float(np.percentile(total,90)),"sim_sd":float(np.std(total)),"expected_rounds":float(np.mean(trounds)),"rounds_sd":float(np.std(trounds)),"effective_kpr":proj/max(float(np.mean(trounds)),1),"map_breakdown":out_break,"team_kill_share_model":{**sharep,"blend":blend},"model_components":{"direct_projection":direct_mean,"share_projection":share_mean,"share_weight":blend.get("share_weight"),"blend_sample":blend.get("sample",0),"blend_scope":blend.get("scope"),"model_disagreement":disagreement,"economy_aware":True}}
+
+
+def _beta_interval(wins: float, losses: float, prior_mean: float, prior_strength: float=36.0) -> Tuple[float,float,float]:
+    a=wins+prior_mean*prior_strength;b=losses+(1-prior_mean)*prior_strength;mean=a/(a+b);var=a*b/(((a+b)**2)*(a+b+1));sd=math.sqrt(max(var,1e-9));return mean,clamp(mean-1.645*sd,.001,.999),clamp(mean+1.645*sd,.001,.999)
+
+
+def calibrate_probability(raw_probability: float, context: Optional[Dict[str, Any]] = None, prior_rows: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    raw=clamp(float(raw_probability),.001,.999);rows=_calibration_subset(prior_rows if prior_rows is not None else _graded_binary_rows(),context);n=len(rows)
+    near=[x for x in rows if abs(x["_p"]-raw)<=.06];wins=sum(x["_y"] for x in near);local=len(near);post,low,high=_beta_interval(wins,local-wins,raw)
+    iso=_isotonic_fit_predict(rows,raw) if n>=120 else None
+    target=(.55*iso+.45*post) if iso is not None else post;reliability=min(n/(n+220.0),local/(local+70.0));cal=raw*(1-reliability)+target*reliability
+    # Model disagreement and data-quality uncertainty can only shrink confidence, never inflate it.
+    disagreement=safe_float((context or {}).get("model_disagreement"),0) or safe_float(((context or {}).get("model_components") or {}).get("model_disagreement"),0) or 0
+    if disagreement>2:cal=.5+(cal-.5)*clamp(1-(disagreement-2)*.08,.65,1)
+    ceiling=.69 if n<MIN_CALIBRATION_PRELIMINARY else .75 if n<MIN_CALIBRATION_USABLE else .82;cal=clamp(cal,.50,ceiling)
+    tier="UNREADY" if n<MIN_CALIBRATION_PRELIMINARY else "PRELIMINARY" if n<MIN_CALIBRATION_USABLE else "USABLE" if n<MIN_CALIBRATION_STRONG else "STRONG"
+    ready=bool(n>=MIN_CALIBRATION_USABLE and local>=V43_MIN_LOCAL_CALIBRATION)
+    return {"raw":raw,"calibrated":cal,"sample":n,"local_sample":local,"empirical_rate":wins/local if local else None,"posterior_mean":post,"lower90":low,"upper90":high,"method":"walk-forward isotonic + local beta uncertainty" if iso is not None else "local beta-binomial shrinkage","ready":ready,"tier":tier}
+
+
+def row_accuracy_health(row: Dict[str, Any]) -> Dict[str, Any]:
+    flags=[];score=100.0
+    if not row.get("market_scope_verified"):flags.append("MARKET SCOPE");score-=35
+    if not row.get("core_kpr_verified"):flags.append("CORE KPR");score-=30
+    if not row.get("identity_official_ready"):flags.append("IDENTITY/LINEUP");score-=25
+    if not row.get("player_source_fresh"):flags.append("PLAYER SOURCE STALE");score-=15
+    if safe_int(row.get("current_roster_maps"),0)<V43_MIN_CURRENT_ROSTER_MAPS:flags.append("THIN CURRENT ROSTER SAMPLE");score-=12
+    map_profiles=row.get("player_map_profiles") or {};usable=[x for x in map_profiles.values() if safe_float(x.get("blended_kpr"),None) is not None]
+    if len(usable)<2:flags.append("INCOMPLETE MAP MODEL");score-=15
+    if any((safe_float(x.get("map_model_confidence"),0) or 0)<55 for x in usable):flags.append("LOW MAP CONFIDENCE");score-=8
+    er=safe_float(row.get("expected_rounds"),None)
+    if er is None or not 26<=er<=68:flags.append("ROUND MODEL RANGE");score-=30
+    disagreement=safe_float(((row.get("model_components") or {}).get("model_disagreement")),0) or 0
+    if disagreement>V43_MAX_MODEL_DISAGREEMENT:flags.append("DIRECT/SHARE DISAGREEMENT");score-=min(18,(disagreement-V43_MAX_MODEL_DISAGREEMENT)*5)
+    return {"score":round(clamp(score,0,100),1),"flags":flags,"model_disagreement":round(disagreement,3),"ready":score>=82 and not flags}
+
+
+def global_source_circuit(board: List[Dict[str, Any]], status: Dict[str, Any]) -> Dict[str, Any]:
+    n=max(len(board),1);profiles=sum(bool(x.get("core_kpr_verified")) for x in board)/n;ids=sum(bool(x.get("identity_ids",{}).get("match_id")) for x in board)/n;fresh=sum(bool(x.get("player_source_fresh")) for x in board)/n;valid=sum(not x.get("error") for x in board)/n
+    line_rows=safe_int((status.get("long") or {}).get("rows"),0) or 0
+    score=100*(.30*profiles+.25*ids+.20*fresh+.15*valid+.10*min(line_rows/40,1));grade="HEALTHY" if score>=78 else "CAUTION" if score>=58 else "DEGRADED"
+    payload={"score":round(score,1),"grade":grade,"profile_rate":round(profiles,3),"match_id_rate":round(ids,3),"fresh_rate":round(fresh,3),"valid_rate":round(valid,3),"player_table_rows":line_rows,"official_enabled":grade=="HEALTHY"}
+    eid=hashlib.sha256(f"{now_iso()[:16]}|{grade}|{round(score)}".encode()).hexdigest()
+    try:
+        with _sqlite_connect() as conn:conn.execute("INSERT OR REPLACE INTO source_health_events(event_id,source,grade,observed_at,payload_json,created_at) VALUES(?,?,?,?,?,?)",(eid,"combined projection sources",grade,now_iso(),json.dumps(payload),now_iso()))
+    except Exception:pass
+    return payload
+
+
+_v42_build_projection_for_prop = build_projection_for_prop
+
+def build_projection_for_prop(prop: Dict[str, Any],long_table: Dict[str, Dict[str, Any]],medium_table: Dict[str, Dict[str, Any]],recent30_table: Dict[str, Dict[str, Any]],recent15_table: Dict[str, Dict[str, Any]],deep_enabled: bool=True) -> Dict[str, Any]:
+    row=_v42_build_projection_for_prop(prop,long_table,medium_table,recent30_table,recent15_table,deep_enabled)
+    if row.get("projection") is None:return row
+    health=row_accuracy_health(row);row["accuracy_health"]=health;row["model_disagreement"]=health.get("model_disagreement")
+    # Recalibrate using the completed model components, including disagreement uncertainty.
+    raw=safe_float(row.get("raw_probability"),None)
+    if raw is not None:
+        cal=calibrate_probability(raw,{**row,"model_disagreement":health.get("model_disagreement")});row["probability"]=round(cal["calibrated"],4);row["calibration_sample"]=cal["sample"];row["calibration_local_sample"]=cal["local_sample"];row["calibration_lower90"]=round(cal["lower90"],4);row["calibration_upper90"]=round(cal["upper90"],4);row["calibration_ready"]=cal["ready"];row["calibration_method"]=cal["method"];row["calibration_tier"]=cal["tier"]
+    flags=list(row.get("flags") or [])
+    if row.get("status")=="OFFICIAL" and not health.get("ready"):
+        row["status"]="PLAYABLE" if health.get("score",0)>=68 else "TRACK";row["status_label"]="✅ PLAYABLE — ACCURACY GATES" if row["status"]=="PLAYABLE" else "⚠️ TRACK — ACCURACY GATES";flags.extend(health.get("flags") or [])
+    if row.get("status")=="OFFICIAL" and safe_float(row.get("calibration_lower90"),0)<.54:
+        row["status"]="TRACK";row["status_label"]="⚠️ TRACK — PROBABILITY UNCERTAINTY";flags.append("CALIBRATION LOWER BOUND BELOW OFFICIAL STANDARD")
+    if row.get("status")=="OFFICIAL" and safe_int(row.get("current_roster_maps"),0)<V43_MIN_CURRENT_ROSTER_MAPS:
+        row["status"]="TRACK";row["status_label"]="⚠️ TRACK — CURRENT ROSTER SAMPLE";flags.append("FEWER THAN 8 MAPS WITH CURRENT CORE")
+    row["flags"]=list(dict.fromkeys(flags));row["model_version"]=MODEL_VERSION;return row
+
+
+_v42_build_full_board = build_full_board
+
+def build_full_board(props: List[Dict[str, Any]], deep_enabled: bool=True) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    board,status=_v42_build_full_board(props,deep_enabled);circuit=global_source_circuit(board,status) if board else {"grade":"DEGRADED","official_enabled":False,"score":0}
+    if not circuit.get("official_enabled"):
+        for row in board:
+            if row.get("status")=="OFFICIAL":row["status"]="TRACK";row["status_label"]="⚠️ TRACK — SOURCE CIRCUIT BREAKER";row["flags"]=list(dict.fromkeys(list(row.get("flags") or [])+["GLOBAL SOURCE HEALTH NOT STRONG ENOUGH FOR OFFICIAL"]));row["source_circuit_breaker"]=circuit
+    board.sort(key=lambda x:({"OFFICIAL":0,"PLAYABLE":1,"TRACK":2,"PASS":3}.get(x.get("status"),9),-safe_float(x.get("probability"),0),-safe_float(x.get("abs_edge"),0)))
+    return board,{**status,"source_circuit_breaker":circuit,"v43_accuracy_layer":True,"elo_matches":chronological_map_elo().get("matches",0)}
+
+
+# V4.3.1 roster/opponent and opponent-specific veto refinements.
+_v43_enrich_match_context_base = enrich_match_context
+
+def enrich_match_context(context: Dict[str, Any], deep_enabled: bool = True) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    enriched,status=_v43_enrich_match_context_base(context,deep_enabled)
+    profiles=enriched.get("team_deep_profiles") or []
+    if len(profiles)>=2:
+        for i,p in enumerate(profiles[:2]):
+            other=profiles[1-i]
+            emp=empirical_veto_profile(str(p.get("team_id") or ""),str(p.get("team") or ""),str(other.get("team") or ""))
+            picks=Counter(p.get("pick_counts") or {});bans=Counter(p.get("ban_counts") or {})
+            for k,v in (emp.get("pick_counts") or {}).items():picks[k]+=float(v)
+            for k,v in (emp.get("ban_counts") or {}).items():bans[k]+=float(v)
+            p["pick_counts"]=dict(picks);p["ban_counts"]=dict(bans);p["opponent_specific_veto"]=emp
+        enriched["team_deep_profiles"]=profiles
+        status={**status,"opponent_specific_veto_samples":[safe_int((p.get("opponent_specific_veto") or {}).get("opponent_specific"),0) for p in profiles[:2]]}
+    return enriched,status
+
+
+_v43_match_context_adjustment_base = match_context_adjustment
+
+def match_context_adjustment(profile: PlayerStats, context: Dict[str, Any], team: str, opponent: str) -> Tuple[float,float,Dict[str,Any]]:
+    mean,var,meta=_v43_match_context_adjustment_base(profile,context,team,opponent)
+    tp,op=_resolve_team_profiles(context,team,opponent)
+    team_maps=safe_int(tp.get("current_roster_maps"),0) or 0;opp_maps=safe_int(op.get("current_roster_maps"),0) or 0
+    team_stab=safe_float(tp.get("roster_stability"),None);opp_stab=safe_float(op.get("roster_stability"),None)
+    notes=list(meta.get("notes") or [])
+    if team_maps<V43_MIN_CURRENT_ROSTER_MAPS:var*=1.07;notes.append("thin player-team current-core sample")
+    if opp_maps<V43_MIN_CURRENT_ROSTER_MAPS:var*=1.06;notes.append("thin opponent current-core sample")
+    if opp_stab is not None and opp_stab<.45:var*=1.05;notes.append("opponent role/roster uncertainty")
+    return clamp(mean,.965,1.025),clamp(var,1.0,1.30),{**meta,"current_roster_maps":team_maps,"opponent_current_roster_maps":opp_maps,"opponent_roster_stability":opp_stab,"team_roster_stability":team_stab,"notes":notes}
+
+
+# Redefine row health after the opponent-aware context fields are available.
+_v43_row_accuracy_health_base = row_accuracy_health
+
+def row_accuracy_health(row: Dict[str, Any]) -> Dict[str, Any]:
+    out=_v43_row_accuracy_health_base(row);score=float(out.get("score",0));flags=list(out.get("flags") or [])
+    context_meta=((row.get("source_meta") or {}).get("context_adjustment") or {})
+    opp_maps=safe_int(context_meta.get("opponent_current_roster_maps"),0) or 0
+    opp_stab=safe_float(context_meta.get("opponent_roster_stability"),None)
+    if opp_maps<V43_MIN_CURRENT_ROSTER_MAPS:score-=8;flags.append("THIN OPPONENT CURRENT-ROSTER SAMPLE")
+    if opp_stab is not None and opp_stab<.40:score-=6;flags.append("LOW OPPONENT ROSTER CONTINUITY")
+    veto_state=str(row.get("veto_state") or "")
+    if veto_state=="PRE_VETO" and safe_float(row.get("map_confidence"),0)<70:score-=8;flags.append("LOW PRE-VETO MAP CERTAINTY")
+    return {**out,"score":round(clamp(score,0,100),1),"flags":list(dict.fromkeys(flags)),"opponent_current_roster_maps":opp_maps,"opponent_roster_stability":opp_stab,"ready":score>=82 and not flags}
+
+
+
+# ============================================================
+# V4.4 FINAL RELIABILITY LAYER — DIRECTION NEUTRALITY / JOINT LINEUPS
+# ============================================================
+
+MODEL_SCHEMA_FINGERPRINT = "v44_joint5_side_veto_glicko_dualgrade_neutral_schema1"
+V44_MIN_JOINT_GROUP = 2
+V44_DIRECTION_ALERT_RATIO = 0.72
+V44_DIRECTION_ALERT_MIN_ROWS = 10
+V44_NEUTRAL_EDGE_ZONE = 0.65
+V44_MIN_DUAL_GRADE_WEIGHT = 0.50
+V44_CALIBRATION_HALF_LIFE_DAYS = 180.0
+V44_GLICKO_CACHE_SECONDS = 3600
+
+
+def init_v44_schema() -> None:
+    with _sqlite_connect() as conn:
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS model_registry (
+          model_version TEXT PRIMARY KEY, feature_fingerprint TEXT NOT NULL,
+          status TEXT NOT NULL, promoted_at TEXT, payload_json TEXT NOT NULL,
+          created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS side_choice_observations (
+          observation_id TEXT PRIMARY KEY, team_key TEXT NOT NULL, opponent_key TEXT,
+          match_id TEXT, map_name TEXT, started_side TEXT, observed_at TEXT,
+          source TEXT, payload_json TEXT NOT NULL, created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_side_choice_team_map ON side_choice_observations(team_key,map_name,observed_at);
+        CREATE TABLE IF NOT EXISTS model_comparisons (
+          comparison_id TEXT PRIMARY KEY, model_version TEXT, feature_fingerprint TEXT,
+          champion_name TEXT, challenger_name TEXT, sample_size INTEGER,
+          champion_mae REAL, challenger_mae REAL, champion_bias REAL, challenger_bias REAL,
+          decision TEXT, payload_json TEXT NOT NULL, evaluated_at TEXT NOT NULL
+        );
+        """)
+        payload={"model_version":MODEL_VERSION,"feature_fingerprint":MODEL_SCHEMA_FINGERPRINT,"market":"CS2 Maps 1-2 Kills"}
+        conn.execute("""INSERT INTO model_registry(model_version,feature_fingerprint,status,promoted_at,payload_json,created_at,updated_at)
+                      VALUES(?,?,?,'',?,?,?)
+                      ON CONFLICT(model_version) DO UPDATE SET feature_fingerprint=excluded.feature_fingerprint,
+                      payload_json=excluded.payload_json,updated_at=excluded.updated_at""",
+                     (MODEL_VERSION,MODEL_SCHEMA_FINGERPRINT,"ACTIVE",json.dumps(payload),now_iso(),now_iso()))
+
+
+init_v44_schema()
+
+
+def snapshot_key(row: Dict[str, Any]) -> str:
+    # Model version and schema are part of the identity so a v4.4 projection
+    # can never overwrite or inherit the grade of an older engine.
+    raw=f"{MODEL_VERSION}|{MODEL_SCHEMA_FINGERPRINT}|{normalize_name(row.get('player'))}|{row.get('line')}|{row.get('lean')}|{str(row.get('start_time',''))[:16]}|{row.get('source')}"
+    return hashlib.md5(raw.encode()).hexdigest()
+
+
+def _row_model_compatible(row: Dict[str, Any]) -> bool:
+    return str(row.get("model_version") or "") == MODEL_VERSION and str(row.get("feature_fingerprint") or MODEL_SCHEMA_FINGERPRINT) == MODEL_SCHEMA_FINGERPRINT
+
+
+def _grade_weight(row: Dict[str, Any]) -> float:
+    meta=row.get("grade_meta") or {}
+    if str(row.get("grade_source") or "").lower().startswith("manual"):
+        return 1.0
+    if meta.get("dual_source_confirmed"):
+        return 1.0
+    if meta.get("training_eligible"):
+        return clamp(safe_float(meta.get("confirmation_weight"),0.70) or 0.70,V44_MIN_DUAL_GRADE_WEIGHT,1.0)
+    return clamp(safe_float(meta.get("confirmation_weight"),0.50) or 0.50,0.25,0.65)
+
+
+def _graded_binary_rows() -> List[Dict[str, Any]]:
+    """Only the exact current feature schema can train v4.4 probabilities."""
+    combined=[];seen=set();raw=load_json(RESULT_LOG,[]);raw=raw if isinstance(raw,list) else []
+    for row in raw+sqlite_graded_projection_rows():
+        if not _row_model_compatible(row):
+            continue
+        result=str(row.get("graded_result") or "").upper()
+        p=safe_float(row.get("raw_probability"),None)
+        if p is None: p=safe_float(row.get("probability"),None)
+        if result not in {"WIN","LOSS"} or p is None: continue
+        key=str(row.get("snapshot_id") or snapshot_key(row))
+        if key in seen: continue
+        seen.add(key);item=dict(row);item["_p"]=clamp(float(p),.001,.999);item["_y"]=1 if result=="WIN" else 0
+        item["_time"]=str(row.get("projection_time") or row.get("saved_at") or row.get("graded_at") or "")
+        dt=_parse_iso_datetime(item["_time"]);age=max(0.0,(datetime.now(timezone.utc)-dt).total_seconds()/86400.0) if dt else V44_CALIBRATION_HALF_LIFE_DAYS
+        item["_w"]=_grade_weight(row)*(0.5**(age/V44_CALIBRATION_HALF_LIFE_DAYS))
+        combined.append(item)
+    combined.sort(key=lambda x:x.get("_time",""));return combined
+
+
+def _calibration_subset(rows: List[Dict[str, Any]], context: Optional[Dict[str, Any]]=None) -> List[Dict[str, Any]]:
+    context=context or {};lean=str(context.get("lean") or "");veto=str(context.get("veto_state") or "");tier=str(context.get("event_tier") or "");era=str(context.get("patch_era") or "")
+    scoped=[x for x in rows if _row_model_compatible(x) and (not lean or str(x.get("lean") or "")==lean)]
+    for field,value,min_base,min_n in [("veto_state",veto,35,25),("patch_era",era,60,30),("event_tier",tier,80,35)]:
+        if value and len(scoped)>=min_base:
+            narrower=[x for x in scoped if str(x.get(field) or "")==value]
+            if len(narrower)>=min_n: scoped=narrower
+    return scoped
+
+
+def _weighted_isotonic_predict(rows: List[Dict[str, Any]], raw: float) -> Optional[float]:
+    if len(rows)<60:return None
+    pairs=sorted((float(x["_p"]),float(x["_y"]),max(float(x.get("_w",1)),.01)) for x in rows)
+    blocks=[]
+    for p,y,w in pairs:
+        blocks.append([p,p,y*w,w])
+        while len(blocks)>=2 and blocks[-2][2]/blocks[-2][3] > blocks[-1][2]/blocks[-1][3]:
+            b=blocks.pop();a=blocks.pop();blocks.append([a[0],b[1],a[2]+b[2],a[3]+b[3]])
+    pts=[((a+b)/2,sy/sw) for a,b,sy,sw in blocks]
+    if raw<=pts[0][0]:return pts[0][1]
+    if raw>=pts[-1][0]:return pts[-1][1]
+    for (x1,y1),(x2,y2) in zip(pts,pts[1:]):
+        if x1<=raw<=x2:
+            t=(raw-x1)/max(x2-x1,1e-9);return y1+t*(y2-y1)
+    return None
+
+
+def _platt_predict(rows: List[Dict[str, Any]], raw: float) -> Optional[float]:
+    if len(rows)<60:return None
+    p=np.clip(np.array([x["_p"] for x in rows],dtype=float),.005,.995);y=np.array([x["_y"] for x in rows],dtype=float);w=np.array([max(float(x.get("_w",1)),.01) for x in rows])
+    x=np.log(p/(1-p));X=np.column_stack([np.ones(len(x)),x]);beta=np.array([0.0,1.0])
+    for _ in range(30):
+        z=np.clip(X@beta,-20,20);q=1/(1+np.exp(-z));g=X.T@(w*(y-q))-np.array([.02*beta[0],.05*(beta[1]-1)])
+        h=-(X.T@((w*q*(1-q))[:,None]*X))-np.diag([.02,.05])
+        try:step=np.linalg.solve(h,g)
+        except Exception:break
+        beta-=step
+        if float(np.max(np.abs(step)))<1e-7:break
+    xr=math.log(clamp(raw,.005,.995)/(1-clamp(raw,.005,.995)));return float(1/(1+math.exp(-clamp(beta[0]+beta[1]*xr,-20,20))))
+
+
+def _weighted_brier(rows: List[Dict[str, Any]], predictor) -> float:
+    vals=[];weights=[]
+    for r in rows:
+        pred=predictor(r["_p"])
+        if pred is None:continue
+        vals.append((pred-r["_y"])**2);weights.append(max(float(r.get("_w",1)),.01))
+    return float(np.average(vals,weights=weights)) if vals else 99.0
+
+
+def calibrate_probability(raw_probability: float, context: Optional[Dict[str, Any]]=None, prior_rows: Optional[List[Dict[str, Any]]]=None) -> Dict[str, Any]:
+    raw=clamp(float(raw_probability),.001,.999);rows=_calibration_subset(prior_rows if prior_rows is not None else _graded_binary_rows(),context);n=len(rows);effective=float(sum(x.get("_w",1) for x in rows))
+    near=[x for x in rows if abs(x["_p"]-raw)<=.06];wins=sum(x["_y"]*x.get("_w",1) for x in near);losses=sum((1-x["_y"])*x.get("_w",1) for x in near);local=float(sum(x.get("_w",1) for x in near))
+    post,low,high=_beta_interval(wins,losses,raw,prior_strength=48.0)
+    iso=_weighted_isotonic_predict(rows,raw);platt=_platt_predict(rows,raw)
+    method="weighted local beta-binomial";target=post
+    if n>=120:
+        split=max(60,int(n*.80));train=rows[:split];hold=rows[split:]
+        iso_fn=lambda p:_weighted_isotonic_predict(train,p);pl_fn=lambda p:_platt_predict(train,p)
+        bi=_weighted_brier(hold,iso_fn);bp=_weighted_brier(hold,pl_fn);br=_weighted_brier(hold,lambda p:p)
+        if min(bi,bp)<br-.002:
+            if bi<=bp and iso is not None:target=.65*iso+.35*post;method="versioned weighted isotonic + beta shrinkage"
+            elif platt is not None:target=.65*platt+.35*post;method="versioned Platt + beta shrinkage"
+    reliability=min(effective/(effective+220.0),local/(local+75.0));cal=raw*(1-reliability)+target*reliability
+    disagreement=safe_float((context or {}).get("model_disagreement"),0) or safe_float(((context or {}).get("model_components") or {}).get("model_disagreement"),0) or 0
+    if disagreement>2:cal=.5+(cal-.5)*clamp(1-(disagreement-2)*.08,.60,1)
+    ceiling=.68 if effective<MIN_CALIBRATION_PRELIMINARY else .74 if effective<MIN_CALIBRATION_USABLE else .82
+    cal=clamp(cal,.50,ceiling);tier="UNREADY" if effective<MIN_CALIBRATION_PRELIMINARY else "PRELIMINARY" if effective<MIN_CALIBRATION_USABLE else "USABLE" if effective<MIN_CALIBRATION_STRONG else "STRONG"
+    ready=bool(effective>=MIN_CALIBRATION_USABLE and local>=V43_MIN_LOCAL_CALIBRATION)
+    return {"raw":raw,"calibrated":cal,"sample":n,"effective_sample":round(effective,2),"local_sample":round(local,2),"empirical_rate":wins/local if local else None,"posterior_mean":post,"lower90":low,"upper90":high,"method":method,"ready":ready,"tier":tier,"model_version":MODEL_VERSION,"feature_fingerprint":MODEL_SCHEMA_FINGERPRINT}
+
+
+def build_learning_profiles(results: Optional[List[Dict[str, Any]]]=None) -> Dict[str, Any]:
+    rows=results if results is not None else sqlite_graded_projection_rows()+((load_json(RESULT_LOG,[]) if isinstance(load_json(RESULT_LOG,[]),list) else []))
+    graded=[x for x in rows if _row_model_compatible(x) and x.get("graded_result") in {"WIN","LOSS","PUSH"} and safe_float(x.get("actual_kills"),None) is not None]
+    profiles={"model_version":MODEL_VERSION,"feature_fingerprint":MODEL_SCHEMA_FINGERPRINT,"global":{},"players":{},"roles":{},"line_buckets":{},"maps":{},"event_tiers":{},"directions":{},"updated_at":now_iso()}
+    def summarize(group):
+        vals=[];ws=[]
+        for x in group:
+            base=safe_float(x.get("projection_before_learning"),None)
+            if base is None:base=safe_float(x.get("projection"),None)
+            if base is None:continue
+            vals.append(float(x["actual_kills"])-base);ws.append(_grade_weight(x))
+        n=len(vals)
+        if not n:return {"samples":0,"bias":0.0,"mae":None}
+        raw=float(np.average(vals,weights=ws));shrunk=raw*n/(n+35)
+        return {"samples":n,"effective_samples":round(sum(ws),2),"bias":round(clamp(shrunk,-.30,.30),4),"raw_bias":round(raw,4),"mae":round(float(np.average(np.abs(vals),weights=ws)),4)}
+    profiles["global"]=summarize(graded)
+    sections={k:defaultdict(list) for k in ["players","roles","line_buckets","maps","event_tiers","directions"]}
+    for r in graded:
+        sections["players"][normalize_name(r.get("player"))].append(r);sections["roles"][str(r.get("role") or "Unknown")].append(r);sections["directions"][str(r.get("lean") or "")].append(r)
+        line=safe_float(r.get("line"),0) or 0;sections["line_buckets"][f"{int(line//5)*5}-{int(line//5)*5+4.5}"].append(r)
+        for m in r.get("likely_maps") or []:sections["maps"][str(m)].append(r)
+        sections["event_tiers"][str(r.get("event_tier") or "LOW/UNKNOWN")].append(r)
+    for key,groups in sections.items():profiles[key]={k:summarize(v) for k,v in groups.items()}
+    save_json(LEARNING_FILE,profiles);return profiles
+
+
+def learning_adjustment(player: str,role: str,line: float,likely_maps: Sequence[str]=(),event_tier: str="",data_score_hint: int=0) -> Tuple[float,Dict[str,Any]]:
+    profiles=load_json(LEARNING_FILE,{})
+    if not isinstance(profiles,dict) or profiles.get("model_version")!=MODEL_VERSION or profiles.get("feature_fingerprint")!=MODEL_SCHEMA_FINGERPRINT:profiles=build_learning_profiles()
+    pieces=[]
+    def add(row,min_n,w,label):
+        if safe_int(row.get("samples"),0)>=min_n:pieces.append((safe_float(row.get("bias"),0) or 0,w,label))
+    add(profiles.get("global",{}),150,.35,"global")
+    add((profiles.get("players") or {}).get(normalize_name(player),{}),50,.25,"player")
+    add((profiles.get("roles") or {}).get(role,{}),120,.15,"role")
+    bucket=f"{int(line//5)*5}-{int(line//5)*5+4.5}";add((profiles.get("line_buckets") or {}).get(bucket,{}),100,.10,"line bucket")
+    map_bias=[]
+    for m in likely_maps[:2]:
+        rr=(profiles.get("maps") or {}).get(str(m),{})
+        if safe_int(rr.get("samples"),0)>=100:map_bias.append(safe_float(rr.get("bias"),0) or 0)
+    if map_bias:pieces.append((float(np.mean(map_bias)),.10,"map context"))
+    add((profiles.get("event_tiers") or {}).get(str(event_tier),{}),100,.05,"event tier")
+    if not pieces:return 0.0,{"applied":False,"pieces":[],"model_version":MODEL_VERSION}
+    total=sum(w for _,w,_ in pieces);adj=clamp(sum(v*w for v,w,_ in pieces)/max(total,.01),-.30,.30)
+    return adj,{"applied":True,"pieces":pieces,"adjustment":round(adj,4),"model_version":MODEL_VERSION}
+
+
+def learned_team_kill_share_parameters(player: str,role: str) -> Dict[str,Any]:
+    rows=[r for r in sqlite_graded_projection_rows() if _row_model_compatible(r)]
+    scopes=[("player",lambda r:normalize_name(r.get("player"))==normalize_name(player),MIN_BLEND_TRAINING_SAMPLES),("role",lambda r:str(r.get("role") or "")==str(role),100),("global",lambda r:True,200)]
+    for scope,pred,min_n in scopes:
+        samples=[]
+        for row in rows:
+            observed=safe_float(row.get("observed_player_share"),None)
+            if observed is None:observed=safe_float((row.get("team_kill_share_model") or {}).get("observed_player_share"),None)
+            if pred(row) and observed is not None and .04<=observed<=.50:samples.append(float(observed))
+        if len(samples)>=min_n:
+            mean=float(np.mean(samples));var=float(np.var(samples));conc=clamp(mean*(1-mean)/max(var,1e-4)-1,12,160)
+            return {"player_share":clamp(mean,.08,.36),"concentration":conc,"sample":len(samples),"source":f"v4.4 historical {scope} team-kill share","scope":scope}
+    return {"sample":0,"scope":"prior"}
+
+
+def learned_simulation_blend(player: str,role: str) -> Dict[str,Any]:
+    rows=[r for r in sqlite_graded_projection_rows() if _row_model_compatible(r)]
+    scopes=[("player",lambda r:normalize_name(r.get("player"))==normalize_name(player),MIN_BLEND_TRAINING_SAMPLES),("role",lambda r:str(r.get("role") or "")==str(role),80),("global",lambda r:True,150)]
+    for scope,pred,min_n in scopes:
+        pairs=[]
+        for r in rows:
+            comp=r.get("model_components") or {};actual=safe_float(r.get("actual_kills"),None);d=safe_float(comp.get("direct_projection"),None);sh=safe_float(comp.get("share_projection"),None)
+            if pred(r) and None not in (actual,d,sh):pairs.append((abs(actual-d),abs(actual-sh)))
+        if len(pairs)>=min_n:
+            dm=float(np.mean([x[0] for x in pairs]));sm=float(np.mean([x[1] for x in pairs]));w=clamp(dm/max(dm+sm,1e-6),.20,.80)
+            return {"share_weight":w,"direct_weight":1-w,"sample":len(pairs),"scope":scope,"direct_mae":dm,"share_mae":sm,"trained":True,"source":"v4.4 isolated history"}
+    return {"share_weight":.50,"direct_weight":.50,"sample":0,"scope":"prior","trained":False,"source":"neutral untrained blend"}
+
+
+def _parse_starting_side_hints(page: str,teams: Sequence[Dict[str,Any]],maps: Sequence[str]) -> Dict[str,Dict[str,float]]:
+    text=" ".join(strip_tags(page or "").split());out={}
+    for m in maps or KNOWN_MAPS:
+        for team in teams[:2]:
+            name=str(team.get("name") or "")
+            if not name:continue
+            patterns=[rf"{re.escape(name)}.{{0,80}}(?:start|starting).{{0,25}}\b(CT|T)\b.{{0,80}}{re.escape(m)}",rf"{re.escape(m)}.{{0,80}}{re.escape(name)}.{{0,80}}(?:start|starting).{{0,25}}\b(CT|T)\b"]
+            for pat in patterns:
+                hit=re.search(pat,text,re.I)
+                if hit:out.setdefault(m,{})[normalize_team(name)]=1.0 if hit.group(1).upper()=="CT" else 0.0;break
+    return out
+
+
+def empirical_start_ct_probability(team: str,map_name: str,days: int=365) -> Dict[str,Any]:
+    cutoff=(datetime.now(timezone.utc)-timedelta(days=days)).isoformat();seen=set();ct=0;total=0
+    try:
+        with _sqlite_connect() as conn:rows=conn.execute("SELECT * FROM demo_rounds WHERE map_name=? AND event_time>=? ORDER BY match_id,round_num",(canonical_map_name(map_name),cutoff)).fetchall()
+        for r in rows:
+            mid=str(r["match_id"] or "")
+            if mid in seen:continue
+            seen.add(mid);total+=1
+            if _team_name_matches(team,r["ct_team"]):ct+=1
+            elif not _team_name_matches(team,r["t_team"]):total-=1
+    except Exception:pass
+    p=(ct+4)/(total+8) if total else .5
+    return {"probability":p,"sample":total,"source":"demo first-round side history" if total else "50/50 unknown side prior"}
+
+
+_v43_fetch_match_context=fetch_match_context
+
+def fetch_match_context(match_url: str) -> Tuple[Dict[str,Any],Dict[str,Any]]:
+    context,status=_v43_fetch_match_context(match_url)
+    if context:
+        page,_=http_get_text(match_url,"HLTV match side hints",ttl=2*60,timeout=20,allow_stale=False)
+        context["starting_side_hints"]=_parse_starting_side_hints(page or "",context.get("teams") or [],context.get("confirmed_maps") or KNOWN_MAPS)
+    return context,status
+
+
+_v43_map_round_model=_map_round_model
+
+def _map_round_model(context: Dict[str,Any],map_name: str,team: str="",opponent: str="") -> Dict[str,Any]:
+    out=_v43_map_round_model(context,map_name,team,opponent);hints=(context.get("starting_side_hints") or {}).get(map_name,{})
+    exact=hints.get(normalize_team(team));emp=empirical_start_ct_probability(team,map_name)
+    start_p=float(exact) if exact is not None else .5+(safe_float(emp.get("probability"),.5)-.5)*clamp(safe_int(emp.get("sample"),0)/30,0,1)
+    out["team_start_ct_probability"]=clamp(start_p,0,1);out["starting_side_source"]="confirmed match page" if exact is not None else emp.get("source");out["starting_side_sample"]=emp.get("sample",0)
+    return out
+
+
+def _simulate_mr12_round_environment(rng: np.random.Generator,n: int,p_ct: float,p_t: float,map_name: str="",start_ct_probability: float=.5) -> Dict[str,Any]:
+    n=max(int(n),1);p_ct=clamp(p_ct,.22,.78);p_t=clamp(p_t,.22,.78);start_ct_probability=clamp(start_ct_probability,0,1);starts_ct=rng.random(n)<start_ct_probability
+    a=np.zeros(n,dtype=int);b=np.zeros(n,dtype=int);ak=np.zeros(n,dtype=int);bk=np.zeros(n,dtype=int);act=np.zeros(n,dtype=int);at=np.zeros(n,dtype=int);bct=np.zeros(n,dtype=int);bt=np.zeros(n,dtype=int)
+    loss_a=np.zeros(n,dtype=int);loss_b=np.zeros(n,dtype=int);prev_a=np.zeros(n,dtype=bool);prev_b=np.zeros(n,dtype=bool);env=learned_economy_kill_environment(map_name);names=np.array(["FULL","FORCE","ECO","PISTOL"],dtype=object);econ_counts=Counter()
+    def play(mask,probs,team_a_ct_round,pistol=False):
+        nonlocal a,b,ak,bk,loss_a,loss_b,prev_a,prev_b,act,at,bct,bt
+        if not mask.any():return
+        sa=_economy_state(rng,loss_a,prev_a,pistol);sb=_economy_state(rng,loss_b,prev_b,pistol);strength=np.array([1.0,.90,.70,.92]);adj=np.clip(probs+(strength[sa]-strength[sb])*.18,.12,.88);awin=(rng.random(n)<adj)&mask;bwin=(~awin)&mask
+        for i,label in enumerate(names):econ_counts[str(label)]+=int(((sa==i)&mask).sum())+int(((sb==i)&mask).sum())
+        def draw(states,outcome,max_k):
+            means=np.array([safe_float(env["means"].get(f"{names[s]}_{outcome}"),4.1 if outcome=="WIN" else 2.0) or 2.0 for s in states]);return np.minimum(rng.binomial(max_k,np.clip(means/max_k,.02,.98)),max_k)
+        aw=draw(sa,"WIN",5);al=draw(sa,"LOSS",4);bw=draw(sb,"WIN",5);bl=draw(sb,"LOSS",4);ka=np.where(awin,aw,np.where(bwin,al,0));kb=np.where(bwin,bw,np.where(awin,bl,0));excess=np.maximum(ka+kb-9,0);kb=np.maximum(kb-excess,0)
+        ak+=ka;bk+=kb;a+=awin;b+=bwin;team_a_ct=np.asarray(team_a_ct_round,dtype=bool);act+=mask&team_a_ct;at+=mask&(~team_a_ct);bct+=mask&(~team_a_ct);bt+=mask&team_a_ct
+        loss_a=np.where(awin,0,np.where(bwin,loss_a+1,loss_a));loss_b=np.where(bwin,0,np.where(awin,loss_b+1,loss_b));prev_a=awin;prev_b=bwin
+    active=np.ones(n,dtype=bool)
+    for r in range(12):play(active,np.where(starts_ct,p_ct,p_t),starts_ct,pistol=(r==0))
+    active=(a<13)&(b<13)
+    for r in range(12):
+        if not active.any():break
+        play(active,np.where(starts_ct,p_t,p_ct),~starts_ct,pistol=(r==0));active=(a<13)&(b<13)&((a+b)<24)
+    tied=(a==12)&(b==12);blocks=0
+    while tied.any() and blocks<5:
+        ba=np.zeros(n,dtype=int);bb=np.zeros(n,dtype=int);block=tied.copy()
+        for rr in range(6):
+            if not block.any():break
+            before_a=a.copy();before_b=b.copy();play(block,np.where(starts_ct,p_ct if rr<3 else p_t,p_t if rr<3 else p_ct),starts_ct if rr<3 else ~starts_ct,False);ba+=a-before_a;bb+=b-before_b;block=tied&(ba<4)&(bb<4)&((ba+bb)<6)
+        tied=tied&(ba==3)&(bb==3);blocks+=1
+    if tied.any():play(tied,np.full(n,.5),starts_ct,False)
+    return {"rounds":a+b,"team_score":a,"opponent_score":b,"team_kills":ak,"opponent_kills":bk,"team_ct_rounds":act,"team_t_rounds":at,"opponent_ct_rounds":bct,"opponent_t_rounds":bt,"starts_ct":starts_ct,"start_ct_probability":start_ct_probability,"economy_counts":dict(econ_counts),"economy_environment":env,"round_kill_environment":env}
+
+
+def simulate_veto_scenarios(team_profiles: Sequence[Dict[str,Any]],simulations: int=8000) -> List[Dict[str,Any]]:
+    if len(team_profiles)<2:return []
+    profiles=list(team_profiles[:2]);active=set(patch_era_for_time().get("active_maps") or CURRENT_ACTIVE_MAPS);maps=[m for m in KNOWN_MAPS if m in active]
+    if len(maps)<4:return []
+    rng=np.random.default_rng(stable_seed("veto-full-mass",*(p.get("team") for p in profiles),MODEL_VERSION));counts=Counter()
+    for _ in range(simulations):
+        available=list(maps);picked=[]
+        for ti in [0,1]:
+            p=profiles[ti];weights=[]
+            for m in available:
+                row=(p.get("map_profiles") or {}).get(m,{});play=safe_float(row.get("maps"),0) or 0;win=safe_float(row.get("win_pct"),50) or 50;bans=safe_float((p.get("ban_counts") or {}).get(m),0) or 0
+                weights.append(1+bans*2.4+max(0,6-play)*.32+max(0,48-win)*.045)
+            ban=_sample_weighted(rng,available,weights)
+            if ban in available:available.remove(ban)
+        for ti in [0,1]:
+            p=profiles[ti];opp=profiles[1-ti];weights=[]
+            for m in available:
+                row=(p.get("map_profiles") or {}).get(m,{});orow=(opp.get("map_profiles") or {}).get(m,{});play=safe_float(row.get("maps"),0) or 0;win=safe_float(row.get("win_pct"),50) or 50;rw=safe_float(row.get("round_win_pct"),50) or 50;pc=safe_float((p.get("pick_counts") or {}).get(m),0) or 0;ob=safe_float((opp.get("ban_counts") or {}).get(m),0) or 0;ow=safe_float(orow.get("win_pct"),50) or 50
+                weights.append(1+pc*3.1+play*.42+max(0,win-45)*.12+max(0,rw-47)*.10+max(0,52-ow)*.05-ob*.10)
+            choice=_sample_weighted(rng,available,weights)
+            if choice:picked.append(choice);available.remove(choice)
+        if len(picked)==2:counts[tuple(picked)]+=1
+    total=sum(counts.values())
+    if not total:return []
+    return [{"maps":list(pair),"probability":count/total,"simulation_count":count,"probability_mass_retained":1.0} for pair,count in counts.most_common()]
+
+
+def project_expected_rounds(context: Dict[str,Any],likely_maps: Sequence[str],map_meta: Optional[Dict[str,Any]]=None,team: str="",opponent: str="") -> Tuple[float,float,Dict[str,Any]]:
+    scenarios=list((map_meta or {}).get("scenarios") or [])
+    if not scenarios and len(likely_maps)>=2:scenarios=[{"maps":list(likely_maps[:2]),"probability":1.0}]
+    if not scenarios:scenarios=[{"maps":[likely_maps[0] if likely_maps else "Unknown",likely_maps[1] if len(likely_maps)>1 else "Unknown"],"probability":1.0}]
+    total=sum(max(safe_float(x.get("probability"),0) or 0,0) for x in scenarios) or 1.0;normalized=[]
+    # A full seven-map veto creates up to 42 ordered pairs, but only seven unique
+    # map models. Cache each map once so preserving the probability tail does not
+    # multiply the expensive MR12 side simulation by every pair.
+    model_cache={}
+    for scenario in scenarios:
+        maps=list(scenario.get("maps") or [])[:2]
+        while len(maps)<2:maps.append("Unknown")
+        models=[]
+        for m in maps:
+            if m not in model_cache:
+                model_cache[m]=_map_round_model(context,m,team,opponent) if m in KNOWN_MAPS else {"map":m,"mean_rounds":21.1,"rounds_sd":3.8,"team_start_ct_probability":.5}
+            models.append(model_cache[m])
+        prob=max(safe_float(scenario.get("probability"),0) or 0,0)/total;mean=sum(float(x["mean_rounds"]) for x in models);var=sum(float(x["rounds_sd"])**2 for x in models)
+        normalized.append({"maps":maps,"probability":prob,"map_models":models,"mean_rounds":mean,"rounds_sd":math.sqrt(var)})
+    mean=sum(x["probability"]*x["mean_rounds"] for x in normalized);second=sum(x["probability"]*(x["rounds_sd"]**2+x["mean_rounds"]**2) for x in normalized);sd=math.sqrt(max(second-mean**2,.01));mass=sum(x["probability"] for x in normalized)
+    return clamp(mean,26,64),clamp(sd,2.8,10.5),{"invalid_format":context.get("format")=="BO1","format":context.get("format","UNKNOWN"),"scenarios":normalized,"probability_mass_retained":round(mass,6),"scenario_count":len(normalized),"full_veto_mass":True}
+
+
+_v43_sqlite_store_team_map_observation = sqlite_store_team_map_observation
+
+def sqlite_store_team_map_observation(team_id: str,team_name: str,match_url: str,row: Dict[str,Any],opponent_rank: Optional[float],same_core: bool,environment: str) -> bool:
+    ok=_v43_sqlite_store_team_map_observation(team_id,team_name,match_url,row,opponent_rank,same_core,environment)
+    if ok:invalidate_model_fits(["roster_glicko:","map_elo:"])
+    return ok
+
+
+def chronological_roster_glicko(force: bool=False) -> Dict[str,Any]:
+    cached=load_model_fit("roster_glicko:v44")
+    updated=_parse_iso_datetime(cached.get("updated_at")) if cached else None
+    if cached and not force and updated and (datetime.now(timezone.utc)-updated).total_seconds()<V44_GLICKO_CACHE_SECONDS:return cached
+    try:
+        with _sqlite_connect() as conn:recs=conn.execute("SELECT * FROM team_map_observations ORDER BY played_at ASC,created_at ASC").fetchall()
+    except Exception:recs=[]
+    ratings=defaultdict(lambda:1500.0);rds=defaultdict(lambda:350.0);last={};latest_fp={};samples=Counter();seen=set()
+    for rec in recs:
+        try:p=json.loads(rec["payload_json"] or "{}")
+        except Exception:p={}
+        team=normalize_team(rec["team_name"]);t1=normalize_team(p.get("team1"));t2=normalize_team(p.get("team2"));opp=t2 if _team_name_matches(team,t1) else t1 if _team_name_matches(team,t2) else normalize_team(p.get("opponent"))
+        if not team or not opp or team==opp:continue
+        key=(str(rec["match_id"]),canonical_map_name(rec["map_name"]),team)
+        if key in seen:continue
+        seen.add(key);m=canonical_map_name(rec["map_name"]);fp=str(p.get("roster_fingerprint") or "ORG");latest_fp[team]=fp;opp_fp=latest_fp.get(opp,"ORG")
+        ts=safe_float(rec["team_score"],None);oscore=safe_float(rec["opponent_score"],None)
+        if ts is None or oscore is None or ts==oscore:continue
+        actual=1.0 if ts>oscore else 0.0;dt=_parse_iso_datetime(rec["played_at"]);keys=[f"G|{team}|{fp}",f"M|{team}|{fp}|{m}"];okeys=[f"G|{opp}|{opp_fp}",f"M|{opp}|{opp_fp}|{m}"]
+        for ka,kb in zip(keys,okeys):
+            if dt:
+                for kk in [ka,kb]:
+                    age=max(0,(dt-last[kk]).total_seconds()/86400) if kk in last else 60;rds[kk]=min(350,math.sqrt(rds[kk]**2+(age*3.0)**2));last[kk]=dt
+            ra,rb=ratings[ka],ratings[kb];rda,rdb=rds[ka],rds[kb];expected=1/(1+10**((rb-ra)/400));unc=clamp((rda+rdb)/700,.25,1);k=30*unc*(1+min(abs(ts-oscore),10)/30)
+            ratings[ka]=ra+k*(actual-expected);ratings[kb]=rb-k*(actual-expected);rds[ka]=max(55,rda*.965);rds[kb]=max(55,rdb*.965);samples[ka]+=1;samples[kb]+=1
+    out={"ratings":dict(ratings),"rds":dict(rds),"samples":dict(samples),"latest_fingerprint":latest_fp,"matches":len(seen),"fit_type":"roster-era Glicko-style","feature_fingerprint":MODEL_SCHEMA_FINGERPRINT};save_model_fit("roster_glicko:v44",out);return out
+
+
+def map_elo_matchup(team: str,opponent: str,map_name: str="") -> Dict[str,Any]:
+    model=chronological_roster_glicko();t=normalize_team(team);o=normalize_team(opponent);m=canonical_map_name(map_name);tf=(model.get("latest_fingerprint") or {}).get(t,"ORG");of=(model.get("latest_fingerprint") or {}).get(o,"ORG")
+    tg=f"G|{t}|{tf}";og=f"G|{o}|{of}";tm=f"M|{t}|{tf}|{m}";om=f"M|{o}|{of}|{m}";ratings=model.get("ratings") or {};rds=model.get("rds") or {};samples=model.get("samples") or {}
+    tr=safe_float(ratings.get(tm),safe_float(ratings.get(tg),1500)) or 1500;orr=safe_float(ratings.get(om),safe_float(ratings.get(og),1500)) or 1500;rdt=safe_float(rds.get(tm),safe_float(rds.get(tg),350)) or 350;rdo=safe_float(rds.get(om),safe_float(rds.get(og),350)) or 350
+    reliability=clamp(1-(rdt+rdo)/700,0,1);winp=1/(1+10**((orr-tr)/400));winp=.5+(winp-.5)*(.35+.65*reliability)
+    return {"team_rating":round(tr,1),"opponent_rating":round(orr,1),"team_rd":round(rdt,1),"opponent_rd":round(rdo,1),"win_probability":winp,"team_map_samples":safe_int(samples.get(tm),0) or 0,"opponent_map_samples":safe_int(samples.get(om),0) or 0,"team_roster_fingerprint":tf,"opponent_roster_fingerprint":of,"reliability":round(reliability,3),"trained_matches":model.get("matches",0),"source":"chronological roster-era Glicko-style"}
+
+
+_V44_ECONOMY_ENV_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+_v43_learned_economy_kill_environment = learned_economy_kill_environment
+
+def learned_economy_kill_environment(map_name: str = "") -> Dict[str, Any]:
+    key=canonical_map_name(map_name) or "GLOBAL";now=time.time();cached=_V44_ECONOMY_ENV_CACHE.get(key)
+    if cached and now-cached[0]<900:return dict(cached[1])
+    out=_v43_learned_economy_kill_environment(map_name);_V44_ECONOMY_ENV_CACHE[key]=(now,dict(out));return out
+
+
+def simulation_projection_deep(player: str,line: float,base_kpr: float,player_map_profiles: Dict[str,Dict[str,Any]],rounds_meta: Dict[str,Any],opponent_factor: float,opponent_meta: Dict[str,Any],context_mean_factor: float,context_variance_multiplier: float,profile_maps: int,role: str,learning_shift: float) -> Dict[str,Any]:
+    scenarios=list(rounds_meta.get("scenarios") or []) or [{"maps":["Unknown","Unknown"],"probability":1.0,"map_models":[{"map":"Unknown","mean_rounds":21.4,"rounds_sd":3.8,"team_start_ct_probability":.5},{"map":"Unknown","mean_rounds":21.4,"rounds_sd":3.8,"team_start_ct_probability":.5}]}]
+    probs=np.array([max(safe_float(x.get("probability"),0) or 0,0) for x in scenarios]);probs=probs/probs.sum() if probs.sum()>0 else np.ones(len(scenarios))/len(scenarios);rng=np.random.default_rng(stable_seed(player,line,base_kpr,profile_maps,role,learning_shift,MODEL_VERSION));n=SIMULATIONS;idx=rng.choice(len(scenarios),size=n,p=probs)
+    total=np.zeros(n,dtype=int);trounds=np.zeros(n,dtype=int);direct_all=np.zeros(n,dtype=int);share_all=np.zeros(n,dtype=int);blend=learned_simulation_blend(player,role);unc=(.025+.05/math.sqrt(max(profile_maps,1)/10+1)+(0.012 if "Unknown" in role else 0)+(0.008 if "Entry" in role else 0))*context_variance_multiplier;common=rng.normal(0,unc,n);map_factors=opponent_meta.get("map_factors") or {};sharep=team_kill_share_parameters(PlayerStats(player=player,maps=profile_maps,kpr=base_kpr),role,opponent_meta);breakdown={}
+    for sn,scenario in enumerate(scenarios):
+        mask=idx==sn;count=int(mask.sum())
+        if not count:continue
+        maps=list(scenario.get("maps") or [])[:2];models=list(scenario.get("map_models") or [])[:2]
+        while len(maps)<2:maps.append("Unknown")
+        while len(models)<2:models.append({"map":maps[len(models)],"mean_rounds":21.4,"rounds_sd":3.8,"team_start_ct_probability":.5})
+        sk=np.zeros(count,dtype=int);sr=np.zeros(count,dtype=int);cform=common[mask]
+        for m,model in zip(maps,models):
+            pct=safe_float(model.get("team_ct_round_win_prob"),None);pt=safe_float(model.get("team_t_round_win_prob"),None);sp=safe_float(model.get("team_start_ct_probability"),.5) or .5
+            if pct is not None and pt is not None:env=_simulate_mr12_round_environment(rng,count,pct,pt,m,sp);mr=env["rounds"]
+            else:mr=np.clip(np.rint(rng.normal(safe_float(model.get("mean_rounds"),21.4) or 21.4,safe_float(model.get("rounds_sd"),3.8) or 3.8,count)).astype(int),13,42);env={"team_kills":rng.poisson(np.clip(mr*sharep["team_kpr"],4,120)),"team_ct_rounds":mr//2,"team_t_rounds":mr-mr//2,"start_ct_probability":sp}
+            row=player_map_profiles.get(m,{});mk=safe_float(row.get("blended_kpr"),base_kpr) or base_kpr;ctk=safe_float(row.get("ct_kpr"),mk) or mk;tk=safe_float(row.get("t_kpr"),mk) or mk;local=safe_float(map_factors.get(m),1) or 1;factor=opponent_factor*local*context_mean_factor;ctk=clamp(ctk*factor,.36,1.12);tk=clamp(tk*factor,.36,1.12);noise=rng.normal(0,.018*context_variance_multiplier,count)
+            cr=np.asarray(env["team_ct_rounds"]);tr=np.asarray(env["team_t_rounds"]);lam=np.clip(cr*np.clip(ctk+cform+noise,.34,1.15)+tr*np.clip(tk+cform+noise,.34,1.15),.5,52);disp=18 if "Entry" in role else 24;direct=rng.poisson(rng.gamma(disp,lam/disp));teamkills=np.asarray(env["team_kills"]);alpha=max(sharep["player_share"]*sharep["concentration"],.5);beta=max((1-sharep["player_share"])*sharep["concentration"],.5);share=rng.binomial(teamkills,np.clip(rng.beta(alpha,beta,count),.04,.42));w=clamp(safe_float(blend.get("share_weight"),.5) or .5,.15,.85);mix=(1-w)*direct+w*share;frac=mix-np.floor(mix);kills=np.floor(mix).astype(int)+(rng.random(count)<frac);sk+=kills;sr+=mr;direct_all[mask]+=direct;share_all[mask]+=share
+            b=breakdown.setdefault(m,{"rounds":0.,"kills":0.,"weight":0.,"start_ct_probability":0.});pw=probs[sn];b["rounds"]+=pw*float(np.mean(mr));b["kills"]+=pw*float(np.mean(kills));b["weight"]+=pw;b["start_ct_probability"]+=pw*sp
+        total[mask]=sk;trounds[mask]=sr
+    shift=clamp(float(learning_shift or 0),-.30,.30)
+    if shift>0:total+=rng.binomial(1,shift,n)
+    elif shift<0:total=np.maximum(total-rng.binomial(1,abs(shift),n),0)
+    proj=float(np.mean(total));dm=float(np.mean(direct_all));sm=float(np.mean(share_all));dis=abs(dm-sm);out={k:{"expected_rounds":round(v["rounds"]/max(v["weight"],1e-9),3),"expected_kills":round(v["kills"]/max(v["weight"],1e-9),3),"scenario_weight":round(v["weight"],4),"start_ct_probability":round(v["start_ct_probability"]/max(v["weight"],1e-9),3),"player_map_kpr":player_map_profiles.get(k,{}).get("blended_kpr")} for k,v in breakdown.items()}
+    return {"projection":proj,"median":float(np.median(total)),"over_prob":float(np.mean(total>line)),"under_prob":float(np.mean(total<line)),"push_prob":float(np.mean(total==line)) if float(line).is_integer() else 0.,"floor_20":float(np.percentile(total,20)),"ceiling_80":float(np.percentile(total,80)),"p10":float(np.percentile(total,10)),"p90":float(np.percentile(total,90)),"sim_sd":float(np.std(total)),"expected_rounds":float(np.mean(trounds)),"rounds_sd":float(np.std(trounds)),"effective_kpr":proj/max(float(np.mean(trounds)),1),"map_breakdown":out,"team_kill_share_model":{**sharep,"blend":blend},"model_components":{"direct_projection":dm,"share_projection":sm,"individual_projection":proj,"share_weight":blend.get("share_weight"),"blend_sample":blend.get("sample",0),"model_disagreement":dis,"economy_aware":True,"starting_side_modeled":True}}
+
+
+def _count_samples(mean: float,sd: float,n: int,rng: np.random.Generator) -> np.ndarray:
+    mean=max(float(mean),.01);var=max(float(sd)**2,mean)
+    if var<=mean*1.05:return rng.poisson(mean,n)
+    shape=mean**2/max(var-mean,1e-6);scale=max(var-mean,1e-6)/mean;return rng.poisson(rng.gamma(shape,scale,n))
+
+
+def model_comparison_state() -> Dict[str,Any]:
+    rows=[r for r in sqlite_graded_projection_rows() if _row_model_compatible(r)];pairs=[]
+    for r in rows:
+        c=r.get("model_components") or {};a=safe_float(r.get("actual_kills"),None);champ=safe_float(c.get("individual_projection"),None);chall=safe_float(c.get("joint_projection"),None)
+        if None not in (a,champ,chall):pairs.append((a,champ,chall))
+    n=len(pairs);cm=float(np.mean([abs(a-c) for a,c,h in pairs])) if pairs else None;hm=float(np.mean([abs(a-h) for a,c,h in pairs])) if pairs else None;cb=float(np.mean([a-c for a,c,h in pairs])) if pairs else None;hb=float(np.mean([a-h for a,c,h in pairs])) if pairs else None
+    decision="JOINT_GUARDED";bonus=0.0
+    if n>=100 and hm is not None and cm is not None:
+        if hm<=cm-.05 and abs(hb or 0)<=abs(cb or 0)+.15:decision="JOINT_PROMOTED";bonus=.15
+        elif hm>=cm+.08:decision="JOINT_REDUCED";bonus=-.15
+    payload={"sample":n,"champion_mae":cm,"challenger_mae":hm,"champion_bias":cb,"challenger_bias":hb,"decision":decision,"joint_weight_bonus":bonus,"model_version":MODEL_VERSION}
+    cid=hashlib.sha256(f"{MODEL_VERSION}|{n}|{decision}|{round(cm or 0,3)}|{round(hm or 0,3)}".encode()).hexdigest()
+    try:
+        with _sqlite_connect() as conn:conn.execute("INSERT OR REPLACE INTO model_comparisons VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",(cid,MODEL_VERSION,MODEL_SCHEMA_FINGERPRINT,"individual score-coupled","joint lineup Dirichlet",n,cm,hm,cb,hb,decision,json.dumps(payload),now_iso()))
+    except Exception:pass
+    return payload
+
+
+def _neutral_projection_correction(row: Dict[str,Any]) -> Tuple[float,Dict[str,Any]]:
+    rows=[r for r in sqlite_graded_projection_rows() if _row_model_compatible(r) and safe_float(r.get("actual_kills"),None) is not None and safe_float(r.get("projection"),None) is not None]
+    if len(rows)<100:return 0.0,{"sample":len(rows),"applied":False}
+    bucket=int((safe_float(row.get("line"),0) or 0)//5)*5;subset=[r for r in rows if int((safe_float(r.get("line"),0) or 0)//5)*5==bucket]
+    use=subset if len(subset)>=50 else rows;res=[float(r["actual_kills"])-float(r["projection"]) for r in use];raw=float(np.mean(res));adj=clamp(raw*len(res)/(len(res)+60),-.25,.25)
+    return adj,{"sample":len(use),"raw_residual":round(raw,4),"adjustment":round(adj,4),"applied":True,"scope":"line bucket" if use is subset else "global"}
+
+
+def _joint_lineup_reconcile(board: List[Dict[str,Any]]) -> Dict[str,Any]:
+    groups=defaultdict(list)
+    for row in board:
+        if row.get("projection") is None or row.get("status")=="PASS":continue
+        ids=row.get("identity_ids") or {};key=(str(ids.get("match_id") or row.get("match_url") or ""),str(ids.get("team_id") or normalize_team(row.get("team"))))
+        if all(key):groups[key].append(row)
+    comparison=model_comparison_state();updated=0
+    for key,rows in groups.items():
+        if len(rows)<V44_MIN_JOINT_GROUP:continue
+        n=SIMULATIONS;rng=np.random.default_rng(stable_seed("joint-lineup",key,MODEL_VERSION));team_means=[]
+        for r in rows:
+            tm=r.get("team_kill_share_model") or {};tkpr=safe_float(tm.get("team_kpr"),None);er=safe_float(r.get("expected_rounds"),None)
+            if tkpr and er:team_means.append(tkpr*er)
+        team_mean=float(np.median(team_means)) if team_means else max(sum(safe_float(r.get("projection"),0) or 0 for r in rows)/.82,20)
+        team_sd=max(5.0,math.sqrt(team_mean)*1.35);team_totals=_count_samples(team_mean,team_sd,n,rng)
+        raw_shares=[]
+        for r in rows:
+            s=safe_float((r.get("team_kill_share_model") or {}).get("player_share"),None)
+            if s is None:s=(safe_float(r.get("projection"),0) or 0)/max(team_mean,1)
+            raw_shares.append(clamp(s,.06,.36))
+        reserve=clamp(1-sum(raw_shares),.10,.55);scale=(1-reserve)/max(sum(raw_shares),1e-9);means=[x*scale for x in raw_shares]+[reserve];conc=70 if len(rows)>=5 else 48;alpha=np.maximum(np.array(means)*conc,.4);g=rng.gamma(alpha,1,(n,len(alpha)));probs=g/g.sum(axis=1,keepdims=True);remaining=team_totals.copy();joint=[];remain_prob=np.ones(n)
+        for j in range(len(rows)):
+            cond=np.clip(probs[:,j]/np.maximum(remain_prob,1e-9),0,1);draw=rng.binomial(remaining,cond);joint.append(draw);remaining-=draw;remain_prob-=probs[:,j]
+        base_weight=0.55 if len(rows)>=5 else .45 if len(rows)>=3 else .32;weight=clamp(base_weight+safe_float(comparison.get("joint_weight_bonus"),0),.15,.75)
+        for r,js in zip(rows,joint):
+            ind=_count_samples(safe_float(r.get("projection"),0) or 0,safe_float(r.get("sim_sd"),5) or 5,n,rng);mix=(1-weight)*ind+weight*js;frac=mix-np.floor(mix);samples=np.floor(mix).astype(int)+(rng.random(n)<frac)
+            correction,cmeta=_neutral_projection_correction(r)
+            if correction>0:samples+=rng.binomial(1,correction,n)
+            elif correction<0:samples=np.maximum(samples-rng.binomial(1,abs(correction),n),0)
+            oldlean=str(r.get("lean") or "");line=float(r.get("line"));projection=float(np.mean(samples));edge=projection-line;lean="OVER" if edge>0 else "UNDER";rawp=float(np.mean(samples>line)) if lean=="OVER" else float(np.mean(samples<line));cal=calibrate_probability(rawp,{**r,"lean":lean,"model_components":{**(r.get("model_components") or {}),"joint_projection":float(np.mean(js))}})
+            r.update({"projection":round(projection,2),"edge":round(edge,2),"abs_edge":round(abs(edge),2),"lean":lean,"raw_probability":round(rawp,4),"probability":round(cal["calibrated"],4),"over_probability":round(float(np.mean(samples>line)),4),"under_probability":round(float(np.mean(samples<line)),4),"median":round(float(np.median(samples)),1),"p10":round(float(np.percentile(samples,10)),1),"p90":round(float(np.percentile(samples,90)),1),"floor_20":round(float(np.percentile(samples,20)),1),"ceiling_80":round(float(np.percentile(samples,80)),1),"sim_sd":round(float(np.std(samples)),2),"calibration_sample":cal["sample"],"calibration_effective_sample":cal["effective_sample"],"calibration_local_sample":cal["local_sample"],"calibration_lower90":round(cal["lower90"],4),"calibration_upper90":round(cal["upper90"],4),"calibration_ready":cal["ready"],"calibration_method":cal["method"],"calibration_tier":cal["tier"],"neutral_projection_correction":cmeta,"joint_lineup_model":{"group_size":len(rows),"team_kills_mean":round(team_mean,3),"player_share_mean":round(float(np.mean(js/np.maximum(team_totals,1))),4),"joint_weight":round(weight,3),"reserve_share":round(reserve,3),"champion_challenger":comparison}})
+            comp=dict(r.get("model_components") or {});comp.update({"individual_projection":safe_float(comp.get("individual_projection"),safe_float(r.get("projection_before_learning"),projection)),"joint_projection":float(np.mean(js)),"final_joint_blend_projection":projection,"joint_weight":weight,"joint_group_size":len(rows)});r["model_components"]=comp
+            if oldlean and oldlean!=lean:r["direction_flip_after_joint"]=True;r["flags"]=list(dict.fromkeys(list(r.get("flags") or [])+["DIRECTION FLIPPED AFTER JOINT LINEUP RECONCILIATION"]))
+            updated+=1
+    return {"groups":len(groups),"rows_updated":updated,"comparison":comparison}
+
+
+def _v44_reclassify(row: Dict[str,Any]) -> None:
+    if row.get("projection") is None or row.get("error") or not row.get("market_scope_verified"):
+        row["status"]="PASS";row["status_label"]="🚫 PASS";return
+    if (row.get("identity_ids") or {}).get("match_id") in {None,""} or not row.get("identity_official_ready"):
+        if row.get("status")=="OFFICIAL":row["status"]="TRACK";row["status_label"]="⚠️ TRACK — ID/LINEUP NOT COMPLETE"
+    prob=safe_float(row.get("probability"),0) or 0;edge=abs(safe_float(row.get("edge"),0) or 0);data=safe_int(row.get("data_score"),0) or 0;lower=safe_float(row.get("calibration_lower90"),0) or 0;health=row_accuracy_health(row);flags=list(row.get("flags") or [])
+    if edge<V44_NEUTRAL_EDGE_ZONE or max(safe_float(row.get("over_probability"),.5) or .5,safe_float(row.get("under_probability"),.5) or .5)<MIN_TRACK_PROB:
+        row["status"]="PASS";row["status_label"]="🚫 PASS — NEUTRAL ZONE";flags.append("PROJECTION TOO CLOSE TO LINE")
+    elif row.get("direction_flip_after_joint"):
+        row["status"]="TRACK";row["status_label"]="⚠️ TRACK — MODEL DIRECTION DISAGREEMENT"
+    elif prob>=MIN_OFFICIAL_PROB and edge>=MIN_OFFICIAL_EDGE and data>=MIN_OFFICIAL_DATA_SCORE and lower>=.55 and row.get("calibration_ready") and health.get("ready") and row.get("identity_official_ready"):
+        if str(row.get("veto_state"))=="PRE_VETO" and (prob<.65 or edge<2.5):row["status"]="PLAYABLE";row["status_label"]="✅ PLAYABLE — PRE-VETO"
+        elif row.get("market_agreement") is False:row["status"]="TRACK";row["status_label"]="⚠️ TRACK — MARKET DISAGREES"
+        else:row["status"]="OFFICIAL";row["status_label"]="🔥 OFFICIAL PLAY"
+    elif prob>=MIN_PLAYABLE_PROB and edge>=MIN_PLAYABLE_EDGE and data>=MIN_PLAYABLE_DATA_SCORE:row["status"]="PLAYABLE";row["status_label"]="✅ PLAYABLE"
+    elif prob>=MIN_TRACK_PROB and edge>=V44_NEUTRAL_EDGE_ZONE:row["status"]="TRACK";row["status_label"]="⚠️ TRACK ONLY"
+    else:row["status"]="PASS";row["status_label"]="🚫 PASS"
+    row["accuracy_health"]=health;row["flags"]=list(dict.fromkeys(flags));row["feature_fingerprint"]=MODEL_SCHEMA_FINGERPRINT;row["model_version"]=MODEL_VERSION
+
+
+def direction_balance_circuit(board: List[Dict[str,Any]]) -> Dict[str,Any]:
+    valid=[r for r in board if r.get("projection") is not None and r.get("status")!="PASS"]
+    counts=Counter(str(r.get("lean") or "") for r in valid);n=len(valid);direction=counts.most_common(1)[0][0] if counts else "";ratio=counts[direction]/n if n else 0;triggered=n>=V44_DIRECTION_ALERT_MIN_ROWS and ratio>=V44_DIRECTION_ALERT_RATIO
+    if triggered:
+        hist=[r for r in _graded_binary_rows() if str(r.get("lean") or "")==direction];support=len(hist)>=100 and (sum(x["_y"]*x.get("_w",1) for x in hist)/max(sum(x.get("_w",1) for x in hist),1))>=.55
+        if not support:
+            for r in valid:
+                if r.get("lean")==direction and r.get("status")=="OFFICIAL":r["status"]="PLAYABLE";r["status_label"]="✅ PLAYABLE — SLATE DIRECTION CIRCUIT";r["flags"]=list(dict.fromkeys(list(r.get("flags") or [])+[f"{direction} CONCENTRATION {ratio:.0%} WITHOUT VERSIONED HISTORICAL SUPPORT"]))
+    return {"valid_rows":n,"over_rows":counts.get("OVER",0),"under_rows":counts.get("UNDER",0),"dominant_direction":direction,"dominant_ratio":round(ratio,3),"triggered":triggered}
+
+
+_v43_build_full_board_final=build_full_board
+
+def build_full_board(props: List[Dict[str,Any]],deep_enabled: bool=True) -> Tuple[List[Dict[str,Any]],Dict[str,Any]]:
+    board,status=_v43_build_full_board_final(props,deep_enabled);joint=_joint_lineup_reconcile(board)
+    for row in board:_v44_reclassify(row)
+    balance=direction_balance_circuit(board);board.sort(key=lambda x:({"OFFICIAL":0,"PLAYABLE":1,"TRACK":2,"PASS":3}.get(x.get("status"),9),-safe_float(x.get("probability"),0),-safe_float(x.get("abs_edge"),0)))
+    return board,{**status,"v44_reliability_layer":True,"joint_lineup_reconciliation":joint,"direction_balance":balance,"model_version":MODEL_VERSION,"feature_fingerprint":MODEL_SCHEMA_FINGERPRINT}
+
+
+_v43_fetch_actual_maps12_kills=fetch_actual_maps12_kills
+
+def _demo_maps12_confirmation(match_id: str,player: str,map_names: Sequence[str]) -> Dict[str,Any]:
+    if not match_id or len(map_names)<2:return {"available":False}
+    try:
+        with _sqlite_connect() as conn:
+            rows=conn.execute("SELECT map_name,COUNT(*) kills FROM demo_events WHERE match_id=? AND player_key=? GROUP BY map_name",(str(match_id),normalize_name(player))).fetchall()
+        counts={canonical_map_name(r["map_name"]):int(r["kills"]) for r in rows};vals=[counts.get(canonical_map_name(m)) for m in map_names[:2]]
+        if all(v is not None for v in vals):return {"available":True,"kills":sum(vals),"map_kills":vals,"source":"local parsed demo telemetry"}
+    except Exception:pass
+    return {"available":False}
+
+
+def fetch_actual_maps12_kills(match_url: str,player: str,player_id: str="") -> Tuple[Optional[int],Dict[str,Any]]:
+    actual,meta=_v43_fetch_actual_maps12_kills(match_url,player,player_id)
+    if actual is None:return actual,meta
+    map_names=[x.get("map") for x in meta.get("map_results",[])[:2]];demo=_demo_maps12_confirmation(meta.get("match_id") or _match_id_from_url(match_url),player,map_names);dual=bool(demo.get("available") and int(demo.get("kills"))==int(actual))
+    if demo.get("available") and not dual:return None,{**meta,"ok":False,"message":"HLTV and local demo totals disagree — manual review required","demo_confirmation":demo,"training_eligible":False,"confirmation_weight":0.0}
+    exact_ids=all((d.get("meta") or {}).get("exact_id") for d in meta.get("details",[])) if player_id else False;internal_dual=bool(len(meta.get("details",[]))==2 and len(meta.get("map_results",[]))>=2 and exact_ids)
+    weight=1.0 if dual else .70 if internal_dual else .50
+    return actual,{**meta,"demo_confirmation":demo,"dual_source_confirmed":dual,"provider_internal_dual_structure":internal_dual,"confirmation_sources":["HLTV chronological result","HLTV player mapstats"]+(["local parsed demo"] if dual else []),"training_eligible":bool(dual or internal_dual),"confirmation_weight":weight}
+
+
+
+# ============================================================
+# V4.5 FINAL DATA / REVIEW / FULL-LINEUP RELIABILITY LAYER
+# ============================================================
+
+MODEL_SCHEMA_FINGERPRINT = "v45_full5_demo_backfill_exactids_reviewedgrades_sidechoice_parserhealth_multibook_schema1"
+V45_MIN_EXACT_STARTERS = 5
+V45_PARSER_SHUTDOWN_SCORE = 74.0
+V45_PARSER_WARNING_SCORE = 86.0
+V45_BOOK_MAX_AGE_HOURS = 48
+
+
+def init_v45_schema() -> None:
+    init_v44_schema()
+    with _sqlite_connect() as conn:
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS manual_grade_reviews (
+          review_id TEXT PRIMARY KEY, snapshot_id TEXT NOT NULL, player TEXT NOT NULL,
+          line REAL, actual_kills REAL NOT NULL, review_status TEXT NOT NULL,
+          reviewer_note TEXT, payload_json TEXT NOT NULL, created_at TEXT NOT NULL,
+          reviewed_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_manual_grade_review_status ON manual_grade_reviews(review_status,created_at);
+        CREATE TABLE IF NOT EXISTS backfill_imports (
+          import_id TEXT PRIMARY KEY, source_name TEXT, row_type TEXT,
+          rows_seen INTEGER, rows_added INTEGER, payload_json TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS parser_health_runs (
+          run_id TEXT PRIMARY KEY, model_version TEXT, score REAL, grade TEXT,
+          official_enabled INTEGER, payload_json TEXT NOT NULL, created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS book_odds_v45 (
+          odds_id TEXT PRIMARY KEY, player_key TEXT NOT NULL, player TEXT,
+          match_id TEXT, line REAL NOT NULL, over_odds REAL, under_odds REAL,
+          book TEXT NOT NULL, observed_at TEXT NOT NULL, payload_json TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_book_odds_v45_lookup ON book_odds_v45(player_key,line,observed_at);
+        CREATE TABLE IF NOT EXISTS lineup_model_snapshots (
+          lineup_id TEXT PRIMARY KEY, match_id TEXT, team_id TEXT, team TEXT,
+          starters_json TEXT NOT NULL, exact_starters INTEGER NOT NULL,
+          source TEXT, observed_at TEXT NOT NULL, payload_json TEXT NOT NULL
+        );
+        """)
+        payload={"model_version":MODEL_VERSION,"feature_fingerprint":MODEL_SCHEMA_FINGERPRINT,"market":"CS2 Maps 1-2 Kills","release":"v4.5"}
+        conn.execute("""INSERT INTO model_registry(model_version,feature_fingerprint,status,promoted_at,payload_json,created_at,updated_at)
+                      VALUES(?,?,?,'',?,?,?)
+                      ON CONFLICT(model_version) DO UPDATE SET feature_fingerprint=excluded.feature_fingerprint,
+                      payload_json=excluded.payload_json,updated_at=excluded.updated_at""",
+                     (MODEL_VERSION,MODEL_SCHEMA_FINGERPRINT,"ACTIVE",json.dumps(payload),now_iso(),now_iso()))
+
+
+init_v45_schema()
+
+
+def snapshot_key(row: Dict[str, Any]) -> str:
+    """Exact identity; model versions and source IDs can never collide."""
+    ids=row.get("identity_ids") or {}
+    exact=[
+        MODEL_VERSION, MODEL_SCHEMA_FINGERPRINT,
+        str(row.get("prop_id") or row.get("line_id") or ""),
+        str(row.get("appearance_id") or ""), str(row.get("game_id") or ""),
+        str(ids.get("match_id") or _match_id_from_url(str(row.get("match_url") or "")) or ""),
+        str(ids.get("player_id") or ""), str(ids.get("team_id") or ""), str(ids.get("opponent_id") or ""),
+        normalize_name(row.get("player")), str(row.get("line")), str(row.get("lean")),
+        str(row.get("start_time") or "")[:19], str(row.get("source") or ""),
+    ]
+    return hashlib.sha256("|".join(exact).encode("utf-8")).hexdigest()
+
+
+def _grade_weight(row: Dict[str, Any]) -> float:
+    meta=row.get("grade_meta") or {}
+    source=str(row.get("grade_source") or "").lower()
+    if source.startswith("manual"):
+        return 0.90 if meta.get("manual_reviewed") and meta.get("training_eligible") else 0.0
+    if meta.get("dual_source_confirmed"): return 1.0
+    if meta.get("training_eligible"):
+        return clamp(safe_float(meta.get("confirmation_weight"),0.70) or 0.70,V44_MIN_DUAL_GRADE_WEIGHT,1.0)
+    return clamp(safe_float(meta.get("confirmation_weight"),0.50) or 0.50,0.25,0.65)
+
+
+def _manual_review_rows(status: str="PENDING") -> List[Dict[str,Any]]:
+    try:
+        with _sqlite_connect() as conn:
+            rows=conn.execute("SELECT * FROM manual_grade_reviews WHERE review_status=? ORDER BY created_at",(status,)).fetchall()
+        out=[]
+        for r in rows:
+            d=dict(r)
+            try:d["payload"]=json.loads(d.pop("payload_json"))
+            except Exception:d["payload"]={}
+            out.append(d)
+        return out
+    except Exception:return []
+
+
+def grade_from_manual_dataframe(df: pd.DataFrame, overwrite: bool=False) -> Dict[str,Any]:
+    """Stage manual grades for explicit review; they do not train immediately."""
+    if df is None or df.empty:return {"staged":0,"unmatched":0,"message":"No rows"}
+    cmap={normalize_name(c):c for c in df.columns};pcol=cmap.get("player") or cmap.get("player name");acol=cmap.get("actual kills") or cmap.get("kills") or cmap.get("actual")
+    if not pcol or not acol:return {"staged":0,"unmatched":len(df),"message":"Need Player and Actual Kills columns"}
+    picks=load_json(PICK_LOG,[]);picks=picks if isinstance(picks,list) else [];staged=unmatched=0
+    with _sqlite_connect() as conn:
+        for _,raw in df.iterrows():
+            player=str(raw.get(pcol,"")).strip();actual=safe_float(raw.get(acol),None);line_filter=safe_float(raw.get(cmap.get("line","")),None) if cmap.get("line") else None
+            if not player or actual is None:continue
+            candidates=[]
+            for row in picks:
+                score=name_similarity(player,row.get("player"))
+                if line_filter is not None and abs((safe_float(row.get("line"),0) or 0)-line_filter)>.01:score-=.30
+                if score>=.82:candidates.append((score,row))
+            if not candidates:unmatched+=1;continue
+            score,row=max(candidates,key=lambda x:x[0]);sid=str(row.get("snapshot_id") or snapshot_key(row));rid=hashlib.sha256(f"{sid}|{actual}|{MODEL_VERSION}".encode()).hexdigest()
+            payload={"snapshot":row,"actual_kills":float(actual),"match_score":score,"overwrite":bool(overwrite),"submitted_row":{str(k):raw.get(k) for k in df.columns}}
+            conn.execute("""INSERT OR REPLACE INTO manual_grade_reviews(review_id,snapshot_id,player,line,actual_kills,review_status,reviewer_note,payload_json,created_at,reviewed_at)
+                          VALUES(?,?,?,?,?,'PENDING','',?,?,NULL)""",(rid,sid,str(row.get("player") or player),safe_float(row.get("line"),None),float(actual),json.dumps(payload,default=str),now_iso()))
+            staged+=1
+    return {"staged":staged,"unmatched":unmatched,"message":"Manual results staged. Review and approve them before training."}
+
+
+def approve_manual_grade_reviews(review_ids: Sequence[str], reviewer_note: str="") -> Dict[str,int]:
+    wanted={str(x) for x in review_ids if x};picks=load_json(PICK_LOG,[]);picks=picks if isinstance(picks,list) else [];results=load_json(RESULT_LOG,[]);results=results if isinstance(results,list) else []
+    result_ids={str(x.get("snapshot_id")) for x in results};approved=skipped=0
+    with _sqlite_connect() as conn:
+        rows=conn.execute("SELECT * FROM manual_grade_reviews WHERE review_status='PENDING'").fetchall()
+        for rec in rows:
+            if wanted and rec["review_id"] not in wanted:continue
+            try:payload=json.loads(rec["payload_json"])
+            except Exception:payload={}
+            row=dict(payload.get("snapshot") or {});sid=str(rec["snapshot_id"]);actual=float(rec["actual_kills"])
+            if sid in result_ids and not payload.get("overwrite"):skipped+=1;continue
+            label=grade_result(str(row.get("lean")),float(row.get("line")),actual)
+            grade_meta={"manual_reviewed":True,"training_eligible":True,"confirmation_weight":.90,"review_id":rec["review_id"],"reviewer_note":reviewer_note}
+            out={**row,"snapshot_id":sid,"actual_kills":actual,"graded_result":label,"graded_at":now_iso(),"grade_source":"manual reviewed","grade_meta":grade_meta}
+            results=[x for x in results if str(x.get("snapshot_id"))!=sid];results.append(out);result_ids.add(sid)
+            for p in picks:
+                if str(p.get("snapshot_id"))==sid:p.update({"actual_kills":actual,"graded_result":label,"graded_at":now_iso(),"grade_source":"manual reviewed","grade_meta":grade_meta})
+            sqlite_mark_projection_graded(sid,label,actual,grade_meta)
+            conn.execute("UPDATE manual_grade_reviews SET review_status='APPROVED',reviewer_note=?,reviewed_at=? WHERE review_id=?",(reviewer_note,now_iso(),rec["review_id"]));approved+=1
+    save_json(PICK_LOG,picks);save_json(RESULT_LOG,results,github_backup=bool(get_secret("GITHUB_AUTO_BACKUP","").lower() in {"1","true","yes"}))
+    if approved:build_learning_profiles();save_calibration_state()
+    return {"approved":approved,"skipped":skipped}
+
+
+def reject_manual_grade_reviews(review_ids: Sequence[str], reviewer_note: str="") -> int:
+    ids=[str(x) for x in review_ids if x]
+    if not ids:return 0
+    with _sqlite_connect() as conn:
+        for rid in ids:conn.execute("UPDATE manual_grade_reviews SET review_status='REJECTED',reviewer_note=?,reviewed_at=? WHERE review_id=?",(reviewer_note,now_iso(),rid))
+    return len(ids)
+
+
+def save_multibook_odds_dataframe(df: pd.DataFrame) -> Dict[str,int]:
+    if df is None or df.empty:return {"added":0,"skipped":0}
+    cmap={normalize_name(c):c for c in df.columns};pcol=cmap.get("player") or cmap.get("player name");lcol=cmap.get("line");bcol=cmap.get("book") or cmap.get("sportsbook");ocol=cmap.get("over odds") or cmap.get("over");ucol=cmap.get("under odds") or cmap.get("under");mcol=cmap.get("match id")
+    if not pcol or not lcol or not bcol:return {"added":0,"skipped":len(df)}
+    added=skipped=0
+    with _sqlite_connect() as conn:
+        for _,r in df.iterrows():
+            player=str(r.get(pcol,"")).strip();line=safe_float(r.get(lcol),None);book=str(r.get(bcol,"")).strip();oo=safe_float(r.get(ocol),None) if ocol else None;uo=safe_float(r.get(ucol),None) if ucol else None
+            if not player or line is None or not book or (oo is None and uo is None):skipped+=1;continue
+            observed=now_iso();mid=str(r.get(mcol,"")).strip() if mcol else "";raw=f"{normalize_name(player)}|{line}|{book}|{oo}|{uo}|{observed[:16]}|{mid}";oid=hashlib.sha256(raw.encode()).hexdigest();payload={str(c):r.get(c) for c in df.columns}
+            cur=conn.execute("INSERT OR IGNORE INTO book_odds_v45 VALUES(?,?,?,?,?,?,?,?,?,?)",(oid,normalize_name(player),player,mid,float(line),oo,uo,book,observed,json.dumps(payload,default=str)));added+=int(cur.rowcount or 0)
+    return {"added":added,"skipped":skipped}
+
+
+def multibook_consensus(player: str,line: float,match_id: str="") -> Dict[str,Any]:
+    cutoff=(datetime.now(timezone.utc)-timedelta(hours=V45_BOOK_MAX_AGE_HOURS)).isoformat();rows=[]
+    try:
+        with _sqlite_connect() as conn:
+            rows=conn.execute("SELECT * FROM book_odds_v45 WHERE player_key=? AND ABS(line-?)<0.011 AND observed_at>=? ORDER BY observed_at DESC",(normalize_name(player),float(line),cutoff)).fetchall()
+    except Exception:rows=[]
+    latest={}
+    for r in rows:
+        if match_id and r["match_id"] and str(r["match_id"])!=str(match_id):continue
+        latest.setdefault(str(r["book"]),dict(r))
+    ovs=[];uns=[];details=[]
+    for book,r in latest.items():
+        ov,un=no_vig_probs(safe_float(r.get("over_odds"),None),safe_float(r.get("under_odds"),None))
+        if ov is not None and un is not None:ovs.append(ov);uns.append(un);details.append({"book":book,"over_probability":ov,"under_probability":un,"over_odds":r.get("over_odds"),"under_odds":r.get("under_odds")})
+    return {"books":len(details),"over_probability":float(np.median(ovs)) if ovs else None,"under_probability":float(np.median(uns)) if uns else None,"details":details,"method":"median no-vig across books" if details else "unavailable"}
+
+
+def record_side_choice_observations(row: Dict[str,Any]) -> int:
+    hints=row.get("confirmed_starting_side_hints") or {};ids=row.get("identity_ids") or {};team=str(row.get("team") or "");opp=str(row.get("opponent") or "");match_id=str(ids.get("match_id") or _match_id_from_url(str(row.get("match_url") or "")) or "")
+    added=0
+    if not team or not match_id:return 0
+    with _sqlite_connect() as conn:
+        for map_name,teams in hints.items():
+            val=(teams or {}).get(normalize_team(team))
+            if val is None:continue
+            side="CT" if float(val)>=.5 else "T";raw=f"{match_id}|{normalize_team(team)}|{canonical_map_name(map_name)}|{side}";oid=hashlib.sha256(raw.encode()).hexdigest();payload={"row_prop_id":row.get("prop_id"),"hints":teams}
+            cur=conn.execute("INSERT OR IGNORE INTO side_choice_observations VALUES(?,?,?,?,?,?,?,?,?,?)",(oid,normalize_team(team),normalize_team(opp),match_id,canonical_map_name(map_name),side,now_iso(),"confirmed match page",json.dumps(payload,default=str),now_iso()));added+=int(cur.rowcount or 0)
+    return added
+
+
+_v44_empirical_start_ct_probability = empirical_start_ct_probability
+
+def empirical_start_ct_probability(team: str,map_name: str,days: int=365) -> Dict[str,Any]:
+    cutoff=(datetime.now(timezone.utc)-timedelta(days=days)).isoformat();ct=total=0
+    try:
+        with _sqlite_connect() as conn:
+            rows=conn.execute("SELECT started_side FROM side_choice_observations WHERE team_key=? AND map_name=? AND observed_at>=?",(normalize_team(team),canonical_map_name(map_name),cutoff)).fetchall()
+        for r in rows:total+=1;ct+=1 if str(r["started_side"]).upper()=="CT" else 0
+    except Exception:pass
+    demo=_v44_empirical_start_ct_probability(team,map_name,days) if '_v44_empirical_start_ct_probability' in globals() else {"probability":.5,"sample":0}
+    d_n=safe_int(demo.get("sample"),0) or 0;d_p=safe_float(demo.get("probability"),.5) or .5
+    combined=total+d_n;p=((ct+d_p*d_n)+4)/(combined+8) if combined else .5
+    return {"probability":p,"sample":combined,"confirmed_side_samples":total,"demo_samples":d_n,"source":"confirmed side choice + demo history" if combined else "50/50 unknown side prior"}
+
+
+def _starter_profile_kpr(name: str,maps: Sequence[str],known_rows: Dict[str,Dict[str,Any]],fallback: float) -> Dict[str,Any]:
+    key=normalize_name(name)
+    if key in known_rows:
+        r=known_rows[key];return {"player":name,"kpr":safe_float(r.get("adjusted_kpr"),fallback) or fallback,"source":"listed prop projection","verified":bool(r.get("core_kpr_verified")),"role":r.get("role")}
+    db=lookup_database_player(name);vals=[];rounds=0
+    for m in maps[:2]:
+        mp=(db.get("player_map_profiles") or {}).get(m) or {};v=safe_float(mp.get("blended_kpr"),None) or safe_float(mp.get("kpr"),None)
+        if v is not None:vals.append(v);rounds+=safe_int(mp.get("rounds"),0) or 0
+        demo=demo_profile_for(name,m)
+        if demo.get("denominator_verified") and safe_float(demo.get("kpr"),None) is not None:vals.append(float(demo["kpr"]));rounds+=safe_int(demo.get("rounds"),0) or 0
+    if not vals:
+        v=safe_float(db.get("base_kpr"),None) or safe_float(db.get("kpr"),None)
+        if v is not None:vals=[v]
+    return {"player":name,"kpr":clamp(float(np.mean(vals)) if vals else fallback,.45,.98),"source":"database/demo starter profile" if vals else "team-median starter prior","verified":bool(vals and (safe_int(db.get("profile_maps"),0) or rounds)>=10),"role":db.get("role") or "Unknown"}
+
+
+def _select_team_lineup(row: Dict[str,Any]) -> List[str]:
+    groups=row.get("confirmed_lineup_groups") or [];team=str(row.get("team") or "");tid=str((row.get("identity_ids") or {}).get("team_id") or "")
+    best=[];score=0.0
+    for g in groups:
+        s=1.0 if tid and str(g.get("team_id") or "")==tid else name_similarity(team,g.get("team"))
+        if s>score and len(g.get("players") or [])>=3:score=s;best=list(g.get("players") or [])
+    if len(best)<5:
+        roster=list(row.get("current_roster_names") or [])
+        if len(roster)>=5:best=roster
+    return list(dict.fromkeys(str(x).strip() for x in best if str(x).strip()))[:5]
+
+
+def _full_lineup_joint_reconcile(board: List[Dict[str,Any]]) -> Dict[str,Any]:
+    groups=defaultdict(list)
+    for row in board:
+        if row.get("projection") is None or row.get("status")=="PASS":continue
+        ids=row.get("identity_ids") or {};key=(str(ids.get("match_id") or row.get("match_url") or ""),str(ids.get("team_id") or normalize_team(row.get("team"))))
+        if all(key):groups[key].append(row)
+    updated=exact_groups=partial_groups=0;comparison=model_comparison_state()
+    for key,rows in groups.items():
+        lineup=_select_team_lineup(rows[0]);known={normalize_name(r.get("player")):r for r in rows};maps=list(rows[0].get("likely_maps") or [])
+        if len(lineup)<5:
+            partial_groups+=1
+            for r in rows:r["flags"]=list(dict.fromkeys(list(r.get("flags") or [])+["FULL FIVE-PLAYER LINEUP NOT AVAILABLE"]));r["full_lineup_model"]={"exact_starters":False,"starters":lineup}
+            continue
+        exact_groups+=1;fallback=float(np.median([safe_float(r.get("adjusted_kpr"),LEAGUE_KPR) or LEAGUE_KPR for r in rows]))
+        starter_profiles=[_starter_profile_kpr(x,maps,known,fallback) for x in lineup];kprs=np.array([x["kpr"] for x in starter_profiles],dtype=float);means=np.clip(kprs/kprs.sum(),.06,.35);means=means/means.sum()
+        team_means=[]
+        for r in rows:
+            tm=r.get("team_kill_share_model") or {};tkpr=safe_float(tm.get("team_kpr"),None);er=safe_float(r.get("expected_rounds"),None)
+            if tkpr and er:team_means.append(tkpr*er)
+        team_mean=float(np.median(team_means)) if team_means else max(sum(safe_float(r.get("projection"),0) or 0 for r in rows)/max(sum(means[[lineup.index(next(x for x in lineup if normalize_name(x)==normalize_name(r.get('player')))) for r in rows if any(normalize_name(x)==normalize_name(r.get('player')) for x in lineup)]]) if rows else .5,.25),20)
+        n=SIMULATIONS;rng=np.random.default_rng(stable_seed("v45-full-lineup",key,MODEL_VERSION));team_sd=max(4.5,math.sqrt(team_mean)*1.25);team_totals=_count_samples(team_mean,team_sd,n,rng)
+        verified=sum(1 for x in starter_profiles if x["verified"]);conc=80 if verified>=4 else 52;alpha=np.maximum(means*conc,.45);g=rng.gamma(alpha,1,(n,5));probs=g/g.sum(axis=1,keepdims=True);alloc=np.zeros((n,5),dtype=int);remaining=team_totals.copy();remain_prob=np.ones(n)
+        for j in range(4):
+            cond=np.clip(probs[:,j]/np.maximum(remain_prob,1e-9),0,1);draw=rng.binomial(remaining,cond);alloc[:,j]=draw;remaining-=draw;remain_prob-=probs[:,j]
+        alloc[:,4]=remaining
+        weight=clamp((.62 if verified>=4 else .45)+safe_float(comparison.get("joint_weight_bonus"),0),.25,.80)
+        for r in rows:
+            idx=next((i for i,x in enumerate(lineup) if normalize_name(x)==normalize_name(r.get("player"))),None)
+            if idx is None:continue
+            js=alloc[:,idx];ind=_count_samples(safe_float(r.get("projection"),0) or 0,safe_float(r.get("sim_sd"),5) or 5,n,rng);mix=(1-weight)*ind+weight*js;frac=mix-np.floor(mix);samples=np.floor(mix).astype(int)+(rng.random(n)<frac)
+            correction,cmeta=_neutral_projection_correction(r)
+            if correction>0:samples+=rng.binomial(1,correction,n)
+            elif correction<0:samples=np.maximum(samples-rng.binomial(1,abs(correction),n),0)
+            line=float(r.get("line"));projection=float(np.mean(samples));edge=projection-line;lean="OVER" if edge>0 else "UNDER";rawp=float(np.mean(samples>line)) if lean=="OVER" else float(np.mean(samples<line));cal=calibrate_probability(rawp,{**r,"lean":lean,"model_components":{**(r.get("model_components") or {}),"full_lineup_projection":float(np.mean(js))}})
+            r.update({"projection":round(projection,2),"edge":round(edge,2),"abs_edge":round(abs(edge),2),"lean":lean,"raw_probability":round(rawp,4),"probability":round(cal["calibrated"],4),"over_probability":round(float(np.mean(samples>line)),4),"under_probability":round(float(np.mean(samples<line)),4),"median":round(float(np.median(samples)),1),"p10":round(float(np.percentile(samples,10)),1),"p90":round(float(np.percentile(samples,90)),1),"sim_sd":round(float(np.std(samples)),2),"calibration_sample":cal["sample"],"calibration_ready":cal["ready"],"calibration_tier":cal["tier"],"full_lineup_model":{"exact_starters":True,"starters":starter_profiles,"verified_starters":verified,"team_kills_mean":round(team_mean,3),"joint_weight":round(weight,3),"player_share_mean":round(float(np.mean(js/np.maximum(team_totals,1))),4),"all_shares_sum_to_one":True,"champion_challenger":comparison},"neutral_projection_correction":cmeta})
+            comp=dict(r.get("model_components") or {});comp.update({"full_lineup_projection":float(np.mean(js)),"full_lineup_weight":weight,"full_lineup_verified_starters":verified});r["model_components"]=comp;updated+=1
+        ids=rows[0].get("identity_ids") or {};lid=hashlib.sha256(f"{key}|{lineup}|{MODEL_VERSION}".encode()).hexdigest()
+        try:
+            with _sqlite_connect() as conn:conn.execute("INSERT OR REPLACE INTO lineup_model_snapshots VALUES(?,?,?,?,?,?,?,?,?)",(lid,str(ids.get("match_id") or ""),str(ids.get("team_id") or ""),str(rows[0].get("team") or ""),json.dumps(starter_profiles,default=str),1,"confirmed lineup / database / demo",now_iso(),json.dumps({"rows":len(rows),"maps":maps},default=str)))
+        except Exception:pass
+    return {"groups":len(groups),"exact_groups":exact_groups,"partial_groups":partial_groups,"rows_updated":updated,"comparison":comparison}
+
+
+def parser_consistency_report(board: Sequence[Dict[str,Any]],source_status: Optional[Dict[str,Any]]=None) -> Dict[str,Any]:
+    source_status=source_status or {};checks=[];valid=[r for r in board if r.get("projection") is not None]
+    def add(name,passed,total,critical=False,note=""):
+        ratio=passed/max(total,1);checks.append({"name":name,"passed":passed,"total":total,"ratio":ratio,"critical":critical,"note":note})
+    add("valid Maps 1-2 line",sum(MIN_M12_KILL_LINE<=float(r.get("line"))<=MAX_M12_KILL_LINE for r in valid),len(valid),True)
+    add("probability sums",sum(abs((safe_float(r.get("over_probability"),0) or 0)+(safe_float(r.get("under_probability"),0) or 0)+(safe_float(r.get("push_probability"),0) or 0)-1)<.035 for r in valid),len(valid),True)
+    add("realistic KPR",sum(.42<=float(r.get("adjusted_kpr"))<=1.02 for r in valid if r.get("adjusted_kpr") is not None),len(valid),True)
+    add("realistic rounds",sum(26<=float(r.get("expected_rounds"))<=65 for r in valid if r.get("expected_rounds") is not None),len(valid),True)
+    add("exact match/player IDs",sum(bool((r.get("identity_ids") or {}).get("match_id") and (r.get("identity_ids") or {}).get("player_id")) for r in valid),len(valid),True)
+    add("five-player lineup available",sum(len(_select_team_lineup(r))==5 for r in valid),len(valid),False)
+    add("player belongs to lineup",sum(any(normalize_name(x)==normalize_name(r.get("player")) for x in _select_team_lineup(r)) for r in valid),len(valid),True)
+    add("active maps only",sum(all(canonical_map_name(m) in CURRENT_ACTIVE_MAPS for m in (r.get("likely_maps") or [])) for r in valid),len(valid),True)
+    score=100.0
+    for c in checks:score-=((1-c["ratio"])*(22 if c["critical"] else 8))
+    score=clamp(score,0,100);critical_fail=any(c["critical"] and c["ratio"]<.80 for c in checks);official=bool(score>=V45_PARSER_WARNING_SCORE and not critical_fail);grade="HEALTHY" if official else "WARNING" if score>=V45_PARSER_SHUTDOWN_SCORE else "DEGRADED"
+    out={"score":round(score,1),"grade":grade,"official_enabled":official,"critical_failure":critical_fail,"checks":checks,"valid_rows":len(valid),"model_version":MODEL_VERSION,"created_at":now_iso()}
+    rid=hashlib.sha256(f"{MODEL_VERSION}|{out['created_at'][:16]}|{score}|{len(valid)}".encode()).hexdigest()
+    try:
+        with _sqlite_connect() as conn:conn.execute("INSERT OR REPLACE INTO parser_health_runs VALUES(?,?,?,?,?,?,?)",(rid,MODEL_VERSION,float(score),grade,1 if official else 0,json.dumps(out,default=str),out["created_at"]))
+    except Exception:pass
+    return out
+
+
+def ingest_historical_backfill(df: pd.DataFrame,source_name: str="manual backfill") -> Dict[str,Any]:
+    if df is None or df.empty:return {"rows_seen":0,"rows_added":0,"types":{}}
+    cmap={normalize_name(c):c for c in df.columns};types=Counter();added=0
+    def col(*names):
+        for n in names:
+            if normalize_name(n) in cmap:return cmap[normalize_name(n)]
+        return None
+    team_c=col("team","team name");opp_c=col("opponent","opponent team");map_c=col("map","map name");tw_c=col("team score","rounds won","team rounds");ol_c=col("opponent score","rounds lost","opponent rounds");action_c=col("action","veto action");side_c=col("started side","starting side");player_c=col("player","player name");event_c=col("event type","roster event");match_c=col("match id","match_id");date_c=col("date","played at","event time","observed at")
+    for idx,r in df.iterrows():
+        team=str(r.get(team_c,"")).strip() if team_c else "";opp=str(r.get(opp_c,"")).strip() if opp_c else "";map_name=canonical_map_name(r.get(map_c)) if map_c else "";match_id=str(r.get(match_c,"") or f"backfill-{idx}");when=str(r.get(date_c,"") or now_iso())
+        if team and map_name and tw_c and ol_c and safe_int(r.get(tw_c),None) is not None and safe_int(r.get(ol_c),None) is not None:
+            obs={"map":map_name,"rounds_won":safe_int(r.get(tw_c),0),"rounds_lost":safe_int(r.get(ol_c),0),"rounds":safe_int(r.get(tw_c),0)+safe_int(r.get(ol_c),0),"played_at":when,"team1":team,"team2":opp}
+            if sqlite_store_team_map_observation(normalize_team(team),team,f"backfill://{match_id}",obs,safe_float(r.get(col('opponent rank') or ''),None),False,str(r.get(col('environment') or '') or 'UNKNOWN')):added+=1;types["team_map"]+=1
+        if team and map_name and action_c and str(r.get(action_c,"")).lower() in {"picked","removed","banned","left"}:
+            action=str(r.get(action_c)).lower().replace("banned","removed");sqlite_store_veto_observation(normalize_team(team),team,opp,f"backfill://{match_id}",when,{"action":action,"map":map_name,"team":team},idx,False);added+=1;types["veto"]+=1
+        if team and map_name and side_c and str(r.get(side_c,"")).upper() in {"CT","T"}:
+            side=str(r.get(side_c)).upper();oid=hashlib.sha256(f"backfill|{team}|{map_name}|{match_id}|{side}".encode()).hexdigest()
+            with _sqlite_connect() as conn:conn.execute("INSERT OR IGNORE INTO side_choice_observations VALUES(?,?,?,?,?,?,?,?,?,?)",(oid,normalize_team(team),normalize_team(opp),match_id,map_name,side,when,source_name,json.dumps({"row":idx}),now_iso()));added+=1;types["side_choice"]+=1
+        if player_c and event_c and str(r.get(player_c,"")).strip():
+            player=str(r.get(player_c)).strip();etype=str(r.get(event_c)).strip();sqlite_record_roster_event(player,team,etype,when,safe_float(r.get(col('confidence') or ''),.8) or .8,{"opponent":opp,"source":source_name});added+=1;types["roster"]+=1
+    meta={"rows_seen":len(df),"rows_added":added,"types":dict(types),"source":source_name};iid=hashlib.sha256(f"{source_name}|{now_iso()}|{len(df)}|{added}".encode()).hexdigest()
+    with _sqlite_connect() as conn:conn.execute("INSERT OR REPLACE INTO backfill_imports VALUES(?,?,?,?,?,?,?)",(iid,source_name,"mixed",len(df),added,json.dumps(meta,default=str),now_iso()))
+    chronological_map_elo(True);chronological_roster_glicko(True);return meta
+
+
+def direction_bias_report() -> Dict[str,Any]:
+    rows=[r for r in sqlite_graded_projection_rows() if _row_model_compatible(r) and safe_float(r.get("actual_kills"),None) is not None and safe_float(r.get("projection"),None) is not None]
+    def summarize(items):
+        if not items:return {"n":0,"wins":0,"losses":0,"win_rate":None,"mae":None,"bias":None,"brier":None}
+        err=np.array([float(x["actual_kills"])-float(x["projection"]) for x in items]);wins=sum(str(x.get("graded_result"))=="WIN" for x in items);losses=sum(str(x.get("graded_result"))=="LOSS" for x in items);b=[]
+        for x in items:
+            p=safe_float(x.get("probability"),None);y=1 if x.get("graded_result")=="WIN" else 0 if x.get("graded_result")=="LOSS" else None
+            if p is not None and y is not None:b.append((p-y)**2)
+        return {"n":len(items),"wins":wins,"losses":losses,"win_rate":wins/max(wins+losses,1),"mae":float(np.mean(np.abs(err))),"bias":float(np.mean(err)),"brier":float(np.mean(b)) if b else None}
+    groups={"overall":summarize(rows),"direction":{},"status":{},"veto_state":{},"event_tier":{},"role":{},"maps":{}}
+    for field in ["lean","status","veto_state","event_tier","role"]:
+        target="direction" if field=="lean" else field
+        for k in sorted({str(x.get(field) or "UNKNOWN") for x in rows}):groups[target][k]=summarize([x for x in rows if str(x.get(field) or "UNKNOWN")==k])
+    for m in KNOWN_MAPS:
+        items=[x for x in rows if m in (x.get("likely_maps") or [])]
+        if items:groups["maps"][m]=summarize(items)
+    over=groups["direction"].get("OVER",{});under=groups["direction"].get("UNDER",{});groups["neutrality"]={"over_bias":over.get("bias"),"under_bias":under.get("bias"),"bias_gap":abs((over.get("bias") or 0)-(under.get("bias") or 0)),"balanced":bool(over.get("n",0)>=50 and under.get("n",0)>=50 and abs((over.get("bias") or 0)-(under.get("bias") or 0))<=.65)}
+    return groups
+
+
+def _apply_multibook_to_board(board: List[Dict[str,Any]]) -> Dict[str,Any]:
+    applied=0;disagreed=0
+    for r in board:
+        if r.get("projection") is None:continue
+        mid=str((r.get("identity_ids") or {}).get("match_id") or "");cons=multibook_consensus(str(r.get("player") or ""),float(r.get("line")),mid);r["multi_book_market"]=cons
+        p=cons.get("over_probability") if r.get("lean")=="OVER" else cons.get("under_probability")
+        if p is None:continue
+        applied+=1;edge=(safe_float(r.get("probability"),0) or 0)-float(p);r["market_probability"]=round(float(p),4);r["market_edge"]=round(edge,4);r["market_source_count"]=max(safe_int(r.get("market_source_count"),0) or 0,safe_int(cons.get("books"),0) or 0);r["market_method"]="v4.5 multi-book median no-vig";r["market_agreement"]=edge>=MIN_MARKET_VALUE_EDGE;r["market_positive_value"]=edge>=MIN_MARKET_VALUE_EDGE
+        if edge<0:
+            disagreed+=1;r["flags"]=list(dict.fromkeys(list(r.get("flags") or [])+["MULTI-BOOK MARKET PRICES MODEL BELOW FAIR VALUE"]))
+            if r.get("status") in {"OFFICIAL","PLAYABLE"}:r["status"]="TRACK";r["status_label"]="⚠️ TRACK — MARKET VALUE DISAGREEMENT"
+    return {"rows_applied":applied,"negative_value_rows":disagreed}
+
+
+_v44_build_full_board_for_v45 = build_full_board
+
+def build_full_board(props: List[Dict[str,Any]],deep_enabled: bool=True) -> Tuple[List[Dict[str,Any]],Dict[str,Any]]:
+    board,status=_v44_build_full_board_for_v45(props,deep_enabled)
+    # Persist confirmed side choice before the full-lineup reconciliation.
+    side_added=sum(record_side_choice_observations(r) for r in board)
+    full=_full_lineup_joint_reconcile(board);market=_apply_multibook_to_board(board)
+    for r in board:
+        r["model_version"]=MODEL_VERSION;r["feature_fingerprint"]=MODEL_SCHEMA_FINGERPRINT;_v44_reclassify(r)
+    direction=direction_balance_circuit(board);parser=parser_consistency_report(board,status)
+    if not parser.get("official_enabled"):
+        for r in board:
+            if r.get("status")=="OFFICIAL":r["status"]="TRACK";r["status_label"]="⚠️ TRACK — PARSER HEALTH CIRCUIT";r["flags"]=list(dict.fromkeys(list(r.get("flags") or [])+["PARSER CONSISTENCY HEALTH BELOW OFFICIAL THRESHOLD"]))
+    order={"OFFICIAL":0,"PLAYABLE":1,"TRACK":2,"PASS":3};board.sort(key=lambda x:(order.get(x.get("status"),9),-safe_float(x.get("probability"),0),-safe_float(x.get("abs_edge"),0)))
+    return board,{**status,"v45_full_lineup":full,"v45_multibook":market,"v45_side_choices_added":side_added,"v45_parser_health":parser,"direction_balance":direction,"model_version":MODEL_VERSION,"feature_fingerprint":MODEL_SCHEMA_FINGERPRINT}
+
+
+def run_v45_collector_maintenance(board: Sequence[Dict[str,Any]],status: Optional[Dict[str,Any]]=None) -> Dict[str,Any]:
+    side=sum(record_side_choice_observations(r) for r in board);parser=parser_consistency_report(board,status or {}) if board else {"score":0,"grade":"NO BOARD","official_enabled":False};return {"side_choices_added":side,"parser_health":parser,"full_lineup_exact":sum(bool((r.get("full_lineup_model") or {}).get("exact_starters")) for r in board)}
+
 
 # ============================================================
 # SESSION BOARD LOAD
@@ -3854,7 +7138,7 @@ st.markdown(
     f"""
 <div class="hero-panel">
   <div class="big-title">ONE WAY PICKZ — CS2</div>
-  <div class="sub-title">Maps 1–2 Kill Projection Engine · Real lines · Free public-data pipeline · Official snapshots + grading + learning</div>
+  <div class="sub-title">Maps 1–2 Kills · In-app demo center · Full five-player allocation · Historical backfill · Reviewed grading · Neutral calibration</div>
   <div style="margin-top:11px;">
     <span class="badge">WHITE + RED EDITION</span>
     <span class="badge">{_esc(MODEL_VERSION)}</span>
@@ -3866,11 +7150,12 @@ st.markdown(
 )
 
 if refresh_clicked or not st.session_state.get("cs2_board"):
-    with st.spinner("Pulling Underdog lines, map splits, veto history, roster continuity, opponent data, and running deep simulations..."):
+    with st.spinner("Pulling exact Underdog markets, map/side form, vetoes, roster timelines, opponent/SOS data, calibration, and correlated simulations..."):
         props, source_status = load_real_props(use_underdog, use_prizepicks, show_prizepicks_rows)
         update_line_history(props)
         board, board_status = build_full_board(props, deep_enabled=deep_data_enabled)
         st.session_state["cs2_board"] = board
+        save_asof_projection_history(board, source_status)
         st.session_state["cs2_board_status"] = board_status
         st.session_state["cs2_line_source_status"] = source_status
         st.session_state["cs2_last_refresh_iso"] = now_iso()
@@ -3897,6 +7182,12 @@ if last_refresh_text != "—":
         pass
 c6.metric("Last Refresh", last_refresh_text)
 
+_source_circuit=(st.session_state.get("cs2_board_status") or {}).get("source_circuit_breaker") or {}
+if _source_circuit and not _source_circuit.get("official_enabled",False):
+    st.warning(f"SOURCE {_source_circuit.get('grade','DEGRADED')} — Official picks are disabled until player, match-ID, freshness, and parser health recover. Health {_source_circuit.get('score',0):.1f}/100.")
+elif _source_circuit:
+    st.success(f"Source circuit healthy: {_source_circuit.get('score',0):.1f}/100.")
+
 if not board:
     st.warning(
         "No active real Maps 1–2 kill lines were found. The app does not create fake lines. "
@@ -3911,11 +7202,16 @@ if not board:
 # MAIN TABS
 # ============================================================
 
-tab_live, tab_official, tab_saved, tab_grade, tab_data, tab_debug = st.tabs([
+tab_live, tab_official, tab_saved, tab_grade, tab_calibration, tab_special, tab_slip, tab_livewatch, tab_bankroll, tab_data, tab_debug = st.tabs([
     "🎯 Live Projections",
     "🔥 Official Board",
     "📌 Saved Board",
     "✅ Grading + Learning",
+    "📊 Calibration",
+    "🧪 Specialized Markets",
+    "🧩 Slip Correlation",
+    "📡 Live Watch",
+    "💵 Bankroll + Odds",
     "🧰 Data Manager",
     "🔍 Debug + Settings",
 ])
@@ -3984,6 +7280,7 @@ with tab_grade:
     if st.button("✅ GRADE FINISHED MATCHES + UPDATE LEARNING", use_container_width=True, type="primary"):
         with st.spinner("Checking saved matches and first-two-map statistics..."):
             diagnostic = grade_pending_automatically()
+            save_calibration_state()
         if diagnostic.get("graded"):
             st.success(f"Graded {diagnostic['graded']} saved plays. Pending: {diagnostic['pending']}.")
         else:
@@ -4005,12 +7302,33 @@ with tab_grade:
         st.error(f"Result CSV parse error: {exc}")
     if not result_df.empty:
         st.dataframe(result_df, use_container_width=True, hide_index=True)
-    if st.button("🧾 GRADE MANUAL RESULTS", use_container_width=True):
+    if st.button("🧾 STAGE MANUAL RESULTS FOR REVIEW", use_container_width=True):
         out = grade_from_manual_dataframe(result_df, overwrite=overwrite_results)
-        if out.get("graded"):
-            st.success(f"Graded {out['graded']} rows; unmatched {out['unmatched']}.")
+        if out.get("staged"):
+            st.success(f"Staged {out['staged']} rows for review; unmatched {out['unmatched']}.")
         else:
             st.warning(str(out))
+    pending_manual = _manual_review_rows("PENDING")
+    if pending_manual:
+        st.subheader("Manual grade review queue")
+        review_df = pd.DataFrame([{
+            "Select": True, "Review ID": x.get("review_id"), "Player": x.get("player"),
+            "Line": x.get("line"), "Actual Kills": x.get("actual_kills"),
+            "Lean": (x.get("payload") or {}).get("snapshot",{}).get("lean"),
+            "Match": (x.get("payload") or {}).get("snapshot",{}).get("matchup"),
+        } for x in pending_manual])
+        edited = st.data_editor(review_df, hide_index=True, use_container_width=True, key="manual_grade_review_editor")
+        review_note = st.text_input("Manual grade review note", "Verified against official result")
+        selected_ids = edited.loc[edited["Select"] == True, "Review ID"].astype(str).tolist() if not edited.empty else []
+        c_review1,c_review2=st.columns(2)
+        with c_review1:
+            if st.button("APPROVE SELECTED MANUAL GRADES", use_container_width=True, type="primary"):
+                out=approve_manual_grade_reviews(selected_ids,review_note);st.success(f"Approved {out['approved']}; skipped {out['skipped']}.");st.rerun()
+        with c_review2:
+            if st.button("REJECT SELECTED MANUAL GRADES", use_container_width=True):
+                st.warning(f"Rejected {reject_manual_grade_reviews(selected_ids,review_note)} manual grades.");st.rerun()
+    else:
+        st.caption("No manual grades are waiting for review.")
 
     results = load_json(RESULT_LOG, [])
     st.markdown('<div class="section-title-pro">Performance + Learning</div>', unsafe_allow_html=True)
@@ -4039,6 +7357,142 @@ with tab_grade:
         st.download_button("Download graded history", rdf.to_csv(index=False).encode(), "cs2_graded_history.csv", "text/csv", use_container_width=True)
     else:
         st.info("Learning begins after saved pre-match projections are graded.")
+
+with tab_calibration:
+    st.markdown('<div class="section-title-pro">Probability Calibration + Walk-Forward Backtest</div>', unsafe_allow_html=True)
+    state = save_calibration_state()
+    ins = state.get("in_sample") or {}
+    wf = state.get("walk_forward") or {}
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Graded Sample", ins.get("n", 0))
+    c2.metric("Brier Score", f"{ins.get('brier'):.4f}" if ins.get("brier") is not None else "—")
+    c3.metric("Log Loss", f"{ins.get('log_loss'):.4f}" if ins.get("log_loss") is not None else "—")
+    c4.metric("Calibration Gap", f"{ins.get('ece'):.3f}" if ins.get("ece") is not None else "—")
+    st.caption("Official probability calibration is considered ready only after at least 50 comparable graded rows. Walk-forward testing uses only earlier rows to predict later rows.")
+    if ins.get("bins"):
+        st.dataframe(pd.DataFrame(ins["bins"]), use_container_width=True, hide_index=True)
+    st.subheader("Chronological walk-forward results")
+    if wf.get("n"):
+        w1, w2, w3 = st.columns(3)
+        w1.metric("Test Rows", wf["n"])
+        w2.metric("Walk-Forward Brier", f"{wf['brier']:.4f}")
+        w3.metric("Walk-Forward Hit Rate", f"{wf['hit_rate']*100:.1f}%")
+        st.dataframe(pd.DataFrame(wf.get("records", [])[-250:]), use_container_width=True, hide_index=True)
+    else:
+        st.info(wf.get("message", "More chronological graded projections are required."))
+    history_rows = _read_jsonl(HISTORICAL_ASOF_FILE, 5000)
+    st.metric("As-of Projection Records", len(history_rows))
+    if history_rows:
+        st.download_button("Download as-of history", pd.DataFrame(history_rows).to_csv(index=False).encode(), "cs2_asof_history.csv", "text/csv", use_container_width=True)
+    st.markdown('<div class="section-title-pro">Direction Bias + Backtesting Dashboard</div>', unsafe_allow_html=True)
+    bias_report = direction_bias_report()
+    neutral = bias_report.get("neutrality") or {}
+    b1,b2,b3,b4=st.columns(4)
+    b1.metric("Over Bias", f"{neutral.get('over_bias'):+.2f}" if neutral.get('over_bias') is not None else "—")
+    b2.metric("Under Bias", f"{neutral.get('under_bias'):+.2f}" if neutral.get('under_bias') is not None else "—")
+    b3.metric("Direction Bias Gap", f"{neutral.get('bias_gap'):.2f}" if neutral.get('bias_gap') is not None else "—")
+    b4.metric("Direction Neutrality", "BALANCED" if neutral.get("balanced") else "BUILDING")
+    for section in ["direction","status","veto_state","event_tier","role","maps"]:
+        rows_section=[]
+        for key,val in (bias_report.get(section) or {}).items(): rows_section.append({"Group":key,**val})
+        if rows_section:
+            with st.expander(section.replace("_"," ").title(), expanded=section=="direction"):
+                st.dataframe(pd.DataFrame(rows_section),use_container_width=True,hide_index=True)
+
+with tab_special:
+    st.markdown('<div class="section-title-pro">Specialized Market Research</div>', unsafe_allow_html=True)
+    st.caption("These secondary markets remain Research/Track Only until each market has its own graded calibration sample.")
+    rows = []
+    for item in board:
+        hs = headshot_prop_projection(item)
+        m3 = maps_over_25_probability(item)
+        rows.append({
+            "Player": item.get("player"), "Matchup": f"{item.get('team')} vs {item.get('opponent')}",
+            "Kills Projection": item.get("projection"), "Headshot Projection": round(hs.get("projection"), 2) if hs.get("projection") is not None else None,
+            "Observed/Shrunk HS Rate": round((hs.get("hs_rate") or 0)*100, 1) if hs.get("hs_rate") is not None else None,
+            "Role": item.get("role"), "AWP Share": item.get("awp_kill_share"),
+            "Over 2.5 Maps Probability": round((m3.get("probability") or 0)*100, 1) if m3.get("probability") is not None else None,
+            "Veto State": item.get("veto_state"), "Research Only": True,
+        })
+    if rows:
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    else:
+        st.info("Refresh a real board first.")
+
+with tab_slip:
+    st.markdown('<div class="section-title-pro">Correlation-Aware Slip Builder</div>', unsafe_allow_html=True)
+    eligible = [x for x in board if x.get("status") in {"OFFICIAL", "PLAYABLE"} and x.get("probability")]
+    options = {f"{x.get('player')} {x.get('lean')} {x.get('line')} · {x.get('team')} vs {x.get('opponent')}": x for x in eligible}
+    chosen = st.multiselect("Select 2–6 legs", list(options), max_selections=6)
+    selected = [options[x] for x in chosen]
+    if len(selected) >= 2:
+        result = simulate_joint_slip(selected)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Joint Hit Probability", f"{result['joint_probability']*100:.2f}%")
+        c2.metric("Independent Product", f"{result['independent_probability']*100:.2f}%")
+        c3.metric("Correlation Effect", f"{result['correlation_adjustment']*100:+.2f}%")
+        names = [x.get("player") for x in selected]
+        st.dataframe(pd.DataFrame(result["correlation_matrix"], index=names, columns=names), use_container_width=True)
+        if st.button("SAVE SLIP RESEARCH SNAPSHOT", use_container_width=True):
+            logs = load_json(SLIP_HISTORY_FILE, [])
+            logs = logs if isinstance(logs, list) else []
+            logs.append({"saved_at": now_iso(), "legs": [{k:x.get(k) for k in ["player","line","lean","probability","team","opponent","prop_id"]} for x in selected], **result})
+            save_json(SLIP_HISTORY_FILE, logs[-2000:])
+            st.success("Slip research snapshot saved.")
+    else:
+        st.info("Select at least two Official/Playable legs. Same-match and same-team dependencies are simulated instead of multiplying probabilities blindly.")
+
+with tab_livewatch:
+    st.markdown('<div class="section-title-pro">Live Match Watch</div>', unsafe_allow_html=True)
+    st.warning("This is an informational live pace tool—not an automatic live-betting instruction. Confirm the official score, economy, lineup and market before acting.")
+    live_options = {f"{x.get('player')} · {x.get('team')} vs {x.get('opponent')}": x for x in board if x.get("projection") is not None}
+    selected_name = st.selectbox("Prematch projection", [""] + list(live_options))
+    if selected_name:
+        row = live_options[selected_name]
+        l1, l2, l3, l4 = st.columns(4)
+        current_kills = l1.number_input("Current player kills", min_value=0, value=0, step=1)
+        rounds_played = l2.number_input("Rounds completed", min_value=1, value=6, step=1)
+        score_a = l3.number_input("Team score", min_value=0, value=3, step=1)
+        score_b = l4.number_input("Opponent score", min_value=0, value=3, step=1)
+        live = live_watch_projection(row.get("player"), int(current_kills), int(rounds_played), int(score_a), int(score_b), row)
+        if live.get("ok"):
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Live KPR", f"{live['live_kpr']:.3f}")
+            c2.metric("Blended KPR", f"{live['blended_kpr']:.3f}")
+            c3.metric("Updated Pace Projection", f"{live['live_projection']:.2f}")
+            st.caption(live["note"])
+            if st.button("SAVE LIVE WATCH SNAPSHOT", use_container_width=True):
+                logs = load_json(LIVE_STATE_FILE, [])
+                logs = logs if isinstance(logs, list) else []
+                logs.append({"saved_at": now_iso(), "prop_id": row.get("prop_id"), **live})
+                save_json(LIVE_STATE_FILE, logs[-5000:])
+                st.success("Saved.")
+
+with tab_bankroll:
+    st.markdown('<div class="section-title-pro">Bankroll + Odds Shopping</div>', unsafe_allow_html=True)
+    bankroll = st.number_input("Current bankroll", min_value=0.0, value=100.0, step=10.0)
+    risk_pct = st.slider("Flat risk per play", 1.0, 3.0, 1.5, 0.1)
+    pick_options = {f"{x.get('player')} {x.get('lean')} {x.get('line')}": x for x in board if x.get("probability")}
+    pick_name = st.selectbox("Projection", [""] + list(pick_options), key="bankroll_pick")
+    odds = st.number_input("Best available American odds", value=-110.0, step=5.0)
+    if pick_name:
+        rec = bankroll_recommendation(bankroll, pick_options[pick_name]["probability"], odds, risk_pct)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("1–3% Flat Stake", f"${rec['flat_stake']:.2f}")
+        c2.metric("Quarter Kelly Cap", f"${rec['quarter_kelly']:.2f}" if rec.get("quarter_kelly") is not None else "—")
+        c3.metric("Model EV / $1", f"${rec['ev_per_dollar']:+.3f}" if rec.get("ev_per_dollar") is not None else "—")
+        st.caption("Use the smaller of the flat-risk amount and quarter-Kelly amount. Never increase stake to chase losses.")
+    st.subheader("Odds shopping table")
+    odds_shop_text = st.text_area("Paste CSV: Player,Line,Lean,Book,American Odds", height=130, key="odds_shop_csv")
+    if odds_shop_text.strip():
+        try:
+            odf = pd.read_csv(io.StringIO(odds_shop_text.strip()))
+            st.dataframe(odf, use_container_width=True, hide_index=True)
+            if st.button("SAVE ODDS SHOPPING HISTORY", use_container_width=True):
+                st.success(f"Saved {save_book_odds_history(odf)} observations.")
+        except Exception as exc:
+            st.error(f"Odds table error: {exc}")
+
 
 with tab_data:
     st.markdown('<div class="section-title-pro">Real Board Import Fallback</div>', unsafe_allow_html=True)
@@ -4091,8 +7545,89 @@ with tab_data:
         save_json(ROLE_OVERRIDES_FILE, data)
         st.success(f"Saved {role_value} for {role_player}.")
 
+    st.markdown('<div class="section-title-pro">In-App Demo Center</div>', unsafe_allow_html=True)
+    st.caption("Upload raw .dem files for in-app Awpy parsing, or upload Awpy kill-event CSV/JSON exports. Parsed data is stored on the Railway volume and used as controlled map/weapon/side history.")
+    template=pd.DataFrame(columns=["player","map","match_id","match_rounds","round","headshot","weapon","side","opening","trade","team","opponent","opponent_rank","event_tier","event_time"])
+    st.download_button("DOWNLOAD DEMO TELEMETRY CSV TEMPLATE",template.to_csv(index=False).encode("utf-8"),"cs2_demo_telemetry_template.csv","text/csv",use_container_width=True)
+    st.caption("A valid KPR requires match_rounds/map_total_rounds. Kill-event rows without a full-map round denominator are used for role/headshot signals only, never KPR.")
+    demo_files = st.file_uploader("Upload CS2 demos or telemetry exports", type=["dem", "csv", "json", "jsonl", "zip"], accept_multiple_files=True, key="demo_uploads")
+    if st.button("PARSE + INGEST DEMO DATA", use_container_width=True):
+        total = 0
+        messages = []
+        for f in demo_files or []:
+            try:
+                result=ingest_uploaded_demo_file(f)
+                total += safe_int(result.get("added"),0) or 0
+                for child in result.get("children",[]) if isinstance(result.get("children"),list) else []:
+                    total += safe_int(child.get("added"),0) or 0
+                messages.append({"file":f.name,**result})
+            except Exception as exc:
+                messages.append({"file":f.name,"ok":False,"message":str(exc)})
+        st.success(f"Ingested {total} telemetry rows.") if total else st.warning("No telemetry rows were added.")
+        st.write(messages)
+    demo_db = load_json(DEMO_DATABASE_FILE, {})
+    st.metric("Demo Map Profiles", len(demo_db) if isinstance(demo_db, dict) else 0)
+    st.caption(f"Automatic demo dropbox: {DEMO_DROP_DIR}. A Railway collector/service can place .dem/.zip/CSV/JSONL files there; refresh automatically ingests new files once.")
+    demo_status = {"events": _sqlite_count("demo_events"), "rounds": _sqlite_count("demo_rounds"), "profiles": len(demo_db) if isinstance(demo_db,dict) else 0}
+    d1,d2,d3=st.columns(3);d1.metric("Demo Kill Events",demo_status["events"]);d2.metric("Demo Rounds",demo_status["rounds"]);d3.metric("Demo Profiles",demo_status["profiles"])
+    st.caption("Demo data is inside the app workflow: upload here, or drop files into the Railway volume folder. Full-round demos immediately feed map KPR, CT/T, economy, role, and five-player allocation after refresh.")
+
+    st.markdown('<div class="section-title-pro">Historical Backfill Importer</div>', unsafe_allow_html=True)
+    st.caption("Import old team-map results, vetoes, starting sides, and roster events. Accepted CSV fields can include Team, Opponent, Map, Team Score, Opponent Score, Match ID, Date, Action, Started Side, Player, and Event Type.")
+    backfill_file=st.file_uploader("Upload historical backfill CSV/JSON",type=["csv","json","jsonl"],key="v45_backfill_upload")
+    if backfill_file is not None:
+        try:
+            raw_bytes=backfill_file.getvalue();name=backfill_file.name.lower()
+            if name.endswith(".csv"): backfill_df=pd.read_csv(io.BytesIO(raw_bytes))
+            elif name.endswith(".jsonl"): backfill_df=pd.read_json(io.BytesIO(raw_bytes),lines=True)
+            else: backfill_df=pd.read_json(io.BytesIO(raw_bytes))
+            st.dataframe(backfill_df.head(250),use_container_width=True,hide_index=True)
+            if st.button("IMPORT HISTORICAL BACKFILL",use_container_width=True,type="primary"):
+                st.success(ingest_historical_backfill(backfill_df,backfill_file.name));st.rerun()
+        except Exception as exc: st.error(f"Backfill import error: {exc}")
+
+    st.markdown('<div class="section-title-pro">Multi-Book Odds Consensus</div>', unsafe_allow_html=True)
+    st.caption("Upload multiple books with Player, Line, Over Odds, Under Odds, Book, and optional Match ID. The model uses median no-vig probability and downgrades negative-value picks.")
+    book_file=st.file_uploader("Upload multi-book odds CSV",type=["csv"],key="v45_multibook_upload")
+    if book_file is not None:
+        try:
+            book_df=pd.read_csv(book_file);st.dataframe(book_df,use_container_width=True,hide_index=True)
+            if st.button("SAVE MULTI-BOOK ODDS",use_container_width=True):st.success(save_multibook_odds_dataframe(book_df));st.rerun()
+        except Exception as exc:st.error(f"Multi-book odds error: {exc}")
+
+    st.markdown('<div class="section-title-pro">Patch / Map-Pool Eras</div>', unsafe_allow_html=True)
+    patch_text = st.text_area("Patch era JSON", value=json.dumps(seed_patch_eras(), indent=2), height=220, key="patch_era_json")
+    if st.button("SAVE PATCH ERA CONFIGURATION", use_container_width=True):
+        try:
+            parsed = json.loads(patch_text)
+            if not isinstance(parsed, list) or not parsed:
+                raise ValueError("A non-empty JSON list is required")
+            save_json(PATCH_ERAS_FILE, parsed)
+            st.success("Patch/map-pool eras saved. Refresh projections.")
+        except Exception as exc:
+            st.error(str(exc))
+
     st.markdown('<div class="section-title-pro">Player Profile Override CSV</div>', unsafe_allow_html=True)
     st.caption("Optional fallback for a player missing from public stats. Accepted fields: Player, Team, Maps, Rounds, KPR, DPR, ADR, Rating, KD, HS Pct.")
+    st.subheader("Persistent CS2 Database")
+    dbs = database_status()
+    cols = st.columns(6)
+    for col, key in zip(cols, ["players", "teams", "matches", "maps", "vetoes", "rosters"]):
+        col.metric(key.title(), dbs.get(key, 0))
+    st.caption("Only verified, matched records are stored. Default league values are never saved as player facts.")
+    if st.button("Rebuild database index from saved projection exports", key="rebuild_db_index"):
+        rebuilt = 0
+        for path in Path(STORAGE_DIR).glob("*.csv"):
+            try:
+                frame = pd.read_csv(path)
+                for rec in frame.to_dict("records"):
+                    if int(rec.get("profile_maps") or 0) > 0:
+                        save_projection_entities(rec)
+                        rebuilt += 1
+            except Exception:
+                continue
+        st.success(f"Indexed {rebuilt} verified projection records.")
+
     profile_file = st.file_uploader("Upload player profile override CSV", type=["csv"], key="cs2_profile_upload")
     if profile_file is not None:
         try:
@@ -4140,6 +7675,19 @@ with tab_data:
         st.info("No PandaScore token configured. The core app still runs through no-key public sources. Add PANDASCORE_TOKEN as a Railway variable for an optional free schedule/roster fallback.")
 
 with tab_debug:
+    health=model_health_report(board,st.session_state.get("cs2_line_source_status") or {})
+    st.markdown('<div class="section-title-pro">Model Health + Readiness</div>', unsafe_allow_html=True)
+    h1,h2,h3,h4=st.columns(4)
+    h1.metric("Readiness Score",f"{health['score']:.1f}/100")
+    h2.metric("Readiness Grade",health['grade'])
+    h3.metric("Graded Projections",health['graded_binary'])
+    h4.metric("Calibration",health['calibration_tier'])
+    st.caption(health['note'])
+    st.json(health,expanded=False)
+    parser_health=(st.session_state.get("cs2_board_status") or {}).get("v45_parser_health") or parser_consistency_report(board,st.session_state.get("cs2_board_status") or {})
+    st.markdown('<div class="section-title-pro">Parser Consistency Circuit</div>', unsafe_allow_html=True)
+    p1,p2,p3=st.columns(3);p1.metric("Parser Health",f"{parser_health.get('score',0):.1f}/100");p2.metric("Parser Grade",parser_health.get("grade","—"));p3.metric("Official Enabled","YES" if parser_health.get("official_enabled") else "NO")
+    if parser_health.get("checks"):st.dataframe(pd.DataFrame(parser_health["checks"]),use_container_width=True,hide_index=True)
     st.markdown('<div class="section-title-pro">Source Status</div>', unsafe_allow_html=True)
     st.write("Line source status")
     st.json(st.session_state.get("cs2_line_source_status") or {}, expanded=False)
@@ -4167,6 +7715,7 @@ with tab_debug:
     st.markdown('<div class="section-title-pro">Security + Deployment Variables</div>', unsafe_allow_html=True)
     variables = [
         {"Variable": "CS2_DATA_DIR", "Required": "Recommended", "Purpose": "Railway volume path; use /data/cs2_engine"},
+        {"Variable": "CS2 core database", "Required": "Automatic", "Purpose": CORE_DB_FILE},
         {"Variable": "UNDERDOG_URL_OVERRIDE", "Required": "No", "Purpose": "Replacement public board endpoint if Underdog changes versions"},
         {"Variable": "PANDASCORE_TOKEN", "Required": "No", "Purpose": "Optional free schedule/roster fallback"},
         {"Variable": "GITHUB_TOKEN", "Required": "No", "Purpose": "Optional persistent backup"},
