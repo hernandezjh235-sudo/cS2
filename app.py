@@ -56,9 +56,9 @@ import streamlit as st
 # ============================================================
 
 APP_NAME = "ONE WAY PICKZ — CS2"
-APP_VERSION = "CS2 v4.7 — BO3 PRIMARY + RAILWAY SOURCE RECOVERY + CIRCUIT BREAKER"
-MODEL_VERSION = "OWP_CS2_KILLS_M12_4.7"
-SEED_VERSION = "CS2_ACCURACY_SEED_2026_07_14_V47"
+APP_VERSION = "CS2 v4.8 — VERIFIED DATA BRIDGE + BO3 JSON + RAILWAY RECOVERY"
+MODEL_VERSION = "OWP_CS2_KILLS_M12_4.8"
+SEED_VERSION = "CS2_ACCURACY_SEED_2026_07_14_V48"
 
 # The Underdog board endpoint is public but undocumented and can change.
 # UNDERDOG_URL_OVERRIDE lets Railway use a replacement endpoint without a code edit.
@@ -4051,8 +4051,8 @@ def roster_identity_assessment(player: str, team: str, opponent: str, profile: P
     profiles=context.get("team_deep_profiles") or []; tp=next((p for p in profiles if _team_name_matches(team,p.get("team",""))),{})
     current=tp.get("current_roster") or []; roster_score=max([name_similarity(player,x) for x in current] or [0]); current_roster_verified=bool(current and roster_score>=.84)
     flags=[]; hard_pass=False
-    if not profile.player_id: flags.append("HLTV PLAYER ID MISSING")
-    if not match_id: flags.append("HLTV MATCH ID MISSING")
+    if not profile.player_id: flags.append("VERIFIED PLAYER ID MISSING")
+    if not match_id: flags.append("VERIFIED MATCH ID MISSING")
     if not team_matches or not opp_matches: flags.append("TEAM/OPPONENT ID MATCH FAILED"); hard_pass=True
     if lineup and not lineup_verified: flags.append("PLAYER NOT IN ANNOUNCED LINEUP"); hard_pass=True
     elif not lineup: flags.append("LINEUP UNCONFIRMED")
@@ -7634,6 +7634,8 @@ def _bo3_profile_from_api(player: str, alias: Optional[Dict[str, Any]] = None) -
         return None, {"ok": False, "provider": "BO3", "search": sstatus, "general": gstatus,
                       "maps": mstatus, "warning": "BO3 API did not return a usable KPR/map sample"}
     team = str(_bo3_scalar(a, ["team_name", "current_team", "team"], "") or "")
+    if not team and details:
+        team = _v48_team_name_from_payload(details)
     score = safe_float(_bo3_scalar(general, ["score", "rating"], None), None)
     rating = clamp(1.0 + ((score or 6.27) - 6.27) * .11, .70, 1.35)
     profile = PlayerStats(player=player, player_id=f"bo3:{pid or slug}", slug=slug, team=team,
@@ -8037,6 +8039,1141 @@ def parser_consistency_report(board: Sequence[Dict[str, Any]], status: Optional[
                               "projections": projections, "hltv_circuit_open": _source_circuit_open("hltv"),
                               "bo3_circuit_open": _source_circuit_open("bo3")}
     return base
+
+
+# ============================================================
+# V4.8 VERIFIED PROVIDER BRIDGE — RAILWAY-INDEPENDENT DATA RECOVERY
+# ============================================================
+# This layer deliberately disables HLTV as a required live dependency. It can
+# resolve the board through a verified GitHub-hosted provider cache, direct
+# BO3 JSON API calls, the persistent database, or full-round demo telemetry.
+# No league-average profile is ever promoted into a projection.
+
+import asyncio
+from concurrent.futures import ThreadPoolExecutor as _V48ThreadPoolExecutor
+
+MODEL_SCHEMA_FINGERPRINT = "v48_verified_bridge_bo3_async_relationship_identity_schema2"
+SOURCE_RECOVERY_VERSION = "4.8"
+V48_BRIDGE_SCHEMA = 2
+V48_BRIDGE_FILENAME = "cs2_provider_cache.json"
+V48_BRIDGE_LOCAL_FILE = os.path.join(STORAGE_DIR, V48_BRIDGE_FILENAME)
+V48_BRIDGE_BRANCH = os.getenv("CS2_BRIDGE_BRANCH", "data-cache").strip() or "data-cache"
+V48_BRIDGE_REPO = (os.getenv("CS2_BRIDGE_REPO", "").strip() or os.getenv("GITHUB_CODE_REPO", "").strip() or (f"{os.getenv('RAILWAY_GIT_REPO_OWNER','').strip()}/{os.getenv('RAILWAY_GIT_REPO_NAME','').strip()}" if os.getenv("RAILWAY_GIT_REPO_OWNER") and os.getenv("RAILWAY_GIT_REPO_NAME") else ""))
+V48_BRIDGE_PROFILE_MAX_AGE = 36 * 3600
+V48_BRIDGE_MATCH_MAX_AGE = 90 * 60
+V48_DIRECT_BO3_ENABLED = os.getenv("CS2_DIRECT_BO3_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
+V48_LEGACY_WEB_ENABLED = os.getenv("CS2_ENABLE_LEGACY_WEB_SOURCES", "false").strip().lower() in {"1", "true", "yes", "on"}
+V48_DIRECT_CONCURRENCY = max(1, min(10, int(float(os.getenv("CS2_BO3_CONCURRENCY", "5") or 5))))
+V48_DIRECT_TIMEOUT = max(8, min(45, int(float(os.getenv("CS2_BO3_TIMEOUT", "22") or 22))))
+V48_DIRECT_MAX_PLAYERS = max(5, min(150, int(float(os.getenv("CS2_DIRECT_MAX_PLAYERS", "45") or 45))))
+V48_HTTP_RETRIES = max(1, min(5, int(float(os.getenv("CS2_PROVIDER_RETRIES", "3") or 3))))
+V48_FETCH_TEAM_DATA = os.getenv("CS2_BRIDGE_FETCH_TEAMS", "true").strip().lower() not in {"0", "false", "no", "off"}
+V48_PROFILE_RETENTION_DAYS = max(7, min(365, int(float(os.getenv("CS2_PROFILE_RETENTION_DAYS", "90") or 90))))
+V48_MAX_CACHED_PROFILES = max(100, min(3000, int(float(os.getenv("CS2_MAX_CACHED_PROFILES", "800") or 800))))
+V48_PROFILE_MIN_MAPS = 5
+V48_PROFILE_MIN_ROUNDS = 80
+V48_RUNTIME: Dict[str, Any] = {"bridge": None, "profiles": {}, "matches": [], "teams": {}, "direct_status": {}, "loaded_at": ""}
+
+
+def _v48_json_age_seconds(payload: Any) -> Optional[float]:
+    if not isinstance(payload, dict):
+        return None
+    dt = _parse_iso_datetime(payload.get("generated_at") or payload.get("updated_at") or payload.get("created_at"))
+    if not dt:
+        return None
+    return max(0.0, (datetime.now(timezone.utc) - dt).total_seconds())
+
+
+def _v48_valid_bridge(payload: Any) -> bool:
+    return bool(
+        isinstance(payload, dict)
+        and int(payload.get("schema_version", 0) or 0) >= 1
+        and isinstance(payload.get("profiles"), dict)
+        and isinstance(payload.get("matches"), list)
+    )
+
+
+def _v48_github_headers() -> Dict[str, str]:
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "OneWayPickz-CS2-v4.8"}
+    token = (get_secret("CS2_BRIDGE_TOKEN", "") or os.getenv("CS2_BRIDGE_TOKEN", "")
+             or get_secret("GITHUB_TOKEN", "") or os.getenv("GITHUB_TOKEN", ""))
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+        headers["X-GitHub-Api-Version"] = "2022-11-28"
+    return headers
+
+
+def _v48_fetch_bridge_from_github() -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+    repo = V48_BRIDGE_REPO.strip().strip("/")
+    if not repo or "/" not in repo:
+        return None, {"ok": False, "provider": "GitHub bridge", "warning": "CS2_BRIDGE_REPO is not configured"}
+    api_url = f"https://api.github.com/repos/{repo}/contents/{V48_BRIDGE_FILENAME}"
+    try:
+        resp = requests.get(api_url, params={"ref": V48_BRIDGE_BRANCH}, headers=_v48_github_headers(), timeout=18)
+        if resp.status_code == 200:
+            node = resp.json()
+            content = node.get("content") if isinstance(node, dict) else None
+            if content:
+                payload = json.loads(base64.b64decode(content).decode("utf-8"))
+                if _v48_valid_bridge(payload):
+                    save_json(V48_BRIDGE_LOCAL_FILE, payload, force=True)
+                    return payload, {"ok": True, "provider": "GitHub data-cache branch", "status": 200,
+                                     "repo": repo, "branch": V48_BRIDGE_BRANCH, "age_seconds": _v48_json_age_seconds(payload)}
+            # GitHub omits inline base64 for larger files. Request the raw media
+            # representation through the authenticated Contents endpoint.
+            raw_headers = _v48_github_headers()
+            raw_headers["Accept"] = "application/vnd.github.raw+json"
+            raw_api = requests.get(api_url, params={"ref": V48_BRIDGE_BRANCH}, headers=raw_headers, timeout=22)
+            if raw_api.status_code == 200:
+                payload = raw_api.json()
+                if _v48_valid_bridge(payload):
+                    save_json(V48_BRIDGE_LOCAL_FILE, payload, force=True)
+                    return payload, {"ok": True, "provider": "GitHub data-cache raw media", "status": 200,
+                                     "repo": repo, "branch": V48_BRIDGE_BRANCH, "age_seconds": _v48_json_age_seconds(payload)}
+        # Public repositories can also be read through raw.githubusercontent.com.
+        raw_url = f"https://raw.githubusercontent.com/{repo}/{V48_BRIDGE_BRANCH}/{V48_BRIDGE_FILENAME}"
+        raw = requests.get(raw_url, headers={"User-Agent": "OneWayPickz-CS2-v4.8"}, timeout=18)
+        if raw.status_code == 200:
+            payload = raw.json()
+            if _v48_valid_bridge(payload):
+                save_json(V48_BRIDGE_LOCAL_FILE, payload, force=True)
+                return payload, {"ok": True, "provider": "GitHub raw data-cache", "status": 200,
+                                 "repo": repo, "branch": V48_BRIDGE_BRANCH, "age_seconds": _v48_json_age_seconds(payload)}
+        return None, {"ok": False, "provider": "GitHub bridge", "status": resp.status_code,
+                      "warning": f"Provider bridge file unavailable on branch {V48_BRIDGE_BRANCH}"}
+    except Exception as exc:
+        return None, {"ok": False, "provider": "GitHub bridge", "warning": str(exc)}
+
+
+def load_provider_bridge(force: bool = False) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    cached = V48_RUNTIME.get("bridge")
+    if not force and _v48_valid_bridge(cached):
+        return cached, {"ok": True, "provider": "runtime bridge", "age_seconds": _v48_json_age_seconds(cached)}
+    local = load_json(V48_BRIDGE_LOCAL_FILE, {})
+    local_age = _v48_json_age_seconds(local)
+    if not force and _v48_valid_bridge(local) and local_age is not None and local_age <= V48_BRIDGE_PROFILE_MAX_AGE:
+        V48_RUNTIME["bridge"] = local
+        V48_RUNTIME["profiles"] = dict(local.get("profiles") or {})
+        V48_RUNTIME["matches"] = list(local.get("matches") or [])
+        V48_RUNTIME["teams"] = dict(local.get("teams") or {})
+        return local, {"ok": True, "provider": "Railway volume bridge cache", "age_seconds": local_age}
+    remote, status = _v48_fetch_bridge_from_github()
+    if _v48_valid_bridge(remote):
+        V48_RUNTIME["bridge"] = remote
+        V48_RUNTIME["profiles"] = dict(remote.get("profiles") or {})
+        V48_RUNTIME["matches"] = list(remote.get("matches") or [])
+        V48_RUNTIME["teams"] = dict(remote.get("teams") or {})
+        V48_RUNTIME["loaded_at"] = now_iso()
+        return remote, status
+    if _v48_valid_bridge(local):
+        V48_RUNTIME["bridge"] = local
+        V48_RUNTIME["profiles"] = dict(local.get("profiles") or {})
+        V48_RUNTIME["matches"] = list(local.get("matches") or [])
+        V48_RUNTIME["teams"] = dict(local.get("teams") or {})
+        return local, {"ok": True, "provider": "stale Railway volume bridge cache", "age_seconds": local_age,
+                       "warning": status.get("warning")}
+    empty = {"schema_version": V48_BRIDGE_SCHEMA, "generated_at": "", "profiles": {}, "matches": [], "teams": {}, "source_status": {}}
+    V48_RUNTIME["bridge"] = empty
+    V48_RUNTIME["profiles"] = {}
+    V48_RUNTIME["matches"] = []
+    V48_RUNTIME["teams"] = {}
+    return empty, status
+
+
+def _v48_bridge_candidates(player: str) -> List[Tuple[float, Dict[str, Any]]]:
+    target = normalize_name(player)
+    output: List[Tuple[float, Dict[str, Any]]] = []
+    for key, row in (V48_RUNTIME.get("profiles") or {}).items():
+        if not isinstance(row, dict):
+            continue
+        aliases = [key, row.get("player"), row.get("nickname"), row.get("slug")]
+        aliases.extend(row.get("aliases") or [])
+        score = max([name_similarity(target, str(x or "")) for x in aliases] or [0.0])
+        if score >= 0.78:
+            output.append((score, row))
+    output.sort(key=lambda x: x[0], reverse=True)
+    return output
+
+
+def _v48_profile_record_to_playerstats(player: str, record: Dict[str, Any], source_label: str) -> Tuple[Optional[PlayerStats], Dict[str, Any]]:
+    maps = safe_int(record.get("profile_maps") or record.get("maps"), 0) or 0
+    rounds = safe_int(record.get("profile_rounds") or record.get("rounds"), 0) or 0
+    kpr = safe_float(record.get("base_kpr") or record.get("kpr"), None)
+    if kpr is None or not (0.25 <= kpr <= 1.25):
+        return None, {"matched": False, "warning": "profile cache KPR failed range validation"}
+    if maps < V48_PROFILE_MIN_MAPS and rounds < V48_PROFILE_MIN_ROUNDS:
+        return None, {"matched": False, "warning": "profile cache sample too small"}
+    map_profiles = record.get("player_map_profiles") or record.get("map_profiles") or {}
+    profile = PlayerStats(
+        player=player,
+        player_id=str(((record.get("identity_ids") or {}).get("player_id")) or record.get("player_id") or ""),
+        slug=str(record.get("slug") or ""),
+        team=str(record.get("team") or ""),
+        maps=maps,
+        rounds=max(rounds, maps * 13),
+        kills=safe_int(record.get("kills"), 0) or 0,
+        deaths=safe_int(record.get("deaths"), 0) or 0,
+        kpr=float(kpr),
+        dpr=float(safe_float(record.get("dpr"), LEAGUE_DPR) or LEAGUE_DPR),
+        adr=float(safe_float(record.get("adr"), LEAGUE_ADR) or LEAGUE_ADR),
+        rating=float(safe_float(record.get("rating"), LEAGUE_RATING) or LEAGUE_RATING),
+        kd=float(safe_float(record.get("kd"), kpr / max(safe_float(record.get("dpr"), LEAGUE_DPR) or LEAGUE_DPR, .25)) or 1.0),
+        hs_pct=safe_float(record.get("hs_pct"), None),
+        opening_kpr=safe_float(record.get("opening_kpr"), None),
+        opening_deaths_pr=safe_float(record.get("opening_deaths_pr"), None),
+        kast_pct=safe_float(record.get("kast_pct"), None),
+        impact=safe_float(record.get("impact"), None),
+        ct_kpr=safe_float(record.get("ct_kpr"), None),
+        t_kpr=safe_float(record.get("t_kpr"), None),
+        source=source_label,
+        href=str(record.get("profile_href") or record.get("href") or ""),
+        data_warnings=list(record.get("profile_warnings") or record.get("warnings") or []),
+        kpr_source=str(record.get("kpr_source") or "verified_provider_kpr"),
+    )
+    generated = _parse_iso_datetime(record.get("updated_at") or record.get("generated_at"))
+    age = (datetime.now(timezone.utc) - generated).total_seconds() if generated else 999999.0
+    return profile, {
+        "matched": True, "source": source_label, "provider": record.get("provider") or source_label,
+        "source_fresh": age <= V48_BRIDGE_PROFILE_MAX_AGE, "source_ages": {"provider_profile": max(age, 0)},
+        "core_kpr_verified": True, "kpr_source": profile.kpr_source,
+        "match_score": 1.0, "player_map_profiles": map_profiles,
+        "bridge_record": record, "profile_url": profile.href,
+    }
+
+
+def _v48_bridge_profile(player: str, team_hint: str = "") -> Tuple[Optional[PlayerStats], Dict[str, Any]]:
+    candidates = _v48_bridge_candidates(player)
+    for score, row in candidates:
+        row_team = str(row.get("team") or "")
+        if team_hint and row_team and not _team_name_matches(team_hint, row_team) and score < .97:
+            continue
+        if score < .90:
+            continue
+        profile, meta = _v48_profile_record_to_playerstats(player, row, "GitHub verified provider bridge")
+        if profile is not None:
+            return profile, {**meta, "match_score": score, "recovery_path": "GitHub provider bridge"}
+    return None, {"matched": False, "warning": "no confident bridge profile"}
+
+
+def _v48_normalize_stat_key(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]", "", normalize_name(value))
+
+
+def _v48_metric(payload: Any, names: Sequence[str], lo: Optional[float] = None, hi: Optional[float] = None) -> Optional[float]:
+    wanted = {_v48_normalize_stat_key(x) for x in names}
+    values: List[float] = []
+    def walk(node: Any, label: str = "") -> None:
+        if isinstance(node, dict):
+            attrs_node = node.get("attributes") if isinstance(node.get("attributes"), dict) else node
+            node_label = str(attrs_node.get("name") or attrs_node.get("label") or attrs_node.get("title") or label or "")
+            for key, val in attrs_node.items():
+                nk = _v48_normalize_stat_key(key)
+                nl = _v48_normalize_stat_key(node_label)
+                if nk in wanted or nl in wanted:
+                    if isinstance(val, dict):
+                        for sub in ["value", "avg", "average", "count", "per_round", "percentage"]:
+                            v = safe_float(val.get(sub), None)
+                            if v is not None: values.append(v)
+                    elif not isinstance(val, (dict, list)):
+                        v = safe_float(val, None)
+                        if v is not None: values.append(v)
+            for key, val in node.items():
+                if key == "attributes":
+                    continue
+                walk(val, key)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item, label)
+    walk(payload)
+    for value in values:
+        if (lo is None or value >= lo) and (hi is None or value <= hi):
+            return value
+    return None
+
+
+def _v48_profile_record_from_bo3(player: str, candidate: Dict[str, Any], general: Any, maps_payload: Any, accuracy: Any, details: Any = None) -> Optional[Dict[str, Any]]:
+    a = attrs(candidate)
+    slug = str(_bo3_scalar(a, ["slug"], "") or "")
+    pid = str(object_id(candidate) or _bo3_scalar(a, ["id", "player_id"], "") or "")
+    nickname = str(_bo3_scalar(a, ["nickname", "nick_name", "display_name", "name"], player) or player)
+    kpr = _v48_metric(general, ["kills_per_round", "kpr", "kills", "kill"], .25, 1.25)
+    dpr = _v48_metric(general, ["deaths_per_round", "dpr", "deaths", "death"], .25, 1.25)
+    adr = _v48_metric(general, ["damage_per_round", "adr", "damage"], 25, 150)
+    maps_count = safe_int(_v48_metric(general, ["maps", "maps_count", "map_count"], 1, 10000), 0) or 0
+    rounds = safe_int(_v48_metric(general, ["rounds", "rounds_count", "round_count"], 13, 500000), 0) or 0
+    rating = _v48_metric(general, ["rating", "score", "bo3_rating"], .5, 10)
+    hs_pct = _v48_metric(accuracy, ["headshot_percentage", "headshots_percentage", "headshot", "hs_pct"], 0, 100)
+    opening = _v48_metric(general, ["opening_kills_per_round", "open_kills", "opening_kpr"], 0, .5)
+    map_profiles: Dict[str, Dict[str, Any]] = {}
+    for node in flatten_json(maps_payload):
+        map_name = canonical_map_name(_bo3_scalar(node, ["map", "map_name", "name", "title", "slug"], ""))
+        if not map_name:
+            continue
+        mkpr = _v48_metric(node, ["kills_per_round", "kpr", "kills", "kill"], .25, 1.25)
+        count = safe_int(_v48_metric(node, ["maps", "maps_count", "count", "games"], 1, 10000), 0) or 0
+        madr = _v48_metric(node, ["damage_per_round", "adr", "damage"], 25, 150)
+        ct_kpr = _v48_metric(node, ["ct_kills_per_round", "ct_kpr"], .2, 1.4)
+        t_kpr = _v48_metric(node, ["t_kills_per_round", "t_kpr"], .2, 1.4)
+        if mkpr is not None and count > 0:
+            map_profiles[map_name] = {"maps": count, "long_kpr": mkpr, "recent_kpr": mkpr,
+                                      "blended_kpr": mkpr, "adr": madr, "ct_kpr": ct_kpr,
+                                      "t_kpr": t_kpr, "source": "BO3 JSON API via verified bridge"}
+    if maps_count <= 0:
+        maps_count = sum(int(x.get("maps", 0) or 0) for x in map_profiles.values())
+    if rounds <= 0 and maps_count > 0:
+        rounds = int(round(maps_count * 21.2))
+    if kpr is None or not (.25 <= kpr <= 1.25) or (maps_count < V48_PROFILE_MIN_MAPS and rounds < V48_PROFILE_MIN_ROUNDS):
+        return None
+    team = str(_bo3_scalar(a, ["team_name", "current_team", "team"], "") or "")
+    if not team and details:
+        team = _v48_team_name_from_payload(details)
+    if rating is not None and rating > 2:
+        rating = clamp(1.0 + (rating - 6.27) * .11, .70, 1.35)
+    record = {
+        "player": nickname, "nickname": nickname, "slug": slug, "player_id": f"bo3:{pid or slug}",
+        "team": team, "profile_maps": maps_count, "profile_rounds": rounds,
+        "base_kpr": float(kpr), "dpr": float(dpr or LEAGUE_DPR), "adr": float(adr or LEAGUE_ADR),
+        "rating": float(rating or LEAGUE_RATING), "kd": float(kpr / max(dpr or LEAGUE_DPR, .25)),
+        "hs_pct": hs_pct, "opening_kpr": opening, "player_map_profiles": map_profiles,
+        "profile_source": "BO3 JSON API", "profile_href": f"{BO3_WEB_BASE}/players/{slug}" if slug else "",
+        "kpr_source": "bo3_reported_kpr", "provider": "BO3 JSON API", "updated_at": now_iso(),
+        "identity_ids": {"player_id": f"bo3:{pid or slug}"}, "aliases": [player, nickname, slug],
+    }
+    return record
+
+
+async def _v48_aiohttp_get_json(session: Any, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Any:
+    url = f"{BO3_API_BASE}{endpoint}"
+    last_error: Optional[BaseException] = None
+    for attempt in range(V48_HTTP_RETRIES):
+        try:
+            async with session.get(url, params=params, timeout=V48_DIRECT_TIMEOUT) as response:
+                if response.status == 200:
+                    return await response.json(content_type=None)
+                text = await response.text()
+                retryable = response.status in {408, 425, 429, 500, 502, 503, 504}
+                if not retryable:
+                    raise RuntimeError(f"HTTP {response.status} from {endpoint}: {text[:160]}")
+                retry_after = safe_float(response.headers.get("Retry-After"), None)
+                wait = min(12.0, retry_after if retry_after is not None else (1.25 * (2 ** attempt)))
+                last_error = RuntimeError(f"HTTP {response.status} from {endpoint}: {text[:160]}")
+                if attempt + 1 < V48_HTTP_RETRIES:
+                    await asyncio.sleep(wait)
+        except Exception as exc:
+            last_error = exc
+            if attempt + 1 < V48_HTTP_RETRIES:
+                await asyncio.sleep(min(8.0, 1.25 * (2 ** attempt)))
+    raise RuntimeError(str(last_error or f"Provider request failed: {endpoint}"))
+
+
+async def _v48_fetch_one_bo3_profile(session: Any, semaphore: Any, player: str) -> Tuple[str, Optional[Dict[str, Any]], Dict[str, Any]]:
+    async with semaphore:
+        try:
+            search = await _v48_aiohttp_get_json(session, "/filters/players", {
+                "page[offset]": "0", "page[limit]": "6", "filter[discipline_id][eq]": "1",
+                "with": "country", "search_text": player,
+            })
+            candidate = _bo3_player_candidate(search, player)
+            if not candidate:
+                return player, None, {"ok": False, "warning": "no confident BO3 player match"}
+            slug = str(_bo3_scalar(attrs(candidate), ["slug"], "") or "")
+            if not slug:
+                return player, None, {"ok": False, "warning": "BO3 player result had no slug"}
+            today = local_now().date().isoformat()
+            start = (local_now().date() - timedelta(days=180)).isoformat()
+            general_task = _v48_aiohttp_get_json(session, f"/players/{quote(slug)}/general_stats", {
+                "filter[start_date_to]": today, "filter[start_date_from]": start,
+            })
+            maps_task = _v48_aiohttp_get_json(session, f"/players/{quote(slug)}/map_stats", {
+                "filter[begin_at_to]": today, "filter[begin_at_from]": start,
+            })
+            accuracy_task = _v48_aiohttp_get_json(session, f"/players/{quote(slug)}/accuracy_stats", {
+                "filter[begin_at_to]": today, "filter[begin_at_from]": start,
+            })
+            details_task = _v48_aiohttp_get_json(session, f"/players/{quote(slug)}", {"with": "team,country"})
+            results = await asyncio.gather(general_task, maps_task, accuracy_task, details_task, return_exceptions=True)
+            general = {} if isinstance(results[0], Exception) else results[0]
+            map_stats = {} if isinstance(results[1], Exception) else results[1]
+            accuracy = {} if isinstance(results[2], Exception) else results[2]
+            details = {} if isinstance(results[3], Exception) else results[3]
+            record = _v48_profile_record_from_bo3(player, candidate, general, map_stats, accuracy, details)
+            if record is None:
+                return player, None, {"ok": False, "warning": "BO3 response did not contain a validated KPR/sample"}
+            return player, record, {"ok": True, "slug": slug}
+        except Exception as exc:
+            return player, None, {"ok": False, "warning": str(exc)}
+
+
+async def _v48_fetch_bo3_matches_async(session: Any) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    try:
+        payload = await _v48_aiohttp_get_json(session, "/matches", {
+            "scope": "widget-matches", "page[offset]": "0", "page[limit]": "100",
+            "sort": "tier_rank,-start_date", "filter[matches.status][in]": "upcoming,current",
+            "filter[matches.discipline_id][eq]": "1",
+            "with": "teams,tournament,ai_predictions,games,streams",
+        })
+        return _bo3_materialize_matches(payload), {"ok": True, "rows": len(_bo3_materialize_matches(payload))}
+    except Exception as exc:
+        return [], {"ok": False, "warning": str(exc)}
+
+
+async def _v48_batch_bo3_async(players: Sequence[str], include_matches: bool = True, include_teams: bool = False) -> Dict[str, Any]:
+    try:
+        import aiohttp
+    except Exception as exc:
+        return {"profiles": {}, "matches": [], "teams": {}, "status": {"ok": False, "warning": f"aiohttp unavailable: {exc}"}}
+    timeout = aiohttp.ClientTimeout(total=max(45, V48_DIRECT_TIMEOUT * 3))
+    connector = aiohttp.TCPConnector(limit=max(4, V48_DIRECT_CONCURRENCY * 2), ttl_dns_cache=300)
+    async with aiohttp.ClientSession(headers=_BO3_HEADERS, timeout=timeout, connector=connector) as session:
+        semaphore = asyncio.Semaphore(V48_DIRECT_CONCURRENCY)
+        tasks = [_v48_fetch_one_bo3_profile(session, semaphore, p) for p in players]
+        match_task = asyncio.create_task(_v48_fetch_bo3_matches_async(session)) if include_matches else None
+        profile_results = await asyncio.gather(*tasks) if tasks else []
+        matches, match_status = await match_task if match_task else ([], {"ok": False, "disabled": True})
+        profiles: Dict[str, Dict[str, Any]] = {}
+        failures: Dict[str, Any] = {}
+        for player, record, status in profile_results:
+            if record:
+                profiles[normalize_name(player)] = record
+            else:
+                failures[player] = status
+        teams: Dict[str, Dict[str, Any]] = {}
+        if include_teams and V48_FETCH_TEAM_DATA:
+            team_refs: Dict[str, Dict[str, Any]] = {}
+            for match in matches:
+                for team in match.get("teams") or []:
+                    name = str(team.get("name") or "")
+                    if name:
+                        team_refs[normalize_team(name)] = team
+            team_tasks = [_v48_fetch_one_bo3_team(session, semaphore, row) for row in team_refs.values()]
+            for key, record, _status in (await asyncio.gather(*team_tasks) if team_tasks else []):
+                if record:
+                    teams[key] = record
+        _v48_attach_profile_lineups(matches, profiles, teams)
+    return {"profiles": profiles, "matches": matches, "teams": teams,
+            "status": {"ok": bool(profiles or matches), "profiles": len(profiles), "matches": len(matches),
+                       "teams": len(teams), "failed_profiles": len(failures),
+                       "failures": dict(list(failures.items())[:20]), "match_status": match_status}}
+
+
+def _v48_run_async(coro: Any) -> Any:
+    # Streamlit can already own an event loop. Running the coroutine in a small
+    # helper thread works in both Streamlit and Railway cron processes.
+    result: Dict[str, Any] = {}
+    error: Dict[str, BaseException] = {}
+    def runner() -> None:
+        try:
+            result["value"] = asyncio.run(coro)
+        except BaseException as exc:
+            error["error"] = exc
+    thread = threading.Thread(target=runner, daemon=True)
+    thread.start()
+    thread.join(timeout=max(90, V48_DIRECT_TIMEOUT * 8))
+    if thread.is_alive():
+        raise TimeoutError("BO3 async provider batch timed out")
+    if error:
+        raise error["error"]
+    return result.get("value")
+
+
+def v48_prefetch_provider_data(players: Sequence[str], force: bool = False) -> Dict[str, Any]:
+    unique = list(dict.fromkeys(str(x or "").strip() for x in players if str(x or "").strip()))
+    bridge, bridge_status = load_provider_bridge(force=force)
+    missing: List[str] = []
+    for player in unique:
+        local, _ = _playerstats_from_local(player)
+        if local is not None and int(local.maps or 0) >= V48_PROFILE_MIN_MAPS:
+            continue
+        profile, _ = _v48_bridge_profile(player)
+        if profile is None:
+            missing.append(player)
+    direct_status: Dict[str, Any] = {"ok": False, "disabled": not V48_DIRECT_BO3_ENABLED, "requested": len(missing)}
+    if missing and V48_DIRECT_BO3_ENABLED and not _source_circuit_open("bo3_api"):
+        try:
+            direct_players = missing[:V48_DIRECT_MAX_PLAYERS]
+            payload = _v48_run_async(_v48_batch_bo3_async(direct_players, include_matches=True, include_teams=False)) or {}
+            direct_status = {**(payload.get("status") or {}), "requested": len(missing), "attempted": len(direct_players), "deferred": max(0, len(missing)-len(direct_players))}
+            for key, record in (payload.get("profiles") or {}).items():
+                V48_RUNTIME.setdefault("profiles", {})[key] = record
+                profile, meta = _v48_profile_record_to_playerstats(str(record.get("player") or key), record, "BO3 JSON API direct")
+                if profile is not None:
+                    _persist_provider_profile(profile, {**meta, "player_map_profiles": record.get("player_map_profiles") or {}})
+            if payload.get("matches"):
+                V48_RUNTIME["matches"] = payload.get("matches") or []
+            if payload.get("teams"):
+                V48_RUNTIME["teams"].update(payload.get("teams") or {})
+            if direct_status.get("ok"):
+                _close_source_circuit("bo3_api")
+            else:
+                _trip_source_circuit("bo3_api", str(direct_status.get("warning") or "BO3 direct batch failed"), 15 * 60)
+        except Exception as exc:
+            direct_status = {"ok": False, "warning": str(exc), "requested": len(missing), "attempted": min(len(missing), V48_DIRECT_MAX_PLAYERS)}
+            _trip_source_circuit("bo3_api", str(exc), 15 * 60)
+    V48_RUNTIME["direct_status"] = direct_status
+    return {"bridge": bridge_status, "direct": direct_status, "unique_players": len(unique), "missing_before_direct": len(missing)}
+
+
+def v48_generate_bridge_cache(players: Sequence[str], previous: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    previous = previous if _v48_valid_bridge(previous) else {"profiles": {}, "matches": [], "teams": {}}
+    previous_profiles = dict(previous.get("profiles") or {})
+    refresh: List[str] = []
+    for player in list(dict.fromkeys(str(x or "").strip() for x in players if str(x or "").strip())):
+        existing = previous_profiles.get(normalize_name(player))
+        age = _v48_json_age_seconds(existing) if isinstance(existing, dict) else None
+        if not existing or age is None or age > 12 * 3600:
+            refresh.append(player)
+    payload = _v48_run_async(_v48_batch_bo3_async(refresh, include_matches=True, include_teams=True)) if (refresh or not previous.get("matches") or not previous.get("teams")) else {"profiles": {}, "matches": previous.get("matches") or [], "teams": previous.get("teams") or {}, "status": {"ok": True, "cached": True}}
+    profiles = previous_profiles
+    profiles.update(payload.get("profiles") or {})
+    board_keys = {normalize_name(x) for x in players if str(x or "").strip()}
+    now_dt = datetime.now(timezone.utc)
+    for key, row in list(profiles.items()):
+        if key in board_keys and isinstance(row, dict):
+            row["last_seen_at"] = now_iso()
+    # Keep active-board profiles plus the most recent verified records. This
+    # prevents the GitHub cache from growing without bound.
+    def _profile_sort(item: Tuple[str, Any]) -> Tuple[int, float]:
+        key, row = item
+        dt = _parse_iso_datetime((row or {}).get("last_seen_at") or (row or {}).get("updated_at")) if isinstance(row, dict) else None
+        age = (now_dt-dt).total_seconds() if dt else 1e12
+        return (1 if key in board_keys else 0, -age)
+    valid_items=[]
+    for key,row in profiles.items():
+        dt=_parse_iso_datetime((row or {}).get("last_seen_at") or (row or {}).get("updated_at")) if isinstance(row,dict) else None
+        age_days=(now_dt-dt).total_seconds()/86400 if dt else 9999
+        if key in board_keys or age_days <= V48_PROFILE_RETENTION_DAYS:
+            valid_items.append((key,row))
+    valid_items=sorted(valid_items,key=_profile_sort,reverse=True)[:V48_MAX_CACHED_PROFILES]
+    profiles=dict(valid_items)
+    output = {
+        "schema_version": V48_BRIDGE_SCHEMA,
+        "generated_at": now_iso(),
+        "model_version": MODEL_VERSION,
+        "profiles": profiles,
+        "matches": payload.get("matches") or previous.get("matches") or [],
+        "teams": {**dict(previous.get("teams") or {}), **dict(payload.get("teams") or {})},
+        "source_status": payload.get("status") or {},
+        "board_player_count": len(list(dict.fromkeys(normalize_name(x) for x in players if x))),
+        "refreshed_profiles": len(payload.get("profiles") or {}),
+    }
+    return output
+
+
+# Never open four HLTV global pages on every refresh. The detailed profile path
+# is database/bridge/BO3 JSON first. Legacy public-page pulls are opt-in only.
+_v48_fetch_hltv_player_table_base = fetch_hltv_player_table
+
+def fetch_hltv_player_table(days: int) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+    if not V48_LEGACY_WEB_ENABLED:
+        return {}, {"ok": False, "disabled": True, "provider": "HLTV", "rows": 0,
+                    "warning": "HLTV disabled in v4.8; verified bridge/BO3/local/demo path is primary"}
+    return _v48_fetch_hltv_player_table_base(days)
+
+
+_v48_build_player_profile_base = build_player_profile
+
+def build_player_profile(player_name: str, long_table: Dict[str, Dict[str, Any]], medium_table: Dict[str, Dict[str, Any]],
+                         recent30_table: Dict[str, Dict[str, Any]], recent15_table: Dict[str, Dict[str, Any]]) -> Tuple[PlayerStats, Dict[str, Any]]:
+    local, local_meta = _playerstats_from_local(player_name)
+    if local is not None and int(local.maps or 0) >= V48_PROFILE_MIN_MAPS:
+        return local, {**local_meta, "recovery_path": "verified Railway database/demo", "source_fresh": True,
+                       "core_kpr_verified": True}
+    profile, meta = _v48_bridge_profile(player_name)
+    if profile is not None:
+        _persist_provider_profile(profile, meta)
+        return profile, meta
+    # Direct batch profiles are merged into the same runtime index.
+    candidates = _v48_bridge_candidates(player_name)
+    for score, record in candidates:
+        if score < .90:
+            continue
+        profile2, meta2 = _v48_profile_record_to_playerstats(player_name, record, "BO3 JSON API direct")
+        if profile2 is not None:
+            return profile2, {**meta2, "match_score": score, "recovery_path": "direct BO3 batch"}
+    if V48_LEGACY_WEB_ENABLED:
+        return _v48_build_player_profile_base(player_name, long_table, medium_table, recent30_table, recent15_table)
+    empty = PlayerStats(player=player_name, maps=0, rounds=0, kpr=LEAGUE_KPR, source="")
+    return empty, {"matched": False, "source_fresh": False, "core_kpr_verified": False,
+                   "recovery_path": "failed", "source_failure": "No verified bridge, local/demo, or direct BO3 JSON profile"}
+
+
+def _v48_match_score(row: Dict[str, Any], team: str, opponent: str, player: str = "", start_time: Any = None) -> float:
+    teams = [str(x.get("name") or "") for x in (row.get("teams") or [])]
+    score = 0.0
+    if team:
+        score += max([name_similarity(team, x) for x in teams] or [0]) * .45
+    if opponent:
+        score += max([name_similarity(opponent, x) for x in teams] or [0]) * .40
+    if player:
+        lineup = row.get("lineup_names") or []
+        score += max([name_similarity(player, x) for x in lineup] or [0]) * .10
+    if start_time:
+        a = _parse_iso_datetime(start_time); b = _parse_iso_datetime(row.get("start_time"))
+        if a and b:
+            hours = abs((a - b).total_seconds()) / 3600
+            score += max(0, .05 * (1 - min(hours / 12, 1)))
+    return score
+
+
+def _v48_bridge_match(team: str, opponent: str, player: str = "", start_time: Any = None) -> Tuple[str, Dict[str, Any]]:
+    candidates: List[Tuple[float, Dict[str, Any]]] = []
+    for row in V48_RUNTIME.get("matches") or []:
+        if not isinstance(row, dict):
+            continue
+        score = _v48_match_score(row, team, opponent, player, start_time)
+        candidates.append((score, row))
+    if not candidates:
+        return "", {"ok": False, "warning": "provider bridge has no matches"}
+    score, row = max(candidates, key=lambda x: x[0])
+    threshold = .68 if team and opponent else .42 if team else .0
+    if score < threshold:
+        return "", {"ok": False, "warning": "no confident provider match", "best_score": round(score, 3)}
+    mid = str(row.get("provider_match_id") or row.get("match_id") or row.get("id") or "")
+    return f"bridge://{mid}", {"ok": True, "provider": "verified provider bridge", "score": round(score, 3), "match": row}
+
+
+_v48_discover_match_base = discover_hltv_match
+
+def discover_hltv_match(team: str, opponent: str, player: str = "") -> Tuple[str, Dict[str, Any]]:
+    url, meta = _v48_bridge_match(team, opponent, player)
+    if url:
+        return url, meta
+    if V48_LEGACY_WEB_ENABLED:
+        return _v48_discover_match_base(team, opponent, player)
+    return "", {"ok": False, "provider": "none", "warning": "No verified bridge match and legacy web sources disabled"}
+
+
+def _v48_match_context_from_record(row: Dict[str, Any], match_url: str) -> Dict[str, Any]:
+    teams = row.get("teams") or []
+    lineup_names = row.get("lineup_names") or []
+    lineup_groups = row.get("lineup_groups") or []
+    if not lineup_groups:
+        for t in teams[:2]:
+            roster = list(t.get("players") or t.get("roster") or [])
+            lineup_groups.append({"team": t.get("name"), "players": roster})
+            lineup_names.extend(roster)
+    return {
+        "match_url": match_url, "teams": teams, "format": row.get("format") or "BO3",
+        "event": row.get("event") or "", "stage": row.get("stage") or "",
+        "event_tier": row.get("event_tier") or "LOW/UNKNOWN", "environment": row.get("environment") or "UNKNOWN",
+        "world_ranks": row.get("world_ranks") or [], "confirmed_maps": row.get("confirmed_maps") or [],
+        "veto_actions": row.get("veto_actions") or [], "lineup_names": list(dict.fromkeys(lineup_names)),
+        "lineup_groups": lineup_groups, "starting_side_hints": row.get("starting_side_hints") or {},
+        "provider": "verified provider bridge", "provider_match_id": row.get("provider_match_id") or row.get("match_id") or "",
+        "lineup_source": row.get("lineup_source") or "provider bridge",
+    }
+
+
+_v48_fetch_match_context_base = fetch_match_context
+
+def fetch_match_context(match_url: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    if str(match_url).startswith("bridge://"):
+        mid = str(match_url).split("bridge://", 1)[1].strip("/")
+        row = next((x for x in (V48_RUNTIME.get("matches") or []) if str(x.get("provider_match_id") or x.get("match_id") or x.get("id") or "") == mid), None)
+        if row:
+            age = _v48_json_age_seconds(row)
+            return _v48_match_context_from_record(row, match_url), {"ok": True, "provider": "verified provider bridge",
+                    "age_seconds": age if age is not None else _v48_json_age_seconds(V48_RUNTIME.get("bridge")),
+                    "exact_lineup": bool(row.get("lineup_names") or row.get("lineup_groups")), "match_id": mid}
+        return {}, {"ok": False, "provider": "verified provider bridge", "warning": "bridge match ID not found"}
+    return _v48_fetch_match_context_base(match_url)
+
+
+_v48_match_id_base = _match_id_from_url
+
+def _match_id_from_url(url: str) -> str:
+    if str(url).startswith("bridge://"):
+        return str(url).split("bridge://", 1)[1].strip("/")
+    return _v48_match_id_base(url)
+
+
+def _v48_relationship_refs(obj: Any, rel_names: Sequence[str]) -> List[Tuple[str, str]]:
+    if not isinstance(obj, dict):
+        return []
+    rels = obj.get("relationships") or (obj.get("attributes") or {}).get("relationships") or {}
+    if not isinstance(rels, dict):
+        return []
+    wanted = {_v48_normalize_stat_key(x) for x in rel_names}
+    refs: List[Tuple[str, str]] = []
+    for key, node in rels.items():
+        if _v48_normalize_stat_key(key) not in wanted:
+            continue
+        data = node.get("data") if isinstance(node, dict) else node
+        entries = data if isinstance(data, list) else [data]
+        for ref in entries:
+            if isinstance(ref, dict):
+                refs.append((str(ref.get("type") or ""), str(ref.get("id") or "")))
+            elif ref not in [None, ""]:
+                refs.append(("", str(ref)))
+    return refs
+
+
+def _v48_all_jsonapi_objects(data: Any) -> Dict[Tuple[str, str], Dict[str, Any]]:
+    index: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    if not isinstance(data, dict):
+        return index
+    containers: List[Any] = [data.get("included") or []]
+    for value in data.values():
+        if isinstance(value, list):
+            containers.append(value)
+        elif isinstance(value, dict) and isinstance(value.get("data"), list):
+            containers.append(value.get("data") or [])
+    for container in containers:
+        for obj in container if isinstance(container, list) else []:
+            if not isinstance(obj, dict):
+                continue
+            oid = str(obj.get("id") or (obj.get("attributes") or {}).get("id") or "")
+            typ = str(obj.get("type") or "")
+            if oid:
+                index[(typ, oid)] = obj
+                index[("", oid)] = obj
+    return index
+
+
+def _v48_resolve_refs(index: Dict[Tuple[str, str], Dict[str, Any]], refs: Sequence[Tuple[str, str]]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for typ, oid in refs:
+        found = index.get((typ, oid)) or index.get(("", oid))
+        if found:
+            out.append(found)
+    return out
+
+
+def _v48_obj_name(obj: Any) -> str:
+    return str(_bo3_scalar(obj, ["name", "title", "display_name", "nickname", "abbr", "abbreviation", "short_name"], "") or "")
+
+
+def _v48_enrich_underdog_rows(rows: List[Dict[str, Any]], data: Any) -> List[Dict[str, Any]]:
+    if not isinstance(data, dict):
+        return rows
+    index = _v48_all_jsonapi_objects(data)
+    for row in rows:
+        evidence_ids = [str(row.get(k) or "") for k in ["prop_id", "line_id", "appearance_id", "game_id", "player_id"]]
+        related: List[Dict[str, Any]] = []
+        for oid in evidence_ids:
+            if oid and index.get(("", oid)):
+                related.append(index[("", oid)])
+        # Follow two relationship levels: line -> appearance/player/game -> teams.
+        frontier = list(related)
+        for _ in range(2):
+            new: List[Dict[str, Any]] = []
+            for obj in frontier:
+                refs = _v48_relationship_refs(obj, ["appearance", "player", "athlete", "game", "match", "team", "teams", "opponents", "participants", "home_team", "away_team"])
+                new.extend(_v48_resolve_refs(index, refs))
+            related.extend(new); frontier = new
+        names: List[str] = []
+        team_names: List[str] = []
+        matchup_texts: List[str] = []
+        for obj in related:
+            typ = normalize_name(obj.get("type") or "")
+            name = _v48_obj_name(obj)
+            if name:
+                names.append(name)
+            if "team" in typ or "opponent" in typ:
+                if name: team_names.append(name)
+            attrs_obj = attrs(obj)
+            for key in ["matchup", "title", "description", "display_name", "name"]:
+                val = attrs_obj.get(key)
+                if isinstance(val, str) and any(sep in val.lower() for sep in [" vs ", " v ", " @ ", " versus "]):
+                    matchup_texts.append(val)
+            for key in ["home_team", "away_team", "team", "opponent"]:
+                val = attrs_obj.get(key)
+                if isinstance(val, dict):
+                    nm = _v48_obj_name(val)
+                    if nm: team_names.append(nm)
+                elif isinstance(val, str) and val.strip():
+                    team_names.append(val.strip())
+        matchup = str(row.get("matchup") or "")
+        if not matchup and matchup_texts:
+            matchup = matchup_texts[0]
+            row["matchup"] = matchup
+        a, b = _teams_from_matchup(matchup or row.get("evidence") or "")
+        candidates = list(dict.fromkeys(x.strip() for x in team_names + [a, b] if str(x or "").strip()))
+        player_name = str(row.get("player") or "")
+        candidates = [x for x in candidates if name_similarity(player_name, x) < .85]
+        if not row.get("team") and len(candidates) == 1:
+            row["team"] = candidates[0]
+        if not row.get("team") and len(candidates) >= 2 and a:
+            row["team"] = a
+        if not row.get("opponent") and len(candidates) >= 2:
+            row["opponent"] = next((x for x in candidates if not _team_name_matches(str(row.get("team") or ""), x)), candidates[1])
+        row["identity_evidence"] = {"related_names": names[:20], "team_candidates": candidates[:8], "matchup_texts": matchup_texts[:5]}
+    return rows
+
+
+_v48_parse_underdog_base = _parse_underdog_top_level
+
+def _parse_underdog_top_level(data: Any) -> List[Dict[str, Any]]:
+    rows = _v48_parse_underdog_base(data)
+    return _v48_enrich_underdog_rows(rows, data)
+
+
+def _v48_attach_identity(prop: Dict[str, Any]) -> Dict[str, Any]:
+    out = _enrich_prop_identity_v46(prop)
+    profile, meta = _v48_bridge_profile(str(out.get("player") or ""), str(out.get("team") or ""))
+    if profile is None:
+        candidates = _v48_bridge_candidates(str(out.get("player") or ""))
+        for score, record in candidates:
+            if score >= .90:
+                out.setdefault("team", str(record.get("team") or ""))
+                break
+    else:
+        if not out.get("team") and profile.team:
+            out["team"] = profile.team
+    if not out.get("match_url"):
+        url, mmeta = _v48_bridge_match(str(out.get("team") or ""), str(out.get("opponent") or ""),
+                                       str(out.get("player") or ""), out.get("start_time"))
+        if url:
+            out["match_url"] = url
+            match = mmeta.get("match") or {}
+            teams = [str(x.get("name") or "") for x in (match.get("teams") or [])]
+            if not out.get("team") and profile is not None and profile.team:
+                out["team"] = max(teams, key=lambda x: name_similarity(profile.team, x)) if teams else profile.team
+            if not out.get("opponent") and len(teams) >= 2:
+                out["opponent"] = next((x for x in teams if not _team_name_matches(str(out.get("team") or ""), x)), teams[1])
+    return out
+
+
+_v48_build_full_board_base = build_full_board
+
+def build_full_board(props: List[Dict[str, Any]], deep_enabled: bool = True) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    players = [str(x.get("player") or "") for x in props]
+    prefetch = v48_prefetch_provider_data(players)
+    enriched = [_v48_attach_identity(p) for p in props]
+    board, status = _v48_build_full_board_base(enriched, deep_enabled)
+    profiles = sum((safe_int(r.get("profile_maps"), 0) or 0) > 0 for r in board)
+    projections = sum(r.get("projection") is not None for r in board)
+    matches = sum(bool(r.get("match_url")) for r in board)
+    teams = sum(bool(r.get("team")) for r in board)
+    bridge_age = _v48_json_age_seconds(V48_RUNTIME.get("bridge"))
+    recovery = {
+        "lines_loaded": len(board), "verified_profiles": profiles, "matched_teams": teams,
+        "matched_events": matches, "projections_generated": projections,
+        "profile_coverage_pct": round(profiles / max(len(board), 1) * 100, 1),
+        "match_coverage_pct": round(matches / max(len(board), 1) * 100, 1),
+        "projection_coverage_pct": round(projections / max(len(board), 1) * 100, 1),
+        "bridge_age_seconds": bridge_age, "bridge_repo": V48_BRIDGE_REPO,
+        "bridge_branch": V48_BRIDGE_BRANCH, "prefetch": prefetch,
+        "hltv_enabled": V48_LEGACY_WEB_ENABLED, "primary_path": "GitHub bridge → local/demo → direct BO3 JSON",
+        "message": ("Verified provider profiles reached the projection engine." if projections else
+                    "Underdog lines loaded, but the provider bridge/local/demo/direct BO3 paths produced no verified profiles. Run the Source Bridge workflow or configure CS2_BRIDGE_REPO."),
+    }
+    for row in board:
+        row["model_version"] = MODEL_VERSION
+        row["feature_fingerprint"] = MODEL_SCHEMA_FINGERPRINT
+        if projections == 0:
+            row["flags"] = list(dict.fromkeys(list(row.get("flags") or []) + ["VERIFIED DATA BRIDGE EMPTY — NO PROJECTION"] ))
+    return board, {**status, "v48_source_recovery": recovery, "v47_provider_recovery": recovery,
+                   "v46_source_recovery": recovery, "model_version": MODEL_VERSION,
+                   "feature_fingerprint": MODEL_SCHEMA_FINGERPRINT}
+
+
+_v48_parser_report_base = parser_consistency_report
+
+def parser_consistency_report(board: Sequence[Dict[str, Any]], status: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    base = _v48_parser_report_base(board, status)
+    n = len(board); profiles = sum(((safe_int(x.get("profile_maps"), 0) or 0) > 0) or bool(x.get("core_kpr_verified")) or (safe_float(x.get("adjusted_kpr"), None) is not None and 0.25 <= float(x.get("adjusted_kpr")) <= 1.25) for x in board)
+    projections = sum(x.get("projection") is not None for x in board)
+    if n and profiles == 0:
+        base["score"] = 20.0
+        base["grade"] = "LINES OK — STATS PROVIDER UNAVAILABLE"
+        base["official_enabled"] = False
+        base["shutdown_reason"] = "No verified profile reached the model; line parser itself is working"
+    elif n and projections == 0:
+        base["score"] = min(max(float(base.get("score", 0) or 0), 30.0), 50.0)
+        base["grade"] = "PROFILES FOUND — MATCH/ROSTER CONTEXT INCOMPLETE"
+        base["official_enabled"] = False
+    base["provider_bridge"] = (status or {}).get("v48_source_recovery") or {}
+    return base
+
+
+# ============================================================
+# V4.8 COMPLETE PROVIDER/MAP/TEAM RECOVERY OVERRIDES
+# ============================================================
+
+def _v48_team_name_from_payload(payload: Any) -> str:
+    if not payload:
+        return ""
+    candidates: List[Tuple[int, str]] = []
+    for node in flatten_json(payload):
+        if not isinstance(node, dict):
+            continue
+        typ = normalize_name(object_type(node) or node.get("type") or "")
+        a = attrs(node)
+        name = str(_bo3_scalar(a, ["team_name", "current_team", "name", "title", "short_name"], "") or "").strip()
+        if not name:
+            continue
+        priority = 0
+        if "team" in typ and "tournament" not in typ:
+            priority += 5
+        if a.get("logo_url") or a.get("team_id"):
+            priority += 2
+        if a.get("nickname") or "player" in typ or "country" in typ:
+            priority -= 4
+        if priority > 0:
+            candidates.append((priority, name))
+    return max(candidates, key=lambda x: x[0])[1] if candidates else ""
+
+
+def _v48_roster_from_payload(payload: Any) -> List[str]:
+    names: List[str] = []
+    for node in flatten_json(payload):
+        if not isinstance(node, dict):
+            continue
+        typ = normalize_name(object_type(node) or node.get("type") or "")
+        a = attrs(node)
+        if "player" not in typ and not any(k in a for k in ["nickname", "nick_name", "player_id"]):
+            continue
+        name = str(_bo3_scalar(a, ["nickname", "nick_name", "display_name", "player_name", "name"], "") or "").strip()
+        if name and normalize_name(name) not in {normalize_name(x) for x in names}:
+            names.append(name)
+    return names[:10]
+
+
+def _v48_team_map_profiles(*payloads: Any) -> Dict[str, Dict[str, Any]]:
+    output: Dict[str, Dict[str, Any]] = {}
+    for payload in payloads:
+        for node in flatten_json(payload):
+            if not isinstance(node, dict):
+                continue
+            map_name = canonical_map_name(_bo3_scalar(node, ["map", "map_name", "name", "title", "slug"], ""))
+            if map_name not in KNOWN_MAPS:
+                continue
+            maps = safe_int(_v48_metric(node, ["maps", "maps_count", "games", "count"], 1, 10000), 0) or 0
+            win_pct = _v48_metric(node, ["win_percentage", "win_rate", "win_pct"], 0, 100)
+            round_win = _v48_metric(node, ["round_win_percentage", "round_win_rate", "round_win_pct"], 0, 100)
+            ct = _v48_metric(node, ["ct_round_win_percentage", "ct_win_percentage", "ct_round_win_pct"], 0, 100)
+            tt = _v48_metric(node, ["t_round_win_percentage", "t_win_percentage", "t_round_win_pct"], 0, 100)
+            avg_rounds = _v48_metric(node, ["average_rounds", "avg_rounds", "rounds_per_map"], 13, 40)
+            picks = safe_int(_v48_metric(node, ["pick_count", "picks"], 0, 10000), 0) or 0
+            bans = safe_int(_v48_metric(node, ["ban_count", "bans"], 0, 10000), 0) or 0
+            if not any(v not in [None, 0] for v in [maps, win_pct, round_win, ct, tt, picks, bans]):
+                continue
+            old = output.get(map_name, {})
+            output[map_name] = {
+                **old, "maps": max(int(old.get("maps", 0) or 0), maps),
+                "win_pct": win_pct if win_pct is not None else old.get("win_pct"),
+                "round_win_pct": round_win if round_win is not None else (old.get("round_win_pct") or ((ct + tt) / 2 if ct is not None and tt is not None else None)),
+                "ct_round_win_pct": ct if ct is not None else old.get("ct_round_win_pct"),
+                "t_round_win_pct": tt if tt is not None else old.get("t_round_win_pct"),
+                "avg_rounds": avg_rounds if avg_rounds is not None else (old.get("avg_rounds") or MAP_ROUND_BASE.get(map_name, 21.2)),
+                "pick_count": max(int(old.get("pick_count", 0) or 0), picks),
+                "ban_count": max(int(old.get("ban_count", 0) or 0), bans),
+                "source": "BO3 JSON provider bridge",
+            }
+    return output
+
+
+def _v48_team_record_from_bo3(team_ref: Dict[str, Any], detail: Any, general: Any, advanced: Any) -> Optional[Dict[str, Any]]:
+    name = str(team_ref.get("name") or _v48_team_name_from_payload(detail) or "").strip()
+    if not name:
+        return None
+    slug = str(team_ref.get("slug") or normalize_name(name).replace(" ", "-"))
+    provider_id = str(team_ref.get("provider_id") or str(team_ref.get("team_id") or "").replace("bo3:", ""))
+    roster = _v48_roster_from_payload(detail)
+    map_profiles = _v48_team_map_profiles(detail, general, advanced)
+    team_kpr = _v48_metric(general, ["kills_per_round", "team_kills_per_round", "kills"], 1.5, 5.0)
+    deaths = _v48_metric(general, ["deaths_per_round", "team_deaths_per_round", "deaths"], 1.5, 5.0)
+    total_maps = sum(int(v.get("maps", 0) or 0) for v in map_profiles.values())
+    return {
+        "team": name, "slug": slug, "team_id": str(team_ref.get("team_id") or f"bo3:{provider_id or slug}"),
+        "provider_id": provider_id, "current_roster": roster[:5] if len(roster) >= 5 else roster,
+        "map_profiles": map_profiles, "recent_maps": total_maps, "current_roster_maps": total_maps if len(roster) >= 5 else 0,
+        "roster_stability": 1.0 if len(roster) >= 5 else clamp(len(roster) / 5.0, 0, .8),
+        "kills_for_per_round": team_kpr, "deaths_allowed_per_round": deaths,
+        "mapstats_samples": total_maps, "pick_counts": {m: int(v.get("pick_count", 0) or 0) for m, v in map_profiles.items()},
+        "ban_counts": {m: int(v.get("ban_count", 0) or 0) for m, v in map_profiles.items()},
+        "provider": "BO3 JSON API", "updated_at": now_iso(),
+    }
+
+
+async def _v48_fetch_one_bo3_team(session: Any, semaphore: Any, team_ref: Dict[str, Any]) -> Tuple[str, Optional[Dict[str, Any]], Dict[str, Any]]:
+    name = str(team_ref.get("name") or "")
+    key = normalize_team(name)
+    slug = str(team_ref.get("slug") or normalize_name(name).replace(" ", "-"))
+    if not name or not slug:
+        return key, None, {"ok": False, "warning": "team name/slug unavailable"}
+    async with semaphore:
+        try:
+            today = local_now().date().isoformat()
+            start = (local_now().date() - timedelta(days=365)).isoformat()
+            tasks = [
+                _v48_aiohttp_get_json(session, f"/teams/{quote(slug)}", {"with": "players,country"}),
+                _v48_aiohttp_get_json(session, f"/teams/{quote(slug)}/general_stats", {"filter[start_date_to]": today, "filter[start_date_from]": start}),
+                _v48_aiohttp_get_json(session, f"/teams/{quote(slug)}/advanced_stats", {"filter[start_date_to]": today, "filter[start_date_from]": start}),
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            detail = {} if isinstance(results[0], Exception) else results[0]
+            general = {} if isinstance(results[1], Exception) else results[1]
+            advanced = {} if isinstance(results[2], Exception) else results[2]
+            record = _v48_team_record_from_bo3(team_ref, detail, general, advanced)
+            return key, record, {"ok": bool(record), "slug": slug}
+        except Exception as exc:
+            return key, None, {"ok": False, "warning": str(exc)}
+
+
+def _v48_attach_profile_lineups(matches: List[Dict[str, Any]], profiles: Dict[str, Dict[str, Any]], teams: Dict[str, Dict[str, Any]]) -> None:
+    for match in matches:
+        groups: List[Dict[str, Any]] = []
+        all_names: List[str] = list(match.get("lineup_names") or [])
+        for team in (match.get("teams") or [])[:2]:
+            team_name = str(team.get("name") or "")
+            record = teams.get(normalize_team(team_name), {})
+            roster = list(record.get("current_roster") or [])
+            if not roster:
+                roster = [str(row.get("player") or row.get("nickname") or key)
+                          for key, row in profiles.items()
+                          if _team_name_matches(team_name, str(row.get("team") or ""))]
+            roster = list(dict.fromkeys(x for x in roster if x))[:5]
+            groups.append({"team": team_name, "players": roster})
+            all_names.extend(roster)
+        match["lineup_groups"] = groups
+        match["lineup_names"] = list(dict.fromkeys(all_names))
+        match["lineup_source"] = "BO3 team roster bridge" if any(len(x.get("players") or []) >= 5 for x in groups) else "BO3 board-player roster bridge"
+
+
+def _v48_provider_map_record(player: str, map_name: str) -> Dict[str, Any]:
+    best: Dict[str, Any] = {}
+    candidates = _v48_bridge_candidates(player)
+    if candidates:
+        record = candidates[0][1]
+        maps = record.get("player_map_profiles") or record.get("map_profiles") or {}
+        best = dict(maps.get(map_name) or maps.get(normalize_name(map_name)) or {})
+    if not best:
+        db = lookup_database_player(player) or {}
+        maps = db.get("player_map_profiles") or db.get("map_profiles") or {}
+        best = dict(maps.get(map_name) or maps.get(normalize_name(map_name)) or {})
+    if not best:
+        saved = load_json(DEEP_PLAYER_MAP_FILE, {})
+        row = (saved.get(normalize_name(player)) or {}) if isinstance(saved, dict) else {}
+        maps = row.get("maps") or {}
+        best = dict(maps.get(map_name) or maps.get(normalize_name(map_name)) or {})
+    return best
+
+
+_v48_map_model_pre_bridge = build_player_map_profiles
+
+def build_player_map_profiles(profile: PlayerStats, likely_maps: Sequence[str], target_time: Any = None, patch_era: Optional[Dict[str, Any]] = None) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+    """Database/bridge/demo-first map model; HLTV is never required."""
+    out: Dict[str, Dict[str, Any]] = {}
+    statuses: Dict[str, Any] = {}
+    era = patch_era or patch_era_for_time(target_time)
+    target_dt = _parse_iso_datetime(target_time) or datetime.now(timezone.utc)
+    era_start = _parse_iso_datetime(era.get("effective_from"))
+    days_in_era = max(1.0, (target_dt - (era_start or target_dt - timedelta(days=180))).total_seconds() / 86400.0)
+    era_factor = clamp(days_in_era / 180.0, .20, 1.0)
+    for map_name in list(dict.fromkeys(canonical_map_name(x) for x in likely_maps if canonical_map_name(x)))[:7]:
+        provider = _v48_provider_map_record(profile.player, map_name)
+        demo = demo_profile_for(profile.player, map_name)
+        p_maps = safe_int(provider.get("maps") or provider.get("long_maps") or provider.get("sample_maps"), 0) or 0
+        p_rounds = safe_int(provider.get("rounds"), 0) or int(round(p_maps * 21.2)) if p_maps else 0
+        p_kpr = safe_float(provider.get("blended_kpr"), None)
+        if p_kpr is None: p_kpr = safe_float(provider.get("long_kpr"), None)
+        if p_kpr is None: p_kpr = safe_float(provider.get("kpr"), None)
+        recent_kpr = safe_float(provider.get("recent_kpr"), None)
+        recent_maps = safe_int(provider.get("recent_maps"), 0) or 0
+        demo_kpr = safe_float(demo.get("kpr"), None) if demo.get("denominator_verified") else None
+        demo_rounds = safe_int(demo.get("rounds"), 0) or 0
+        overall_verified = bool(profile.maps >= V48_PROFILE_MIN_MAPS or profile.rounds >= V48_PROFILE_MIN_ROUNDS) and .25 <= profile.kpr <= 1.25
+        if p_kpr is None and demo_kpr is None and not overall_verified:
+            statuses[map_name] = {"usable": False, "warning": "no verified map or overall sample"}
+            continue
+        center = p_kpr if p_kpr is not None else float(profile.kpr)
+        w_map = clamp(p_maps / (p_maps + 14.0), 0, .82) * era_factor if p_kpr is not None else 0.0
+        blended = float(profile.kpr) * (1 - w_map) + float(center) * w_map
+        w_recent = clamp(recent_maps / (recent_maps + 12.0), 0, .35) if recent_kpr is not None else 0.0
+        blended = blended * (1 - w_recent) + float(recent_kpr or blended) * w_recent
+        w_demo = 0.0
+        if demo_kpr is not None:
+            w_demo = clamp(demo_rounds / (demo_rounds + 260.0), 0, .52) * era_recency_weight(demo.get("latest_event_time"), target_time, era)
+            blended = blended * (1 - w_demo) + float(demo_kpr) * w_demo
+        ct_base = safe_float(provider.get("ct_kpr"), None) or profile.ct_kpr or blended
+        t_base = safe_float(provider.get("t_kpr"), None) or profile.t_kpr or blended
+        dct, dt = safe_float(demo.get("ct_kpr"), None), safe_float(demo.get("t_kpr"), None)
+        ct_rounds, t_rounds = safe_int(demo.get("ct_rounds"), 0) or 0, safe_int(demo.get("t_rounds"), 0) or 0
+        wct = clamp(ct_rounds / (ct_rounds + 160.0), 0, .55) if dct is not None else 0
+        wt = clamp(t_rounds / (t_rounds + 160.0), 0, .55) if dt is not None else 0
+        ct_kpr = float(ct_base) * (1 - wct) + float(dct if dct is not None else ct_base) * wct
+        t_kpr = float(t_base) * (1 - wt) + float(dt if dt is not None else t_base) * wt
+        effective = p_maps + recent_maps * .65 + demo_rounds / 20.0
+        confidence = clamp(32 + effective * 2.0, 32, 98)
+        sources = []
+        if p_kpr is not None: sources.append(str(provider.get("source") or "verified provider map KPR"))
+        if demo_kpr is not None: sources.append("full-round demo KPR")
+        if not sources: sources.append("verified overall profile shrunk to map baseline")
+        out[map_name] = {
+            "map": map_name, "maps": p_maps, "rounds": p_rounds, "kpr": round(float(center), 4),
+            "recent_maps": recent_maps, "recent_kpr": round(float(recent_kpr), 4) if recent_kpr is not None else None,
+            "demo_rounds": demo_rounds, "demo_kpr": round(float(demo_kpr), 4) if demo_kpr is not None else None,
+            "demo_weight": round(w_demo, 4), "blended_kpr": round(clamp(blended, .38, 1.08), 4),
+            "ct_kpr": round(clamp(ct_kpr, .34, 1.12), 4), "t_kpr": round(clamp(t_kpr, .34, 1.12), 4),
+            "ct_demo_rounds": ct_rounds, "t_demo_rounds": t_rounds,
+            "economy_kpr": demo.get("economy_kpr") or {}, "economy_rounds": demo.get("economy_rounds") or {},
+            "dpr": safe_float(provider.get("dpr"), None), "adr": safe_float(provider.get("adr"), None),
+            "rating": safe_float(provider.get("rating"), None), "opening_kpr": safe_float(provider.get("opening_kpr"), None) or profile.opening_kpr,
+            "hs_pct": safe_float(provider.get("hs_pct"), None) or profile.hs_pct,
+            "awp_kill_share": safe_float(provider.get("awp_kill_share"), None) or profile.awp_kill_share,
+            "source": " + ".join(dict.fromkeys(sources)),
+            "core_map_kpr_verified": p_kpr is not None or demo_kpr is not None,
+            "overall_profile_fallback": p_kpr is None and demo_kpr is None,
+            "patch_era_weight": round(era_factor, 4), "map_model_confidence": round(confidence, 1),
+            "effective_map_sample": round(effective, 1),
+        }
+        statuses[map_name] = {"usable": True, "provider": provider, "demo": demo}
+    if not out and V48_LEGACY_WEB_ENABLED:
+        return _v48_map_model_pre_bridge(profile, likely_maps, target_time, patch_era)
+    if out:
+        saved = load_json(DEEP_PLAYER_MAP_FILE, {})
+        if not isinstance(saved, dict): saved = {}
+        saved[normalize_name(profile.player)] = {"updated_at": now_iso(), "maps": out}
+        save_json(DEEP_PLAYER_MAP_FILE, saved)
+    return out, {"ok": bool(out), "maps": list(out), "statuses": statuses, "patch_era": era.get("name"),
+                 "provider_bridge_connected": True, "legacy_hltv_used": False}
+
+
+_v48_team_model_pre_bridge = build_team_deep_profile
+
+def build_team_deep_profile(team_id: str, slug: str, team_name: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    runtime = V48_RUNTIME.get("teams") or {}
+    candidates = []
+    for key, row in runtime.items():
+        if not isinstance(row, dict): continue
+        score = max(name_similarity(team_name, str(row.get("team") or key)),
+                    1.0 if str(team_id or "") and str(team_id) == str(row.get("team_id") or "") else 0.0)
+        candidates.append((score, row))
+    if candidates:
+        score, row = max(candidates, key=lambda x: x[0])
+        if score >= .82:
+            profile = dict(row)
+            profile.setdefault("team_id", team_id)
+            profile.setdefault("slug", slug)
+            profile.setdefault("team", team_name)
+            profile.setdefault("recent_matches", 0)
+            profile.setdefault("recent_maps", sum(int(v.get("maps", 0) or 0) for v in (profile.get("map_profiles") or {}).values()))
+            profile.setdefault("current_roster_maps", profile.get("recent_maps") if len(profile.get("current_roster") or []) >= 5 else 0)
+            profile.setdefault("roster_stability", 1.0 if len(profile.get("current_roster") or []) >= 5 else clamp(len(profile.get("current_roster") or []) / 5.0, 0, .8))
+            profile.setdefault("mapstats_samples", profile.get("recent_maps") or 0)
+            return profile, {"ok": True, "provider": "verified provider bridge", "roster_fresh": bool(profile.get("current_roster")),
+                             "pool_fresh": bool(profile.get("map_profiles")), "match_score": score}
+    # Construct a safe partial roster from verified provider player profiles.
+    roster = [str(row.get("player") or row.get("nickname") or key)
+              for key, row in (V48_RUNTIME.get("profiles") or {}).items()
+              if isinstance(row, dict) and _team_name_matches(team_name, str(row.get("team") or ""))]
+    roster = list(dict.fromkeys(x for x in roster if x))[:5]
+    if roster:
+        partial = {"team_id": team_id, "slug": slug, "team": team_name, "current_roster": roster,
+                   "recent_matches": 0, "recent_maps": 0, "current_roster_maps": 0,
+                   "roster_stability": clamp(len(roster) / 5.0, 0, .8), "map_profiles": {},
+                   "pick_counts": {}, "ban_counts": {}, "mapstats_samples": 0,
+                   "updated_at": now_iso(), "provider": "verified provider player bridge"}
+        return partial, {"ok": True, "provider": partial["provider"], "roster_fresh": False, "pool_fresh": False,
+                         "warning": "partial roster from verified board profiles"}
+    if V48_LEGACY_WEB_ENABLED:
+        return _v48_team_model_pre_bridge(team_id, slug, team_name)
+    snap, smeta = sqlite_latest_entity_snapshot("team_deep", str(team_id or normalize_team(team_name)), SOURCE_MAX_STALE_SECONDS["team_maps"])
+    if snap:
+        return snap, {**smeta, "ok": True, "provider": "local cumulative team snapshot", "roster_fresh": False, "pool_fresh": False}
+    return {}, {"ok": False, "provider": "none", "warning": "No bridge/local team profile; projection will use conservative map priors and cannot be Official"}
 
 
 # ============================================================
@@ -8664,6 +9801,31 @@ with tab_data:
                 if not isinstance(aliases,dict):aliases={}
                 aliases[normalize_name(mp)]={"alias":mp.strip(),"hltv_player_id":mid.strip(),"hltv_slug":mslug.strip() or normalize_name(mp).replace(" ","-"),"team":mteam.strip(),"opponent":mopp.strip(),"match_url":murl.strip(),"saved_at":now_iso()};save_json(PLAYER_ALIAS_FILE,aliases,force=True);st.success("Mapping saved. Refresh projections.");st.rerun()
 
+    st.markdown('<div class="section-title-pro">Verified Provider Bridge</div>', unsafe_allow_html=True)
+    st.caption("V4.8 reads a verified cache generated by GitHub Actions before making any direct provider call from Railway. The cache can also be uploaded here manually.")
+    bridge_payload, bridge_state = load_provider_bridge(force=False)
+    b1,b2,b3,b4=st.columns(4)
+    b1.metric("Bridge Profiles",len(bridge_payload.get("profiles") or {}))
+    b2.metric("Bridge Matches",len(bridge_payload.get("matches") or []))
+    b3.metric("Bridge Age",f"{int((_v48_json_age_seconds(bridge_payload) or 0)/60)} min" if bridge_payload.get("generated_at") else "—")
+    b4.metric("Bridge Source",bridge_state.get("provider","Not loaded"))
+    bridge_upload=st.file_uploader("Upload cs2_provider_cache.json",type=["json"],key="v48_bridge_upload")
+    bc1,bc2=st.columns(2)
+    with bc1:
+        if st.button("RELOAD BRIDGE FROM GITHUB",use_container_width=True,key="v48_reload_bridge"):
+            V48_RUNTIME["bridge"]=None;payload,state=load_provider_bridge(force=True)
+            if payload.get("profiles"):st.success(f"Loaded {len(payload.get('profiles') or {})} verified profiles and {len(payload.get('matches') or [])} matches.")
+            else:st.error(state.get("warning") or "Provider bridge is still empty. Check the GitHub Source Bridge workflow.")
+            st.rerun()
+    with bc2:
+        if st.button("IMPORT UPLOADED BRIDGE",use_container_width=True,key="v48_import_bridge",disabled=bridge_upload is None):
+            try:
+                uploaded=json.loads(bridge_upload.getvalue().decode("utf-8"))
+                if not _v48_valid_bridge(uploaded):raise ValueError("This is not a valid v4.8 provider cache.")
+                save_json(V48_BRIDGE_LOCAL_FILE,uploaded,force=True);V48_RUNTIME["bridge"]=None;load_provider_bridge(force=False)
+                st.success("Verified provider cache imported to the Railway volume.");st.rerun()
+            except Exception as exc:st.error(f"Provider cache import failed: {exc}")
+
     st.markdown('<div class="section-title-pro">Optional Free PandaScore Connection</div>', unsafe_allow_html=True)
     panda_rows, panda_status = fetch_pandascore_upcoming()
     if panda_status.get("configured"):
@@ -8695,12 +9857,12 @@ with tab_debug:
     p1,p2,p3=st.columns(3);p1.metric("Parser Health",f"{parser_health.get('score',0):.1f}/100");p2.metric("Parser Grade",parser_health.get("grade","—"));p3.metric("Official Enabled","YES" if parser_health.get("official_enabled") else "NO")
     if parser_health.get("checks"):st.dataframe(pd.DataFrame(parser_health["checks"]),use_container_width=True,hide_index=True)
     st.markdown('<div class="section-title-pro">Source Status</div>', unsafe_allow_html=True)
-    provider=(st.session_state.get("cs2_board_status") or {}).get("v47_provider_recovery") or {}
+    provider=(st.session_state.get("cs2_board_status") or {}).get("v48_source_recovery") or (st.session_state.get("cs2_board_status") or {}).get("v47_provider_recovery") or {}
     if provider:
         s1,s2,s3,s4,s5=st.columns(5)
         s1.metric("Underdog Lines",provider.get("lines_loaded",0))
         s2.metric("Verified Profiles",provider.get("verified_profiles",0))
-        s3.metric("BO3 Profiles",provider.get("bo3_profiles",0))
+        s3.metric("Matched Teams",provider.get("matched_teams",provider.get("bo3_profiles",0)))
         s4.metric("Matched Events",provider.get("matched_events",0))
         s5.metric("Projections",provider.get("projections_generated",0))
         if provider.get("projections_generated",0):
@@ -8708,13 +9870,13 @@ with tab_debug:
         else:
             st.error(provider.get("message") or "Lines loaded, but no verified statistics profiles were available.")
     circuit_cols=st.columns(3)
-    hltv_state=_source_circuit_state("hltv");bo3_state=_source_circuit_state("bo3")
+    hltv_state=_source_circuit_state("hltv");bo3_state=_source_circuit_state("bo3_api")
     circuit_cols[0].metric("HLTV", "PAUSED" if _source_circuit_open("hltv") else "OPTIONAL")
-    circuit_cols[1].metric("BO3", "PAUSED" if _source_circuit_open("bo3") else "PRIMARY")
-    if circuit_cols[2].button("Reset source circuits",use_container_width=True,key="reset_v47_source_circuits"):
-        _close_source_circuit("hltv");_close_source_circuit("bo3");st.success("Source circuits reset. Refresh the board once.");st.rerun()
+    circuit_cols[1].metric("BO3 JSON", "PAUSED" if _source_circuit_open("bo3_api") else "DIRECT FALLBACK")
+    if circuit_cols[2].button("Reload bridge + reset sources",use_container_width=True,key="reset_v48_source_circuits"):
+        _close_source_circuit("hltv");_close_source_circuit("bo3_api");V48_RUNTIME["bridge"]=None;load_provider_bridge(force=True);st.success("Provider bridge reloaded. Refresh the board once.");st.rerun()
     if _source_circuit_open("hltv"):
-        st.info("HLTV is paused after a 403. V4.7 does not depend on it; BO3, local history, and demos remain active.")
+        st.info("HLTV is disabled/paused. V4.8 uses the GitHub provider bridge, local history, demos, and direct BO3 JSON instead.")
     st.write("Line source status")
     st.json(st.session_state.get("cs2_line_source_status") or {}, expanded=False)
     st.write("Projection source status")
@@ -8744,7 +9906,10 @@ with tab_debug:
         {"Variable": "CS2 core database", "Required": "Automatic", "Purpose": CORE_DB_FILE},
         {"Variable": "UNDERDOG_URL_OVERRIDE", "Required": "No", "Purpose": "Replacement public board endpoint if Underdog changes versions"},
         {"Variable": "PANDASCORE_TOKEN", "Required": "No", "Purpose": "Optional free schedule/roster fallback"},
-        {"Variable": "GITHUB_TOKEN", "Required": "No", "Purpose": "Optional persistent backup"},
+        {"Variable": "CS2_BRIDGE_REPO", "Required": "Automatic/optional", "Purpose": "owner/repository containing the data-cache branch; Railway Git variables usually infer it"},
+        {"Variable": "CS2_BRIDGE_BRANCH", "Required": "No", "Purpose": "Defaults to data-cache"},
+        {"Variable": "CS2_DIRECT_BO3_ENABLED", "Required": "No", "Purpose": "Direct BO3 JSON fallback after bridge/local/demo"},
+        {"Variable": "GITHUB_TOKEN", "Required": "For private bridge repo", "Purpose": "Reads private data-cache and supports optional backup"},
         {"Variable": "GITHUB_REPO", "Required": "No", "Purpose": "owner/repository for backup"},
         {"Variable": "GITHUB_BRANCH", "Required": "No", "Purpose": "Defaults to main"},
         {"Variable": "GITHUB_AUTO_BACKUP", "Required": "No", "Purpose": "true to back up after save/grade"},
