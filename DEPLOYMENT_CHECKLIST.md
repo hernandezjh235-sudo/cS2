@@ -1,18 +1,12 @@
-# Deployment Checklist
+# CS2 v4.9 deployment checklist
 
-- [ ] Upload every file, including `.github` and `.streamlit`, to a private GitHub repository.
-- [ ] Confirm GitHub Actions passes compile and `validate_model.py`.
-- [ ] Connect the repository to Railway.
-- [ ] Mount a Railway volume at `/data`.
-- [ ] Set `CS2_DATA_DIR=/data/cs2_engine`.
-- [ ] Set `TZ=America/Los_Angeles`.
-- [ ] Set `CS2_DEEP_DATA=true`.
-- [ ] Set `CS2_DEEP_MATCH_LIMIT=6` and `CS2_DEEP_MAPSTATS_LIMIT=6`.
-- [ ] Do not manually create `PORT`.
-- [ ] Generate a Railway domain.
-- [ ] Open the app and press **Refresh Real Board + Projections**.
-- [ ] Confirm Underdog source status is `ok: true` when a board is posted.
-- [ ] Confirm player cards show likely maps, expected rounds, map KPR, opponent DPR allowed, and data score.
-- [ ] Save an official snapshot before matches.
-- [ ] Grade completed matches and verify history persists after a redeploy.
-- [ ] Keep all tokens in Railway variables; never commit secrets.
+- Upload the complete package to the existing GitHub repository.
+- Confirm `app.py`, `source_bridge.py`, `requirements.txt`, `.python-version`, `.streamlit/config.toml`, and both GitHub workflows are present.
+- Reboot the Streamlit Community Cloud app or redeploy Railway.
+- No paid API key is required.
+- Recommended: `CS2_JINA_MIRROR_ENABLED=true`.
+- Keep `CS2_BO3_LAST_RESORT=false` and `CS2_ENABLE_LEGACY_WEB_SOURCES=false`.
+- Press Refresh Real Board + Projections once.
+- In Debug + Settings, verify: Underdog Lines > 0, Verified Profiles > 0, Projections > 0, Batch Mirror READY.
+- On Railway, keep the volume mounted at `/data` and use `CS2_DATA_DIR=/data/cs2_engine`.
+- On Streamlit Cloud, `CS2_DATA_DIR` may be omitted.

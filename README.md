@@ -1,170 +1,88 @@
-# OneWayPickz CS2 v2.0 — Railway/GitHub App
+# OneWayPickz CS2 v4.9
 
-White, red, and black Streamlit projection app for **CS2 Maps 1–2 Kills**.
+Streamlit/Railway projection engine for **CS2 Maps 1–2 Kills**.
 
-## Automatic workflow
+## What v4.9 fixes
 
-When the app loads or **Refresh Real Board + Projections** is pressed, it:
+Earlier builds pulled Underdog correctly but returned zero projections because Railway and Streamlit Cloud received 403/429 responses from per-player CS2 statistics sources. V4.9 replaces that request pattern with a self-contained **batch statistics mirror**:
 
-1. Pulls the current Underdog CS2 board.
-2. Keeps active **Maps 1–2 Kills** props only.
-3. Optionally pulls PrizePicks as a second-board line-consensus source.
-4. Matches each player to public CS2 player statistics.
-5. Verifies the scheduled match and listed rosters.
-6. Builds player map-specific KPR profiles.
-7. Reads confirmed vetoes when posted; otherwise simulates likely map pairs from recent picks, bans, usage, and win rates.
-8. Projects map score distributions, regulation rounds, close-map rate, blowout rate, and overtime.
-9. Adjusts player opportunity for role, opponent deaths allowed, current-roster stability, LAN/online environment, event tier, stage, and rest.
-10. Runs a map-by-map Monte Carlo model and displays projection, edge, over/under probability, expected rounds, floor, ceiling, and risk flags.
-11. Grades plays as **Official**, **Playable**, **Track Only**, or **Pass**.
-12. Saves line movement, official snapshots, grading results, and learning profiles to persistent storage.
+1. Underdog supplies current lines, teams, opponents, IDs and start times.
+2. Jina Reader retrieves the public HLTV aggregate player table in a few batch requests.
+3. Hundreds of player rows are parsed and cached in one operation.
+4. Current-board players are matched by nickname and player ID.
+5. Local database and full-round demo profiles remain higher-quality fallbacks.
+6. GitHub Actions may publish the same data on `data-cache`, but this is optional.
 
-The model never creates a betting line. If a live board is unavailable, it displays a source error and supports a real-board CSV import.
+The app does **not** make one request per player and does not create a league-average player projection.
 
-## Deep-data layers included
+## Upload to GitHub
 
-### Player
+Upload the complete package, especially:
 
-- 180-, 60-, and 20-day form
-- kills/deaths per round, ADR, rating, K/D
-- map-specific long-term and recent KPR
-- CT/T KPR when exposed
-- opening kills and opening deaths
-- KAST, impact, rounds with a kill
-- multi-kill frequency
-- rifle, sniper/AWP, and pistol kill split
-- assists, flash assists, trade kills, traded deaths, and clutches when exposed
-- inferred role with a confidence score
+- `app.py`
+- `source_bridge.py`
+- `collector.py`
+- `requirements.txt`
+- `.github/workflows/source_bridge.yml`
+- `.github/workflows/validate.yml`
+- `.streamlit/config.toml`
+- `railway.toml`
+- `start.sh`
 
-### Team, map, and matchup
+## Required settings
 
-- current roster and recent lineup overlap
-- maps played by the current core
-- map usage, map win rate, and round-win rate
-- recent map picks and bans
-- confirmed or simulated Maps 1–2 veto scenarios
-- map score, close-map, blowout, and overtime distributions
-- team kills per round and opponent deaths allowed per round from recent map scoreboards
-- world-ranking gap and match competitiveness
-
-### Environment and market
-
-- BO1/BO3/BO5 verification
-- LAN versus online
-- event, stage, and estimated event tier
-- recent rest days
-- Underdog opening/current line and movement
-- second-board line consensus when available
-- manually saved sportsbook over/under odds and no-vig probability
-
-## Repository files
-
-- `app.py` — complete application
-- `validate_model.py` — offline parser and simulation validation
-- `DATA_DICTIONARY.md` — data fields, sources, and fallbacks
-- `requirements.txt` — Python packages
-- `start.sh` — Railway/Streamlit startup command using Railway's `$PORT`
-- `railway.toml` — Railway build/deploy configuration
-- `Procfile` — secondary startup fallback
-- `.python-version` — Python 3.11
-- `.streamlit/config.toml` — theme and server settings
-- `.env.example` — variable template; never commit real secrets
-- `.github/workflows/validate.yml` — GitHub compile and model validation
-
-## GitHub setup
-
-1. Create a private GitHub repository, such as `onewaypickz-cs2`.
-2. Upload **all files and folders from this package**, including `.streamlit` and `.github`.
-3. Commit to `main`.
-4. Confirm the GitHub Action named **Validate CS2 App** passes.
-
-Do not upload `.env` or `.streamlit/secrets.toml` with real credentials.
-
-## Railway setup
-
-1. In Railway choose **New Project → Deploy from GitHub repo**.
-2. Select the repository.
-3. Add a persistent volume mounted at `/data`.
-4. Add:
+No paid key is required. The default mirror settings are already in code. Recommended Railway variables:
 
 ```text
 CS2_DATA_DIR=/data/cs2_engine
 TZ=America/Los_Angeles
-CS2_DEEP_DATA=true
-CS2_DEEP_MATCH_LIMIT=6
-CS2_DEEP_MAPSTATS_LIMIT=6
+CS2_JINA_MIRROR_ENABLED=true
+CS2_BO3_LAST_RESORT=false
+CS2_ENABLE_LEGACY_WEB_SOURCES=false
 ```
 
-5. Open **Settings → Networking → Generate Domain**.
+For Streamlit Community Cloud, `CS2_DATA_DIR` may be omitted. The app chooses a writable local folder automatically.
 
-Railway creates `PORT`; do not set it manually.
+## First refresh
 
-### Optional variables
+1. Deploy the full v4.9 package.
+2. Open the app.
+3. Press **Refresh Real Board + Projections** once.
+4. The first refresh downloads the batch tables and can take longer than later refreshes.
+5. Open **Debug + Settings → Source Status**.
+
+A healthy run should show:
+
+- Underdog Lines above zero
+- Verified Profiles above zero
+- Matched Teams above zero
+- Matched Events above zero
+- Projections above zero
+- Batch Mirror `READY`
+
+Batch profiles are intentionally capped at Track/Pass until lineup, veto and map-specific data become stronger. The purpose of v4.9 is to restore real projections safely, not to promote incomplete data to Official.
+
+## Optional GitHub warm cache
+
+The workflow **Refresh CS2 Provider Cache** runs on GitHub and writes `cs2_provider_cache.json` to the `data-cache` branch. This can make startup faster but is no longer required.
+
+For a private repository, add a read-only token to the app only when you want it to read the private `data-cache` branch:
 
 ```text
-PANDASCORE_TOKEN=
-UNDERDOG_URL_OVERRIDE=
-GITHUB_TOKEN=
-GITHUB_REPO=
-GITHUB_BRANCH=main
-GITHUB_DATA_PATH=learning_data/cs2
-GITHUB_AUTO_BACKUP=false
+CS2_BRIDGE_REPO=owner/repository
+CS2_BRIDGE_TOKEN=github_pat_...
 ```
 
-`PANDASCORE_TOKEN` is optional and is used only as a schedule/identity fallback. The app runs without it.
+## Demo Center
 
-## Persistent grading and learning
+Do not commit large professional `.dem` files to GitHub. Upload them in the app or, on Railway, place them under:
 
-With `CS2_DATA_DIR=/data/cs2_engine`, the Railway volume preserves:
-
-- source-page cache
-- official pregame snapshots
-- graded results
-- learning profiles
-- map/veto/team profiles
-- player map profiles
-- roster history
-- line movement
-- saved sportsbook odds
-- manual profile overrides
-
-## Confirm the live line and projection pipeline
-
-1. Open the Railway domain.
-2. Leave **Pull Underdog CS2** and **Deep map/veto/roster data** enabled.
-3. Press **Refresh Real Board + Projections**.
-4. Confirm `Real Props` is greater than zero when Underdog has active CS2 Maps 1–2 props.
-5. Open **Debug + Settings → Source Status**.
-6. Confirm the Underdog status reports `ok: true`, a parser name, and row count.
-7. Open a player card and inspect the player map profile, veto scenarios, map round distribution, opponent data, and data-quality components.
-
-## Empty-board behavior
-
-An empty board can mean:
-
-- Underdog has no current CS2 Maps 1–2 Kill props.
-- The public endpoint or market wording changed.
-- A cloud IP was blocked.
-- The event has not yet posted player props.
-
-The app does not label stale cached lines as current. Use the current-board CSV uploader in **Data Manager** until the source returns.
-
-## Local run
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python validate_model.py
-bash start.sh
+```text
+/data/cs2_engine/incoming_demos
 ```
 
-Open `http://localhost:8501`.
+Full-round demos can improve KPR, CT/T, role and economy modeling. Kill-only files never alter KPR without a verified round denominator.
 
-## Important model behavior
+## Safety behavior
 
-- Missing real data is not fabricated.
-- Low map, roster, opponent, or market confidence lowers the data score.
-- Stand-ins, uncertain formats, unmatched players, weak map samples, and extreme mismatches can force a Pass.
-- Public pages can change; use **Debug + Settings** to inspect every source response.
-- Projections are estimates, not guarantees.
+When Underdog works but all profile sources fail, the app returns Pass with no projection and shows the exact mirror/cache error. It does not reuse a league-average KPR as though it were a real player profile.
