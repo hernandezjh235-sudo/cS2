@@ -56,7 +56,7 @@ import streamlit as st
 # ============================================================
 
 APP_NAME = "ONE WAY PICKZ — CS2"
-APP_VERSION = "CS2 v4.9 — BATCH STATS MIRROR + SELF-HEALING PROFILE RECOVERY"
+APP_VERSION = "CS2 v5.0 — DIRECT BO3 PROFILE CACHE + PROGRESSIVE BOARD RECOVERY"
 MODEL_VERSION = "OWP_CS2_KILLS_M12_4.9"
 SEED_VERSION = "CS2_ACCURACY_SEED_2026_07_15_V49"
 
@@ -9697,6 +9697,340 @@ def build_full_board(props: List[Dict[str, Any]], deep_enabled: bool = True) -> 
 
 
 # PrizePicks is optional consensus only. Stop request storms after one 403/429.
+
+# ============================================================
+# V5.0 DIRECT BO3 PROFILE CACHE — SINGLE-FILE SOURCE RECOVERY
+# ============================================================
+# V4.9's Jina mirror could be paused even though BO3 public player pages were
+# available. V5.0 removes the mirror as a requirement. It loads verified BO3
+# player pages in a controlled progressive batch, saves every successful
+# profile to the persistent database, and reuses those profiles on future
+# refreshes. No league-average KPR is used to create a projection.
+
+APP_VERSION = "CS2 v5.0 — DIRECT BO3 PROFILE CACHE + PROGRESSIVE BOARD RECOVERY"
+MODEL_VERSION = "OWP_CS2_KILLS_M12_5.0"
+MODEL_SCHEMA_FINGERPRINT = "v50_direct_bo3_public_pages_progressive_cache_schema1"
+SOURCE_RECOVERY_VERSION = "5.0"
+
+V50_MAX_NEW_PROFILES = max(10, min(180, int(float(os.getenv("CS2_BO3_PROFILES_PER_REFRESH", "120") or 120))))
+V50_WORKERS = max(1, min(10, int(float(os.getenv("CS2_BO3_PROFILE_WORKERS", "6") or 6))))
+V50_PROFILE_TTL = max(3600, min(7 * 86400, int(float(os.getenv("CS2_BO3_PROFILE_TTL", "43200") or 43200))))
+V50_INDEX_TTL = max(3600, min(14 * 86400, int(float(os.getenv("CS2_BO3_INDEX_TTL", "86400") or 86400))))
+V50_INDEX_FILE = os.path.join(STORAGE_DIR, "cs2_bo3_player_index_v50.json")
+V50_STATUS: Dict[str, Any] = {"provider": "BO3 direct public pages", "loaded": 0, "failed": 0, "remaining": 0}
+V50_FETCH_LOCK = threading.Lock()
+
+
+def _v50_record_from_profile(profile: PlayerStats, meta: Dict[str, Any]) -> Dict[str, Any]:
+    map_profiles = dict(meta.get("player_map_profiles") or {})
+    return {
+        "player": profile.player,
+        "nickname": profile.player,
+        "player_id": profile.player_id,
+        "slug": profile.slug,
+        "team": profile.team,
+        "maps": int(profile.maps or 0),
+        "profile_maps": int(profile.maps or 0),
+        "rounds": int(profile.rounds or 0),
+        "profile_rounds": int(profile.rounds or 0),
+        "kills": int(profile.kills or 0),
+        "deaths": int(profile.deaths or 0),
+        "kpr": float(profile.kpr),
+        "base_kpr": float(profile.kpr),
+        "dpr": float(profile.dpr),
+        "adr": float(profile.adr),
+        "rating": float(profile.rating),
+        "kd": float(profile.kd),
+        "hs_pct": profile.hs_pct,
+        "opening_kpr": profile.opening_kpr,
+        "ct_kpr": profile.ct_kpr,
+        "t_kpr": profile.t_kpr,
+        "player_map_profiles": map_profiles,
+        "profile_source": profile.source,
+        "profile_href": profile.href,
+        "provider": "BO3 public professional statistics",
+        "kpr_source": "bo3_reported_kpr",
+        "profile_warnings": list(profile.data_warnings or []),
+        "identity_ids": {"player_id": profile.player_id},
+        "updated_at": now_iso(),
+        "generated_at": now_iso(),
+    }
+
+
+def _v50_store_runtime_profile(profile: PlayerStats, meta: Dict[str, Any]) -> Dict[str, Any]:
+    record = _v50_record_from_profile(profile, meta)
+    key = normalize_name(profile.player)
+    with V50_FETCH_LOCK:
+        V48_RUNTIME.setdefault("profiles", {})[key] = record
+    upsert_database_record(PLAYER_DATABASE_FILE, key, record)
+    try:
+        sqlite_store_entity_snapshot("player", str(profile.player_id or key), record,
+                                     "BO3 public professional statistics", 0, now_iso())
+    except Exception:
+        pass
+    return record
+
+
+def _v50_load_saved_profiles(players: Sequence[str]) -> int:
+    loaded = 0
+    runtime = V48_RUNTIME.setdefault("profiles", {})
+    for player in players:
+        key = normalize_name(player)
+        if key in runtime:
+            continue
+        row = lookup_database_player(player)
+        if not isinstance(row, dict):
+            continue
+        maps = safe_int(row.get("profile_maps") or row.get("maps"), 0) or 0
+        kpr = safe_float(row.get("base_kpr") or row.get("kpr"), None)
+        if maps >= V48_PROFILE_MIN_MAPS and kpr is not None and 0.25 <= kpr <= 1.25:
+            runtime[key] = row
+            loaded += 1
+    return loaded
+
+
+def _v50_index_age(payload: Dict[str, Any]) -> float:
+    dt = _parse_iso_datetime(payload.get("updated_at")) if isinstance(payload, dict) else None
+    return (datetime.now(timezone.utc) - dt).total_seconds() if dt else 10**12
+
+
+def _v50_build_bo3_index(force: bool = False) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+    cached = load_json(V50_INDEX_FILE, {})
+    if isinstance(cached, dict) and isinstance(cached.get("players"), dict) and not force and _v50_index_age(cached) <= V50_INDEX_TTL:
+        return cached["players"], {"ok": True, "provider": "persistent BO3 identity index", "rows": len(cached["players"]), "age_seconds": _v50_index_age(cached)}
+
+    # The filters endpoint can return a broad identity list in a few requests.
+    # If it is unavailable, direct nickname slugs are still attempted.
+    index: Dict[str, Dict[str, Any]] = {}
+    statuses: List[Dict[str, Any]] = []
+    _close_source_circuit("bo3")
+    _close_source_circuit("bo3_api")
+    for offset in [0, 250, 500, 750]:
+        payload, status = _bo3_get_json("/filters/players", "BO3 bulk player identity index", {
+            "page[offset]": str(offset),
+            "page[limit]": "250",
+            "filter[discipline_id][eq]": "1",
+            "with": "country",
+        }, ttl=V50_INDEX_TTL, allow_stale=True)
+        statuses.append(status)
+        rows = _bo3_payload_data(payload)
+        if not rows:
+            break
+        for item in rows:
+            a = attrs(item)
+            name = str(_bo3_scalar(a, ["nickname", "nick_name", "display_name", "player_name", "name"], "") or "").strip()
+            slug = str(_bo3_scalar(a, ["slug"], "") or "").strip().lower()
+            pid = str(object_id(item) or _bo3_scalar(a, ["id", "player_id"], "") or "")
+            if not name or not slug:
+                continue
+            rec = {"player": name, "nickname": name, "slug": slug, "player_id": pid}
+            index[normalize_name(name)] = rec
+            index.setdefault(normalize_name(slug.replace("-", " ")), rec)
+        if len(rows) < 250:
+            break
+        if _source_circuit_open("bo3"):
+            break
+    if index:
+        save_json(V50_INDEX_FILE, {"updated_at": now_iso(), "players": index}, force=True)
+        return index, {"ok": True, "provider": "BO3 bulk player identity index", "rows": len(index), "statuses": statuses}
+    if isinstance(cached, dict) and isinstance(cached.get("players"), dict):
+        return cached["players"], {"ok": True, "provider": "stale persistent BO3 identity index", "rows": len(cached["players"]), "warning": "live identity index unavailable"}
+    return {}, {"ok": False, "provider": "BO3 identity index", "rows": 0, "statuses": statuses,
+                "warning": "BO3 identity index unavailable; direct nickname slugs will be used"}
+
+
+def _v50_slug_list(player: str, index: Dict[str, Dict[str, Any]]) -> List[str]:
+    alias = _alias_record(player)
+    key = normalize_name(player)
+    raw: List[Any] = []
+    if key in index:
+        raw.append(index[key].get("slug"))
+    raw.extend(_bo3_slug_candidates(player, alias))
+    compact = re.sub(r"[^a-z0-9]", "", key)
+    raw.extend([compact, compact.replace("_", "-")])
+    # A small number of provider slugs omit a trailing character (for example
+    # 1NVISIBLEE -> 1nvisible). This is only tried after the exact slug.
+    if len(compact) >= 6 and compact.endswith("e"):
+        raw.append(compact[:-1])
+    return list(dict.fromkeys(str(x or "").strip().lower() for x in raw if str(x or "").strip()))[:6]
+
+
+def _v50_fetch_direct_profile(player: str, index: Dict[str, Dict[str, Any]]) -> Tuple[str, Optional[PlayerStats], Dict[str, Any]]:
+    if _source_circuit_open("bo3"):
+        return player, None, {"ok": False, "circuit_open": True, "warning": "BO3 provider circuit is open"}
+    last_meta: Dict[str, Any] = {}
+    for slug in _v50_slug_list(player, index):
+        url = f"{BO3_WEB_BASE}/players/{quote(slug)}"
+        page, status = http_get_text(url, "BO3 direct player profile", ttl=V50_PROFILE_TTL,
+                                     headers=_BO3_HEADERS, timeout=24, allow_stale=True,
+                                     stale_ttl=BO3_PROFILE_MAX_AGE)
+        last_meta = status
+        if not page:
+            if status.get("circuit_open"):
+                break
+            continue
+        # Verify the page identity before accepting the reported KPR.
+        title = re.search(r"<title[^>]*>(.*?)</title>", page, re.I | re.S)
+        title_text = strip_tags(title.group(1)) if title else ""
+        title_name = re.split(r"\s*\(|\s+CS2\s+Stats", title_text, maxsplit=1, flags=re.I)[0].strip()
+        if title_name and name_similarity(player, title_name) < .72 and name_similarity(player, slug.replace("-", " ")) < .82:
+            continue
+        profile, meta = _bo3_parse_player_html(page, player, slug, url)
+        if profile is not None and int(profile.maps or 0) >= V48_PROFILE_MIN_MAPS:
+            profile.team = profile.team or ""
+            return player, profile, {**meta, "http_status": status, "recovery_path": "BO3 direct public page"}
+    # One API search is used only after direct slugs fail. This avoids the old
+    # one-search-plus-three-stat-requests storm for every player.
+    if not _source_circuit_open("bo3"):
+        try:
+            profile, meta = _bo3_profile_from_api(player, _alias_record(player))
+            if profile is not None and int(profile.maps or 0) >= V48_PROFILE_MIN_MAPS:
+                return player, profile, {**meta, "recovery_path": "BO3 API search fallback"}
+            last_meta = meta
+        except Exception as exc:
+            last_meta = {"ok": False, "warning": str(exc)}
+    return player, None, last_meta
+
+
+def _v50_profile_available(player: str) -> bool:
+    local, _ = _playerstats_from_local(player)
+    if local is not None and int(local.maps or 0) >= V48_PROFILE_MIN_MAPS:
+        return True
+    prof, _ = _v48_profile_record_to_playerstats(player, (V48_RUNTIME.get("profiles") or {}).get(normalize_name(player), {}), "BO3 cached profile")
+    return prof is not None
+
+
+def v48_prefetch_provider_data(players: Sequence[str], force: bool = False) -> Dict[str, Any]:
+    unique = list(dict.fromkeys(str(x or "").strip() for x in players if str(x or "").strip()))
+    _close_source_circuit("jina_mirror")
+    _close_source_circuit("bo3_api")
+    # A BO3 block is short-lived. The user-facing reset button also clears it.
+    if force:
+        _close_source_circuit("bo3")
+
+    loaded_saved = _v50_load_saved_profiles(unique)
+    index, index_status = _v50_build_bo3_index(force=False)
+    missing = [p for p in unique if not _v50_profile_available(p)]
+    selected = missing[:V50_MAX_NEW_PROFILES]
+    successes = 0
+    failures: List[Dict[str, Any]] = []
+    if selected and not _source_circuit_open("bo3"):
+        with ThreadPoolExecutor(max_workers=min(V50_WORKERS, len(selected))) as executor:
+            futures = [executor.submit(_v50_fetch_direct_profile, player, index) for player in selected]
+            for future in as_completed(futures):
+                try:
+                    player, profile, meta = future.result()
+                except Exception as exc:
+                    failures.append({"player": "", "warning": str(exc)})
+                    continue
+                if profile is not None:
+                    _v50_store_runtime_profile(profile, meta)
+                    successes += 1
+                else:
+                    failures.append({"player": player, "warning": str(meta.get("warning") or "profile unavailable")})
+
+    # Re-load any profile written by another concurrent worker and build a team
+    # index for the synthetic Underdog match context.
+    _v50_load_saved_profiles(unique)
+    runtime_profiles = dict(V48_RUNTIME.get("profiles") or {})
+    runtime_teams = dict(V48_RUNTIME.get("teams") or {})
+    for key, value in _v49_build_team_index(runtime_profiles).items():
+        runtime_teams.setdefault(key, value)
+    V48_RUNTIME["teams"] = runtime_teams
+    V48_RUNTIME["bridge"] = {
+        "schema_version": 5,
+        "generated_at": now_iso(),
+        "profiles": runtime_profiles,
+        "teams": runtime_teams,
+        "matches": list(V48_RUNTIME.get("matches") or []),
+        "source_status": {"bo3_direct_profiles": {"ok": successes > 0 or bool(runtime_profiles), "loaded_now": successes}},
+    }
+
+    covered = sum(_v50_profile_available(p) for p in unique)
+    remaining = max(0, len(unique) - covered)
+    status = {
+        "ok": covered > 0,
+        "provider": "BO3 direct public profile cache",
+        "unique_players": len(unique),
+        "verified_profiles": covered,
+        "loaded_from_saved_cache": loaded_saved,
+        "loaded_this_refresh": successes,
+        "attempted_this_refresh": len(selected),
+        "remaining": remaining,
+        "progressive_limit": V50_MAX_NEW_PROFILES,
+        "index": index_status,
+        "provider_circuit_open": _source_circuit_open("bo3"),
+        "failures_sample": failures[:12],
+        "message": (f"Loaded {covered}/{len(unique)} verified player profiles. " +
+                    ("Refresh again to continue building the cache." if remaining else "Profile cache is complete for this board.")),
+    }
+    global V50_STATUS
+    V50_STATUS = status
+    V49_RUNTIME["statuses"] = {"bo3_direct_profiles": {"rows": covered, **status}}
+    V49_RUNTIME["last_prefetch"] = status
+    return {"direct_bo3": status, "unique_players": len(unique), "missing_after_direct": remaining}
+
+
+def fetch_hltv_player_table(days: int) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+    # Global HLTV/Jina table pulls are no longer required. Player profiles come
+    # from BO3 public pages and persistent cache.
+    return {}, {"ok": False, "disabled": True, "provider": "HLTV/Jina", "rows": 0,
+                "warning": "disabled in v5.0; BO3 direct profile cache is primary"}
+
+
+def _v48_bridge_profile(player: str, team_hint: str = "") -> Tuple[Optional[PlayerStats], Dict[str, Any]]:
+    # First use exact persistent/runtime records.
+    candidates = _v48_bridge_candidates(player)
+    for score, row in candidates:
+        if score < .86:
+            continue
+        profile, meta = _v48_profile_record_to_playerstats(player, row, str(row.get("provider") or "BO3 cached profile"))
+        if profile is None:
+            continue
+        row_team = str(row.get("team") or "")
+        exact = normalize_name(row.get("player") or row.get("nickname") or "") == normalize_name(player)
+        if team_hint and row_team and not _team_name_matches(team_hint, row_team) and not exact:
+            continue
+        if team_hint and exact and (not row_team or not _team_name_matches(team_hint, row_team)):
+            profile.team = team_hint
+            profile.data_warnings = list(dict.fromkeys(list(profile.data_warnings or []) + ["CURRENT TEAM FROM UNDERDOG; PROVIDER TEAM MAY BE HISTORICAL"]))
+        return profile, {**meta, "match_score": score, "recovery_path": "BO3 persistent/runtime cache", "core_kpr_verified": True}
+    local, local_meta = _playerstats_from_local(player)
+    if local is not None:
+        if team_hint and not local.team:
+            local.team = team_hint
+        return local, {**local_meta, "recovery_path": "verified local/demo profile", "core_kpr_verified": True}
+    return None, {"matched": False, "source_fresh": False, "core_kpr_verified": False,
+                  "warning": "Player has not been loaded into the progressive BO3 cache yet"}
+
+
+def build_player_profile(player_name: str, long_table: Dict[str, Dict[str, Any]], medium_table: Dict[str, Dict[str, Any]],
+                         recent30_table: Dict[str, Dict[str, Any]], recent15_table: Dict[str, Dict[str, Any]]) -> Tuple[PlayerStats, Dict[str, Any]]:
+    profile, meta = _v48_bridge_profile(player_name)
+    if profile is not None and int(profile.maps or 0) >= V48_PROFILE_MIN_MAPS:
+        return profile, meta
+    empty = PlayerStats(player=player_name, maps=0, rounds=0, kpr=LEAGUE_KPR, source="")
+    return empty, {"matched": False, "source_fresh": False, "core_kpr_verified": False,
+                   "recovery_path": "progressive cache pending",
+                   "source_failure": "Verified BO3/local/demo player profile is not loaded yet"}
+
+
+_v50_build_full_board_base = build_full_board
+
+def build_full_board(props: List[Dict[str, Any]], deep_enabled: bool = True) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    board, status = _v50_build_full_board_base(props, deep_enabled)
+    recovery = status.get("v48_source_recovery") or {}
+    recovery["v50_direct_bo3"] = dict(V50_STATUS)
+    recovery["primary_path"] = "BO3 public player pages → persistent database/demo → conservative synthetic match context"
+    recovery["message"] = V50_STATUS.get("message") or recovery.get("message")
+    status["v50_source_recovery"] = recovery
+    status["v48_source_recovery"] = recovery
+    for row in board:
+        row["model_version"] = MODEL_VERSION
+        row["feature_fingerprint"] = MODEL_SCHEMA_FINGERPRINT
+    return board, status
+
+
 _v49_prizepicks_previous = fetch_prizepicks_cs2_board
 
 def fetch_prizepicks_cs2_board() -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
@@ -9784,7 +10118,7 @@ st.markdown(
     f"""
 <div class="hero-panel">
   <div class="big-title">ONE WAY PICKZ — CS2</div>
-  <div class="sub-title">Maps 1–2 Kills · Self-healing batch stats mirror · Demo center · Neutral calibration · No per-player request storm</div>
+  <div class="sub-title">Maps 1–2 Kills · Direct BO3 profiles · Persistent cache · Demo center · Neutral calibration</div>
   <div style="margin-top:11px;">
     <span class="badge">WHITE + RED EDITION</span>
     <span class="badge">{_esc(MODEL_VERSION)}</span>
@@ -10336,7 +10670,7 @@ with tab_data:
                 aliases[normalize_name(mp)]={"alias":mp.strip(),"hltv_player_id":mid.strip(),"hltv_slug":mslug.strip() or normalize_name(mp).replace(" ","-"),"team":mteam.strip(),"opponent":mopp.strip(),"match_url":murl.strip(),"saved_at":now_iso()};save_json(PLAYER_ALIAS_FILE,aliases,force=True);st.success("Mapping saved. Refresh projections.");st.rerun()
 
     st.markdown('<div class="section-title-pro">Batch Stats Mirror + Optional GitHub Cache</div>', unsafe_allow_html=True)
-    st.caption("V4.9 self-loads one public aggregate player table per time window through the Jina batch mirror. GitHub Actions is an optional warm cache, not a required setup step.")
+    st.caption("V5.0 loads verified BO3 public player profiles in controlled batches and saves them permanently. If the full board is not complete on the first refresh, refresh again to continue.")
     bridge_payload, bridge_state = load_provider_bridge(force=False)
     b1,b2,b3,b4=st.columns(4)
     b1.metric("Cached Profiles",len(bridge_payload.get("profiles") or {}))
@@ -10352,9 +10686,9 @@ with tab_data:
             current_players=[str(x.get("player") or "") for x in (st.session_state.get("cs2_board") or []) if str(x.get("player") or "")]
             profs,mstate=_v49_generate_profiles(current_players,force=True) if current_players else ({},{"ok":False,"warning":"Refresh the real board first."})
             payload,state=load_provider_bridge(force=True)
-            if profs:st.success(f"Batch mirror loaded {len(profs)} current-board profiles. Refresh projections once.")
+            if profs:st.success(f"BO3 profile cache loaded {len(profs)} current-board profiles. Refresh projections once.")
             elif payload.get("profiles"):st.success(f"Loaded {len(payload.get('profiles') or {})} cached profiles.")
-            else:st.error(mstate.get("warning") or state.get("warning") or "Batch mirror and optional cache are empty.")
+            else:st.error(mstate.get("warning") or state.get("warning") or "BO3 profile cache and local/demo database are empty.")
             st.rerun()
     with bc2:
         if st.button("IMPORT UPLOADED BRIDGE",use_container_width=True,key="v48_import_bridge",disabled=bridge_upload is None):
@@ -10410,16 +10744,16 @@ with tab_debug:
             st.error(provider.get("message") or "Lines loaded, but no verified statistics profiles were available.")
     circuit_cols=st.columns(3)
     mirror_rows=sum(safe_int((x or {}).get("rows"),0) or 0 for x in (V49_RUNTIME.get("statuses") or {}).values())
-    circuit_cols[0].metric("Batch Mirror", "PAUSED" if _source_circuit_open("jina_mirror") else (f"READY · {mirror_rows}" if mirror_rows else "READY"))
+    circuit_cols[0].metric("BO3 Profile Cache", "PAUSED" if _source_circuit_open("jina_mirror") else (f"READY · {mirror_rows}" if mirror_rows else "READY"))
     circuit_cols[1].metric("Per-player BO3", "DISABLED" if not V49_ALLOW_BO3_LAST_RESORT else ("PAUSED" if _source_circuit_open("bo3_api") else "LAST RESORT"))
-    if circuit_cols[2].button("Reset mirror + reload sources",use_container_width=True,key="reset_v48_source_circuits"):
+    if circuit_cols[2].button("Reset BO3 source + continue loading",use_container_width=True,key="reset_v48_source_circuits"):
         for source_name in ["jina_mirror","hltv","bo3_api","prizepicks"]:_close_source_circuit(source_name)
         V48_RUNTIME["bridge"]=None;V49_RUNTIME["tables"]={};V49_RUNTIME["statuses"]={};V49_RUNTIME["last_prefetch"]={}
         load_provider_bridge(force=True);st.success("Source circuits reset. Press Refresh Real Board + Projections once.");st.rerun()
     if _source_circuit_open("jina_mirror"):
-        st.warning("The batch mirror is temporarily paused after a failed response. A saved mirror/database/demo profile can still be used; reset after the cooldown or try again later.")
+        st.warning("The BO3 provider is temporarily paused after a failed response. Saved database/demo profiles remain available. Reset the source and refresh again after the cooldown.")
     else:
-        st.info("V4.9 uses a two-to-four request batch mirror for hundreds of players. It does not send one blocked request per player.")
+        st.info("V5.0 progressively loads verified BO3 public player pages with rate-limited concurrency and persistent caching.")
     st.write("Line source status")
     st.json(st.session_state.get("cs2_line_source_status") or {}, expanded=False)
     st.write("Projection source status")
