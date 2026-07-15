@@ -5,7 +5,7 @@ Single-file Streamlit/Railway application.
 
 Design goals
 ------------
-* Reuse the MLB master application's red/black card workflow.
+* Reuse the established red/black projection-card workflow.
 * Pull real CS2 pick'em lines only. Never create synthetic prop lines.
 * Work without a paid data provider by using public board endpoints and
   publicly accessible CS2 statistics pages, with transparent source status.
@@ -232,7 +232,7 @@ PROTECTED_FILES = {
 }
 
 # ============================================================
-# STREAMLIT PAGE / MLB-LIKE WHITE + RED UI
+# STREAMLIT PAGE / CS2 WHITE + RED UI
 # ============================================================
 
 st.set_page_config(
@@ -7634,8 +7634,6 @@ def _bo3_profile_from_api(player: str, alias: Optional[Dict[str, Any]] = None) -
         return None, {"ok": False, "provider": "BO3", "search": sstatus, "general": gstatus,
                       "maps": mstatus, "warning": "BO3 API did not return a usable KPR/map sample"}
     team = str(_bo3_scalar(a, ["team_name", "current_team", "team"], "") or "")
-    if not team and details:
-        team = _v48_team_name_from_payload(details)
     score = safe_float(_bo3_scalar(general, ["score", "rating"], None), None)
     rating = clamp(1.0 + ((score or 6.27) - 6.27) * .11, .70, 1.35)
     profile = PlayerStats(player=player, player_id=f"bo3:{pid or slug}", slug=slug, team=team,
@@ -8325,8 +8323,6 @@ def _v48_profile_record_from_bo3(player: str, candidate: Dict[str, Any], general
     if kpr is None or not (.25 <= kpr <= 1.25) or (maps_count < V48_PROFILE_MIN_MAPS and rounds < V48_PROFILE_MIN_ROUNDS):
         return None
     team = str(_bo3_scalar(a, ["team_name", "current_team", "team"], "") or "")
-    if not team and details:
-        team = _v48_team_name_from_payload(details)
     if rating is not None and rating > 2:
         rating = clamp(1.0 + (rating - 6.27) * .11, .70, 1.35)
     record = {
@@ -10044,6 +10040,510 @@ def fetch_prizepicks_cs2_board() -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     return rows, meta
 
 
+
+# ============================================================
+# V5.1 HYBRID BATCH RECOVERY — PAGINATED HLTV/JINA + BO3/JINA
+# ============================================================
+# V5.0 could load zero profiles on Railway when BO3 rejected direct requests.
+# V5.1 makes one paginated aggregate pass through Jina Reader, parses both
+# one-line and multi-line markdown table output, then uses a small BO3/Jina
+# fallback only for players still missing. All recovered profiles are cached.
+
+APP_VERSION = "CS2 v5.1 — HYBRID BATCH PROFILE RECOVERY"
+MODEL_VERSION = "OWP_CS2_KILLS_M12_5.1"
+MODEL_SCHEMA_FINGERPRINT = "v51_paginated_hltv_jina_bo3_jina_cache_schema1"
+SOURCE_RECOVERY_VERSION = "5.1"
+
+# HLTV normally exposes 50 rows per page. The old v4.9 threshold of 80 could
+# reject a completely valid page, so v5.1 accepts a healthy 20+ row page.
+V49_MIN_BATCH_ROWS = max(15, int(float(os.getenv("CS2_MIRROR_MIN_ROWS", "20") or 20)))
+V51_PAGE_SIZE = 50
+V51_MAX_PAGES = max(4, min(18, int(float(os.getenv("CS2_HLTV_BATCH_PAGES", "12") or 12))))
+V51_PAGE_WORKERS = max(1, min(5, int(float(os.getenv("CS2_HLTV_BATCH_WORKERS", "4") or 4))))
+V51_BO3_FALLBACK_LIMIT = max(0, min(16, int(float(os.getenv("CS2_BO3_JINA_FALLBACK", "6") or 6))))
+V51_BO3_FALLBACK_WORKERS = max(1, min(3, int(float(os.getenv("CS2_BO3_JINA_WORKERS", "3") or 3))))
+V51_CACHE_FILE = os.path.join(STORAGE_DIR, "cs2_hltv_paginated_v51.json")
+V51_CACHE_FRESH_SECONDS = max(1800, min(24 * 3600, int(float(os.getenv("CS2_V51_CACHE_FRESH_SECONDS", "21600") or 21600))))
+V51_CACHE_STALE_SECONDS = max(V51_CACHE_FRESH_SECONDS, min(14 * 86400, int(float(os.getenv("CS2_V51_CACHE_STALE_SECONDS", "604800") or 604800))))
+V51_RUNTIME: Dict[str, Any] = {"table": {}, "status": {}, "fallback": {}, "last_prefetch": {}}
+
+
+def _v51_jina_headers() -> Dict[str, str]:
+    headers = {
+        "User-Agent": "OneWayPickz-CS2-v5.1",
+        "Accept": "text/plain,*/*",
+        "X-Return-Format": "markdown",
+        "X-Timeout": "45",
+    }
+    token = str(os.getenv("JINA_API_KEY") or os.getenv("CS2_JINA_API_KEY") or "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def _v51_numeric_window(segment: str) -> Optional[Tuple[int, int, float, float, float]]:
+    clean = _v49_clean_markdown_text(segment).replace("|", " ")
+    tokens = re.findall(r"(?<![A-Za-z0-9_.])([+-]?\d+(?:\.\d+)?)(?![A-Za-z0-9_.])", clean)
+    for idx in range(max(0, len(tokens) - 4)):
+        window = tokens[idx:idx + 5]
+        if len(window) < 5:
+            continue
+        try:
+            maps_f, rounds_f, diff_f, kd, rating = map(float, window)
+            maps, rounds = int(round(maps_f)), int(round(rounds_f))
+        except Exception:
+            continue
+        if abs(maps_f - maps) > 1e-6 or abs(rounds_f - rounds) > 1e-6:
+            continue
+        if not (1 <= maps <= 5000):
+            continue
+        if not (max(8, maps * 6) <= rounds <= maps * 45 + 300):
+            continue
+        if abs(diff_f) > rounds:
+            continue
+        if not (0.25 <= kd <= 3.5 and 0.25 <= rating <= 3.5):
+            continue
+        return maps, rounds, diff_f, kd, rating
+    return None
+
+
+def _v49_parse_hltv_batch_markdown(markdown: str, source_url: str = "", pulled_at: str = "") -> Dict[str, Dict[str, Any]]:
+    """Parse HLTV/Jina output even when one table row spans many lines."""
+    rows: Dict[str, Dict[str, Any]] = {}
+    raw = str(markdown or "")
+    if not raw.strip():
+        return rows
+    player_re = re.compile(
+        r"\[([^\]]+)\]\((?:https?://(?:www\.)?hltv\.org)?(/stats/players/(\d+)/([^)?#\s]+)[^)]*)\)",
+        re.I,
+    )
+    team_re = re.compile(
+        r"\[([^\]]+)\]\((?:https?://(?:www\.)?hltv\.org)?/stats/teams/\d+/[^)]*\)",
+        re.I,
+    )
+    matches = list(player_re.finditer(raw))
+    for idx, pm in enumerate(matches):
+        end = matches[idx + 1].start() if idx + 1 < len(matches) else min(len(raw), pm.end() + 2200)
+        segment = raw[pm.end():end]
+        numeric = _v51_numeric_window(segment)
+        if numeric is None:
+            # Some cached Reader responses keep the complete row on the same line.
+            line_start = raw.rfind("\n", 0, pm.start()) + 1
+            line_end = raw.find("\n", pm.end())
+            if line_end < 0:
+                line_end = len(raw)
+            numeric = _v51_numeric_window(raw[line_start:line_end])
+        if numeric is None:
+            continue
+        maps, rounds, diff, kd, rating = numeric
+        rates = _v49_derive_aggregate_rates(rounds, diff, kd, rating)
+        if rates.get("kpr") is None:
+            continue
+        player = _v49_clean_markdown_text(pm.group(1))
+        if not player:
+            continue
+        teams = []
+        for team_name in team_re.findall(segment):
+            team_name = _v49_clean_markdown_text(team_name)
+            if team_name and team_name not in teams:
+                teams.append(team_name)
+        pid, slug = pm.group(3), pm.group(4).split("?")[0].strip("/")
+        record = {
+            "player": player,
+            "nickname": player,
+            "player_id": str(pid),
+            "slug": slug,
+            "team": teams[0] if teams else "",
+            "teams": teams,
+            "maps": maps,
+            "profile_maps": maps,
+            "rounds": rounds,
+            "profile_rounds": rounds,
+            "kills": rates["kills"],
+            "deaths": rates["deaths"],
+            "kpr": rates["kpr"],
+            "base_kpr": rates["kpr"],
+            "dpr": rates["dpr"],
+            "kd": kd,
+            "rating": rating,
+            "adr": clamp(LEAGUE_ADR * (.58 * rating + .42 * (rates["kpr"] / LEAGUE_KPR)), 58, 96),
+            "profile_href": urljoin(HLTV_BASE, pm.group(2)),
+            "href": urljoin(HLTV_BASE, pm.group(2)),
+            "provider": "Jina HLTV paginated batch mirror",
+            "profile_source": "Jina HLTV paginated batch mirror",
+            "kpr_source": "hltv_batch_real_aggregate_derived",
+            "profile_warnings": [
+                "KPR derived from real rounds, K-D difference and rounded K/D; exact page enrichment pending"
+            ],
+            "updated_at": pulled_at or now_iso(),
+            "generated_at": pulled_at or now_iso(),
+            "source_url": source_url,
+            "aggregate_method": rates["method"],
+            "player_map_profiles": {},
+        }
+        key = normalize_name(player)
+        old = rows.get(key)
+        if old is None or maps > (safe_int(old.get("maps"), 0) or 0):
+            rows[key] = record
+    return rows
+
+
+def _v51_target_url(days: int, offset: int = 0) -> str:
+    base = _v49_target_url(days)
+    if offset > 0:
+        return f"{base}&offset={int(offset)}"
+    return base
+
+
+def _v51_fetch_one_page(days: int, offset: int) -> Tuple[int, Dict[str, Dict[str, Any]], Dict[str, Any]]:
+    target = _v51_target_url(days, offset)
+    mirror_url = V49_JINA_BASE + target
+    try:
+        response = requests.get(
+            mirror_url,
+            headers=_v51_jina_headers(),
+            timeout=max(V49_REQUEST_TIMEOUT, 45),
+        )
+        log_request("HLTV paginated Jina mirror", mirror_url, response.status_code, response.reason)
+        if response.status_code != 200:
+            return offset, {}, {
+                "ok": False,
+                "offset": offset,
+                "status": response.status_code,
+                "warning": f"Jina page returned HTTP {response.status_code}",
+            }
+        pulled = now_iso()
+        parsed = _v49_parse_hltv_batch_markdown(response.text, target, pulled)
+        return offset, parsed, {
+            "ok": len(parsed) > 0,
+            "offset": offset,
+            "status": 200,
+            "rows": len(parsed),
+            "body_bytes": len(response.content),
+            "target_url": target,
+        }
+    except Exception as exc:
+        log_request("HLTV paginated Jina mirror", mirror_url, 0, str(exc))
+        return offset, {}, {"ok": False, "offset": offset, "status": 0, "warning": str(exc)}
+
+
+def _v51_cache_payload() -> Dict[str, Any]:
+    payload = load_json(V51_CACHE_FILE, {})
+    return payload if isinstance(payload, dict) else {}
+
+
+def _v51_fetch_paginated_table(days: int = 90, force: bool = False) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+    days = int(days)
+    cache_key = f"players:{days}:pages:{V51_MAX_PAGES}"
+    if not force and V51_RUNTIME.get("table"):
+        return dict(V51_RUNTIME["table"]), dict(V51_RUNTIME.get("status") or {})
+    payload = _v51_cache_payload()
+    cached = (payload.get("tables") or {}).get(cache_key) or {}
+    cached_rows = cached.get("rows") if isinstance(cached, dict) else None
+    age = _v49_age_seconds(cached.get("updated_at")) if isinstance(cached, dict) else None
+    if (
+        not force
+        and isinstance(cached_rows, dict)
+        and len(cached_rows) >= V49_MIN_BATCH_ROWS
+        and age is not None
+        and age <= V51_CACHE_FRESH_SECONDS
+    ):
+        status = {
+            "ok": True,
+            "provider": "persistent paginated Jina cache",
+            "rows": len(cached_rows),
+            "age_seconds": age,
+            "days": days,
+            "pages_requested": 0,
+            "network_requests": 0,
+        }
+        V51_RUNTIME["table"] = cached_rows
+        V51_RUNTIME["status"] = status
+        return cached_rows, status
+
+    offsets = [i * V51_PAGE_SIZE for i in range(V51_MAX_PAGES)]
+    merged: Dict[str, Dict[str, Any]] = {}
+    page_statuses: List[Dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=min(V51_PAGE_WORKERS, len(offsets))) as executor:
+        futures = [executor.submit(_v51_fetch_one_page, days, offset) for offset in offsets]
+        for future in as_completed(futures):
+            try:
+                offset, page_rows, page_status = future.result()
+            except Exception as exc:
+                page_statuses.append({"ok": False, "warning": str(exc)})
+                continue
+            page_statuses.append(page_status)
+            for key, row in page_rows.items():
+                old = merged.get(key)
+                if old is None or (safe_int(row.get("maps"), 0) or 0) > (safe_int(old.get("maps"), 0) or 0):
+                    merged[key] = row
+
+    if len(merged) >= V49_MIN_BATCH_ROWS:
+        pulled = now_iso()
+        payload.setdefault("tables", {})[cache_key] = {
+            "updated_at": pulled,
+            "days": days,
+            "pages": V51_MAX_PAGES,
+            "rows": merged,
+        }
+        save_json(V51_CACHE_FILE, payload, force=True)
+        status = {
+            "ok": True,
+            "provider": "Jina HLTV paginated batch mirror",
+            "rows": len(merged),
+            "days": days,
+            "pages_requested": V51_MAX_PAGES,
+            "pages_ok": sum(bool(x.get("ok")) for x in page_statuses),
+            "network_requests": len(offsets),
+            "page_statuses": sorted(page_statuses, key=lambda x: safe_int(x.get("offset"), 0) or 0),
+        }
+        V51_RUNTIME["table"] = merged
+        V51_RUNTIME["status"] = status
+        return merged, status
+
+    if (
+        isinstance(cached_rows, dict)
+        and len(cached_rows) >= V49_MIN_BATCH_ROWS
+        and age is not None
+        and age <= V51_CACHE_STALE_SECONDS
+    ):
+        status = {
+            "ok": True,
+            "provider": "stale persistent paginated Jina cache",
+            "rows": len(cached_rows),
+            "age_seconds": age,
+            "days": days,
+            "pages_requested": V51_MAX_PAGES,
+            "network_requests": len(offsets),
+            "warning": "Live paginated mirror was incomplete; stale verified cache used",
+            "page_statuses": page_statuses,
+        }
+        V51_RUNTIME["table"] = cached_rows
+        V51_RUNTIME["status"] = status
+        return cached_rows, status
+
+    status = {
+        "ok": False,
+        "provider": "Jina HLTV paginated batch mirror",
+        "rows": len(merged),
+        "days": days,
+        "pages_requested": V51_MAX_PAGES,
+        "network_requests": len(offsets),
+        "warning": "No usable batch profile table was recovered",
+        "page_statuses": page_statuses,
+    }
+    V51_RUNTIME["table"] = merged
+    V51_RUNTIME["status"] = status
+    return merged, status
+
+
+def _v51_generate_profiles(players: Sequence[str], force: bool = False) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+    table, table_status = _v51_fetch_paginated_table(90, force=force)
+    profiles = _v49_merge_profile_windows(players, {90: table}) if table else {}
+    # Preserve explicit source fields after the neutral form merge.
+    for row in profiles.values():
+        row["provider"] = "Jina HLTV paginated batch mirror"
+        row["profile_source"] = "Jina HLTV paginated batch mirror"
+        row["kpr_source"] = "hltv_batch_real_aggregate_derived"
+    return profiles, {
+        "ok": bool(profiles),
+        "provider": "Jina HLTV paginated batch mirror",
+        "profiles": len(profiles),
+        "requested": len(set(normalize_name(x) for x in players if str(x or "").strip())),
+        "table": table_status,
+    }
+
+
+def _v51_persist_profiles(profiles: Dict[str, Dict[str, Any]]) -> int:
+    if not profiles:
+        return 0
+    database = _load_json_dict(PLAYER_DATABASE_FILE)
+    written = 0
+    exact_sources = {"real_kills_div_rounds", "hltv_reported_kpr", "bo3_reported_kpr", "demo_full_round_kpr"}
+    for key, row in profiles.items():
+        old = database.get(key, {}) if isinstance(database.get(key), dict) else {}
+        old_exact = str(old.get("kpr_source") or "") in exact_sources
+        if old_exact and (safe_int(old.get("profile_maps") or old.get("maps"), 0) or 0) >= (safe_int(row.get("maps"), 0) or 0):
+            continue
+        database[key] = {**old, **row, "updated_at": now_iso(), "schema_version": DATABASE_SCHEMA_VERSION}
+        written += 1
+    if written:
+        _save_json_dict(PLAYER_DATABASE_FILE, database)
+    return written
+
+
+def _v51_cached_bo3_index() -> Dict[str, Dict[str, Any]]:
+    payload = load_json(V50_INDEX_FILE, {})
+    if isinstance(payload, dict) and isinstance(payload.get("players"), dict):
+        return payload["players"]
+    return {}
+
+
+def _v51_fetch_bo3_jina_profile(player: str, index: Dict[str, Dict[str, Any]]) -> Tuple[str, Optional[PlayerStats], Dict[str, Any]]:
+    last: Dict[str, Any] = {}
+    for slug in _v50_slug_list(player, index)[:4]:
+        target = f"{BO3_WEB_BASE}/players/{quote(slug)}"
+        mirror_url = V49_JINA_BASE + target
+        try:
+            response = requests.get(mirror_url, headers=_v51_jina_headers(), timeout=max(V49_REQUEST_TIMEOUT, 45))
+            log_request("BO3 player via Jina", mirror_url, response.status_code, response.reason)
+            last = {"ok": response.status_code == 200, "status": response.status_code, "target_url": target}
+            if response.status_code != 200:
+                continue
+            profile, meta = _bo3_parse_player_html(response.text, player, slug, target)
+            if profile is not None and int(profile.maps or 0) >= V48_PROFILE_MIN_MAPS:
+                profile.source = "BO3 public player page via Jina Reader"
+                profile.href = target
+                profile.data_warnings = list(dict.fromkeys(list(profile.data_warnings or []) + ["BO3 PAGE RETRIEVED THROUGH JINA READER"]))
+                return player, profile, {**meta, "provider": "BO3/Jina", "recovery_path": "BO3 public page via Jina Reader"}
+            last = {**last, **meta}
+        except Exception as exc:
+            last = {"ok": False, "warning": str(exc), "target_url": target}
+    return player, None, last
+
+
+def fetch_hltv_player_table(days: int) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+    # The projection model reads the preloaded paginated table. Do not launch
+    # four additional network sweeps for 365/90/30/15 inside one refresh.
+    if V51_RUNTIME.get("table"):
+        return dict(V51_RUNTIME["table"]), {**dict(V51_RUNTIME.get("status") or {}), "requested_days": int(days)}
+    return {}, {"ok": False, "provider": "V5.1 paginated profile cache", "rows": 0, "requested_days": int(days)}
+
+
+def v48_prefetch_provider_data(players: Sequence[str], force: bool = False) -> Dict[str, Any]:
+    unique = list(dict.fromkeys(str(x or "").strip() for x in players if str(x or "").strip()))
+    _close_source_circuit("jina_mirror")
+    if force:
+        V51_RUNTIME["table"] = {}
+        V51_RUNTIME["status"] = {}
+
+    loaded_saved = _v50_load_saved_profiles(unique)
+    fresh, mirror_status = _v51_generate_profiles(unique, force=force)
+    runtime_profiles = dict(V48_RUNTIME.get("profiles") or {})
+    exact_sources = {"real_kills_div_rounds", "hltv_reported_kpr", "bo3_reported_kpr", "demo_full_round_kpr"}
+    for key, row in fresh.items():
+        old = runtime_profiles.get(key) or {}
+        old_exact = str(old.get("kpr_source") or "") in exact_sources
+        if not old_exact or (safe_int(row.get("maps"), 0) or 0) >= (safe_int(old.get("maps"), 0) or 0):
+            runtime_profiles[key] = row
+    V48_RUNTIME["profiles"] = runtime_profiles
+    persisted_batch = _v51_persist_profiles(fresh)
+
+    missing = [player for player in unique if not _v50_profile_available(player)]
+    network_requests = safe_int(((mirror_status.get("table") or {}).get("network_requests")), 0) or 0
+    fallback_limit = V51_BO3_FALLBACK_LIMIT if network_requests else min(12, max(V51_BO3_FALLBACK_LIMIT, 8))
+    selected = missing[:fallback_limit]
+    fallback_successes = 0
+    fallback_failures: List[Dict[str, Any]] = []
+    index = _v51_cached_bo3_index()
+    if selected:
+        with ThreadPoolExecutor(max_workers=min(V51_BO3_FALLBACK_WORKERS, len(selected))) as executor:
+            futures = [executor.submit(_v51_fetch_bo3_jina_profile, player, index) for player in selected]
+            for future in as_completed(futures):
+                try:
+                    player, profile, meta = future.result()
+                except Exception as exc:
+                    fallback_failures.append({"player": "", "warning": str(exc)})
+                    continue
+                if profile is not None:
+                    _v50_store_runtime_profile(profile, meta)
+                    fallback_successes += 1
+                else:
+                    fallback_failures.append({"player": player, "warning": str(meta.get("warning") or "profile unavailable")})
+
+    _v50_load_saved_profiles(unique)
+    runtime_profiles = dict(V48_RUNTIME.get("profiles") or {})
+    runtime_teams = dict(V48_RUNTIME.get("teams") or {})
+    for key, value in _v49_build_team_index(runtime_profiles).items():
+        runtime_teams.setdefault(key, value)
+    V48_RUNTIME["teams"] = runtime_teams
+    V48_RUNTIME["bridge"] = {
+        "schema_version": 6,
+        "generated_at": now_iso(),
+        "profiles": runtime_profiles,
+        "teams": runtime_teams,
+        "matches": list(V48_RUNTIME.get("matches") or []),
+        "source_status": {"v51_paginated_mirror": mirror_status},
+    }
+
+    covered = sum(_v50_profile_available(player) for player in unique)
+    remaining = max(0, len(unique) - covered)
+    status = {
+        "ok": covered > 0,
+        "provider": "HLTV paginated batch via Jina + BO3/Jina fallback",
+        "unique_players": len(unique),
+        "verified_profiles": covered,
+        "loaded_from_saved_cache": loaded_saved,
+        "loaded_from_batch": len(fresh),
+        "persisted_batch_profiles": persisted_batch,
+        "loaded_from_bo3_fallback": fallback_successes,
+        "attempted_bo3_fallback": len(selected),
+        "remaining": remaining,
+        "batch_status": mirror_status,
+        "fallback_failures_sample": fallback_failures[:12],
+        "message": (
+            f"Loaded {covered}/{len(unique)} verified player profiles using the v5.1 hybrid cache. "
+            + ("Refresh once more to continue the small BO3 fallback cache." if remaining else "Profile cache is complete for this board.")
+        ),
+    }
+    global V50_STATUS
+    V50_STATUS = status
+    V51_RUNTIME["fallback"] = {"successes": fallback_successes, "attempted": len(selected), "failures": fallback_failures[:12]}
+    V51_RUNTIME["last_prefetch"] = status
+    V49_RUNTIME["statuses"] = {
+        "v51_paginated_mirror": {"rows": safe_int(((mirror_status.get("table") or {}).get("rows")), 0) or 0, **mirror_status},
+        "v51_bo3_jina_fallback": {"rows": fallback_successes, "attempted": len(selected), "ok": fallback_successes > 0},
+    }
+    V49_RUNTIME["last_prefetch"] = status
+    return {
+        "mirror": mirror_status,
+        "bo3_jina_fallback": V51_RUNTIME["fallback"],
+        "unique_players": len(unique),
+        "verified_profiles": covered,
+        "missing_after_recovery": remaining,
+    }
+
+
+_v51_build_full_board_base = build_full_board
+
+
+def build_full_board(props: List[Dict[str, Any]], deep_enabled: bool = True) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    board, status = _v51_build_full_board_base(props, deep_enabled)
+    profiles = sum((safe_int(row.get("profile_maps"), 0) or 0) > 0 for row in board)
+    projections = sum(row.get("projection") is not None for row in board)
+    matches = sum(bool(row.get("match_url")) for row in board)
+    recovery = dict(status.get("v49_source_recovery") or status.get("v48_source_recovery") or {})
+    recovery.update({
+        "lines_loaded": len(board),
+        "verified_profiles": profiles,
+        "matched_teams": sum(bool(row.get("team")) for row in board),
+        "matched_events": matches,
+        "projections_generated": projections,
+        "profile_coverage_pct": round(profiles / max(len(board), 1) * 100, 1),
+        "projection_coverage_pct": round(projections / max(len(board), 1) * 100, 1),
+        "primary_path": "Paginated HLTV aggregate via Jina → persistent profile cache → BO3/Jina fallback",
+        "v51_status": dict(V50_STATUS),
+        "message": (
+            f"V5.1 recovered {profiles}/{len(board)} player profiles and generated {projections} projections."
+            if projections
+            else (V50_STATUS.get("message") or "Lines loaded, but no verified statistics profiles were recovered.")
+        ),
+    })
+    for row in board:
+        row["model_version"] = MODEL_VERSION
+        row["feature_fingerprint"] = MODEL_SCHEMA_FINGERPRINT
+    status.update({
+        "v51_source_recovery": recovery,
+        "v50_source_recovery": recovery,
+        "v49_source_recovery": recovery,
+        "v48_source_recovery": recovery,
+        "v47_provider_recovery": recovery,
+        "model_version": MODEL_VERSION,
+        "feature_fingerprint": MODEL_SCHEMA_FINGERPRINT,
+    })
+    return board, status
+
+
 # ============================================================
 # SESSION BOARD LOAD
 # ============================================================
@@ -10744,16 +11244,16 @@ with tab_debug:
             st.error(provider.get("message") or "Lines loaded, but no verified statistics profiles were available.")
     circuit_cols=st.columns(3)
     mirror_rows=sum(safe_int((x or {}).get("rows"),0) or 0 for x in (V49_RUNTIME.get("statuses") or {}).values())
-    circuit_cols[0].metric("BO3 Profile Cache", "PAUSED" if _source_circuit_open("jina_mirror") else (f"READY · {mirror_rows}" if mirror_rows else "READY"))
-    circuit_cols[1].metric("Per-player BO3", "DISABLED" if not V49_ALLOW_BO3_LAST_RESORT else ("PAUSED" if _source_circuit_open("bo3_api") else "LAST RESORT"))
+    circuit_cols[0].metric("Batch Profile Cache", f"READY · {mirror_rows}" if mirror_rows else "READY")
+    circuit_cols[1].metric("BO3/Jina Fallback", f"LOADED · {safe_int(V50_STATUS.get('loaded_from_bo3_fallback'),0) or 0}")
     if circuit_cols[2].button("Reset BO3 source + continue loading",use_container_width=True,key="reset_v48_source_circuits"):
-        for source_name in ["jina_mirror","hltv","bo3_api","prizepicks"]:_close_source_circuit(source_name)
+        for source_name in ["jina_mirror","hltv","bo3","bo3_api","prizepicks"]:_close_source_circuit(source_name)
         V48_RUNTIME["bridge"]=None;V49_RUNTIME["tables"]={};V49_RUNTIME["statuses"]={};V49_RUNTIME["last_prefetch"]={}
         load_provider_bridge(force=True);st.success("Source circuits reset. Press Refresh Real Board + Projections once.");st.rerun()
     if _source_circuit_open("jina_mirror"):
         st.warning("The BO3 provider is temporarily paused after a failed response. Saved database/demo profiles remain available. Reset the source and refresh again after the cooldown.")
     else:
-        st.info("V5.0 progressively loads verified BO3 public player pages with rate-limited concurrency and persistent caching.")
+        st.info("V5.1 loads a paginated HLTV batch through Jina first, then uses a small BO3/Jina fallback for unmatched players. Recovered profiles persist in the Railway cache.")
     st.write("Line source status")
     st.json(st.session_state.get("cs2_line_source_status") or {}, expanded=False)
     st.write("Projection source status")
