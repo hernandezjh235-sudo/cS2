@@ -44,7 +44,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from statistics import NormalDist
-from urllib.parse import quote, urljoin
+from urllib.parse import quote, urljoin, urlencode
 
 import numpy as np
 import pandas as pd
@@ -56,9 +56,9 @@ import streamlit as st
 # ============================================================
 
 APP_NAME = "ONE WAY PICKZ — CS2"
-APP_VERSION = "CS2 v4.8 — VERIFIED DATA BRIDGE + BO3 JSON + RAILWAY RECOVERY"
-MODEL_VERSION = "OWP_CS2_KILLS_M12_4.8"
-SEED_VERSION = "CS2_ACCURACY_SEED_2026_07_14_V48"
+APP_VERSION = "CS2 v4.9 — BATCH STATS MIRROR + SELF-HEALING PROFILE RECOVERY"
+MODEL_VERSION = "OWP_CS2_KILLS_M12_4.9"
+SEED_VERSION = "CS2_ACCURACY_SEED_2026_07_15_V49"
 
 # The Underdog board endpoint is public but undocumented and can change.
 # UNDERDOG_URL_OVERRIDE lets Railway use a replacement endpoint without a code edit.
@@ -9176,6 +9176,540 @@ def build_team_deep_profile(team_id: str, slug: str, team_name: str) -> Tuple[Di
     return {}, {"ok": False, "provider": "none", "warning": "No bridge/local team profile; projection will use conservative map priors and cannot be Official"}
 
 
+
+# ============================================================
+# V4.9 BATCH STATS MIRROR — SELF-CONTAINED STREAMLIT/RAILWAY RECOVERY
+# ============================================================
+# V4.8 still required a pre-populated GitHub cache or a live BO3 response.
+# V4.9 removes that setup dependency. One batch request per time window is sent
+# through Jina Reader to the public HLTV aggregate table. The batch table covers
+# hundreds of players at once, is persisted locally, and is converted into
+# conservative real-player profiles. No request is sent once per player.
+
+MODEL_SCHEMA_FINGERPRINT = "v49_jina_batch_real_aggregate_synthetic_match_track_schema1"
+SOURCE_RECOVERY_VERSION = "4.9"
+V49_JINA_ENABLED = os.getenv("CS2_JINA_MIRROR_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
+V49_JINA_BASE = os.getenv("CS2_JINA_READER_BASE", "https://r.jina.ai/").strip().rstrip("/") + "/"
+V49_TABLE_CACHE_FILE = os.path.join(STORAGE_DIR, "cs2_hltv_batch_mirror.json")
+V49_TABLE_FRESH_SECONDS = max(900, min(24*3600, int(float(os.getenv("CS2_MIRROR_FRESH_SECONDS", "21600") or 21600))))
+V49_TABLE_STALE_SECONDS = max(V49_TABLE_FRESH_SECONDS, min(14*86400, int(float(os.getenv("CS2_MIRROR_STALE_SECONDS", "604800") or 604800))))
+V49_REQUEST_TIMEOUT = max(15, min(90, int(float(os.getenv("CS2_MIRROR_TIMEOUT", "45") or 45))))
+V49_MIN_BATCH_ROWS = max(25, int(float(os.getenv("CS2_MIRROR_MIN_ROWS", "80") or 80)))
+V49_ALLOW_BO3_LAST_RESORT = os.getenv("CS2_BO3_LAST_RESORT", "false").strip().lower() in {"1", "true", "yes", "on"}
+V49_RUNTIME: Dict[str, Any] = {"tables": {}, "statuses": {}, "synthetic_matches": {}, "profiles": {}, "teams": {}, "last_prefetch": {}}
+
+
+def _v49_cache_payload() -> Dict[str, Any]:
+    payload = load_json(V49_TABLE_CACHE_FILE, {})
+    if not isinstance(payload, dict):
+        payload = {}
+    payload.setdefault("schema_version", 1)
+    payload.setdefault("tables", {})
+    return payload
+
+
+def _v49_age_seconds(value: Any) -> Optional[float]:
+    dt = _parse_iso_datetime(value)
+    if not dt:
+        return None
+    return max(0.0, (datetime.now(timezone.utc) - dt).total_seconds())
+
+
+def _v49_target_url(days: int, side: str = "", map_name: str = "") -> str:
+    start, end = _period_dates(max(int(days), 1))
+    params: Dict[str, Any] = {"csVersion": "CS2", "startDate": start, "endDate": end, "minMapCount": 0}
+    if side:
+        params["side"] = side
+    if map_name and map_name in HLTV_MAP_KEYS:
+        params["maps"] = HLTV_MAP_KEYS[map_name]
+    return f"{HLTV_BASE}/stats/players?{urlencode(params)}"
+
+
+def _v49_clean_markdown_text(value: str) -> str:
+    text = re.sub(r"!\[[^\]]*\]\([^)]+\)", " ", str(value or ""))
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip(" |\t")
+
+
+def _v49_derive_aggregate_rates(rounds: int, kd_diff: float, kd: float, rating: float) -> Dict[str, Any]:
+    rounds = max(int(rounds or 0), 0)
+    kd = float(kd or 1.0)
+    diff = float(kd_diff or 0.0)
+    kills = deaths = 0.0
+    method = "rating_shrunk_fallback"
+    if rounds > 0 and abs(kd - 1.0) >= 0.012 and abs(diff) >= 1:
+        try:
+            deaths = diff / (kd - 1.0)
+            kills = deaths + diff
+            if deaths <= 0 or kills <= 0:
+                kills = deaths = 0.0
+            else:
+                kpr0, dpr0 = kills / rounds, deaths / rounds
+                if not (0.35 <= kpr0 <= 1.12 and 0.35 <= dpr0 <= 1.05):
+                    kills = deaths = 0.0
+                else:
+                    method = "real_rounds_kd_diff_derived"
+        except Exception:
+            kills = deaths = 0.0
+    if rounds <= 0:
+        return {"kills": 0, "deaths": 0, "kpr": None, "dpr": None, "method": "no_rounds"}
+    if kills <= 0 or deaths <= 0:
+        # This path is only for KD values rounded to exactly 1.00. It is kept
+        # conservative and receives an explicit warning/Track cap downstream.
+        kpr = clamp(LEAGUE_KPR * (0.72 + 0.28 * max(float(rating or 1.0), .75)), .49, .88)
+        dpr = clamp(kpr / max(kd, .72), .50, .88)
+        kills, deaths = kpr * rounds, dpr * rounds
+    else:
+        raw_kpr, raw_dpr = kills / rounds, deaths / rounds
+        rating_kpr = clamp(LEAGUE_KPR * (0.68 + .32 * max(float(rating or 1.0), .75)), .49, .90)
+        # KD is rounded to two decimals on the aggregate table. Shrink the
+        # algebraic estimate slightly toward a rating-based center.
+        kpr = .78 * raw_kpr + .22 * rating_kpr
+        dpr = clamp(kpr / max(kd, .72), .48, .90)
+        kills, deaths = kpr * rounds, dpr * rounds
+    return {"kills": int(round(kills)), "deaths": int(round(deaths)), "kpr": float(kills / rounds),
+            "dpr": float(deaths / rounds), "method": method}
+
+
+def _v49_parse_hltv_batch_markdown(markdown: str, source_url: str = "", pulled_at: str = "") -> Dict[str, Dict[str, Any]]:
+    rows: Dict[str, Dict[str, Any]] = {}
+    if not markdown:
+        return rows
+    player_re = re.compile(r"\[([^\]]+)\]\((?:https?://(?:www\.)?hltv\.org)?(/stats/players/(\d+)/([^)?#\s]+)[^)]*)\)", re.I)
+    team_re = re.compile(r"\[([^\]]+)\]\((?:https?://(?:www\.)?hltv\.org)?/stats/teams/\d+/[^)]*\)", re.I)
+    end_numbers = re.compile(r"(?:^|\s)(\d+)\s+(\d+)\s+([+-]?\d+)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s*\|?\s*$")
+    for raw_line in str(markdown).splitlines():
+        pm = player_re.search(raw_line)
+        if not pm:
+            continue
+        clean = _v49_clean_markdown_text(raw_line)
+        nm = end_numbers.search(clean)
+        if not nm:
+            # Markdown table cells can contain extra spacing. Read the final
+            # five numeric cells rather than numbers inside player nicknames.
+            parts = [x.strip() for x in raw_line.split("|") if x.strip()]
+            vals: List[str] = []
+            for cell in parts[-7:]:
+                c = _v49_clean_markdown_text(cell)
+                if re.fullmatch(r"[+-]?\d+(?:\.\d+)?", c):
+                    vals.append(c)
+            if len(vals) < 5:
+                continue
+            vals = vals[-5:]
+            maps_s, rounds_s, diff_s, kd_s, rating_s = vals
+        else:
+            maps_s, rounds_s, diff_s, kd_s, rating_s = nm.groups()
+        maps = safe_int(maps_s, 0) or 0
+        rounds = safe_int(rounds_s, 0) or 0
+        diff = safe_float(diff_s, 0) or 0
+        kd = safe_float(kd_s, 1.0) or 1.0
+        rating = safe_float(rating_s, 1.0) or 1.0
+        rates = _v49_derive_aggregate_rates(rounds, diff, kd, rating)
+        if rates.get("kpr") is None or maps <= 0 or rounds <= 0:
+            continue
+        teams = list(dict.fromkeys(_v49_clean_markdown_text(x) for x in team_re.findall(raw_line) if _v49_clean_markdown_text(x)))
+        player = _v49_clean_markdown_text(pm.group(1))
+        pid, slug = pm.group(3), pm.group(4).split("?")[0].strip("/")
+        key = normalize_name(player)
+        record = {
+            "player": player, "nickname": player, "player_id": str(pid), "slug": slug,
+            "team": teams[0] if teams else "", "teams": teams,
+            "maps": maps, "profile_maps": maps, "rounds": rounds, "profile_rounds": rounds,
+            "kills": rates["kills"], "deaths": rates["deaths"], "kpr": rates["kpr"],
+            "base_kpr": rates["kpr"], "dpr": rates["dpr"], "kd": kd, "rating": rating,
+            "adr": clamp(LEAGUE_ADR * (.58 * rating + .42 * (rates["kpr"] / LEAGUE_KPR)), 58, 96),
+            "profile_href": urljoin(HLTV_BASE, pm.group(2)), "href": urljoin(HLTV_BASE, pm.group(2)),
+            "provider": "Jina HLTV batch mirror", "kpr_source": "hltv_batch_real_aggregate_derived",
+            "profile_warnings": ["KPR derived from real rounds, K-D difference and rounded K/D; exact page enrichment pending"],
+            "updated_at": pulled_at or now_iso(), "generated_at": pulled_at or now_iso(),
+            "source_url": source_url, "aggregate_method": rates["method"], "player_map_profiles": {},
+        }
+        old = rows.get(key)
+        if old is None or maps > safe_int(old.get("maps"), 0):
+            rows[key] = record
+    return rows
+
+
+def _v49_fetch_table(days: int, force: bool = False) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+    days = int(days)
+    key = f"players:{days}:both:all"
+    if not force and key in V49_RUNTIME["tables"]:
+        return V49_RUNTIME["tables"][key], V49_RUNTIME["statuses"].get(key, {"ok": True, "provider": "runtime mirror"})
+    payload = _v49_cache_payload()
+    cached = (payload.get("tables") or {}).get(key) or {}
+    cached_rows = cached.get("rows") if isinstance(cached, dict) else None
+    age = _v49_age_seconds(cached.get("updated_at")) if isinstance(cached, dict) else None
+    if not force and isinstance(cached_rows, dict) and len(cached_rows) >= V49_MIN_BATCH_ROWS and age is not None and age <= V49_TABLE_FRESH_SECONDS:
+        for row in cached_rows.values():
+            if isinstance(row, dict):
+                row["_source_fresh"] = age <= 24*3600; row["_source_age_seconds"] = age
+        status = {"ok": True, "provider": "persistent Jina batch cache", "rows": len(cached_rows), "age_seconds": age, "days": days}
+        V49_RUNTIME["tables"][key] = cached_rows; V49_RUNTIME["statuses"][key] = status
+        return cached_rows, status
+    target = _v49_target_url(days)
+    mirror_url = V49_JINA_BASE + target
+    if V49_JINA_ENABLED and not _source_circuit_open("jina_mirror"):
+        try:
+            response = requests.get(mirror_url, headers={"User-Agent": "OneWayPickz-CS2-v4.9", "Accept": "text/plain,*/*", "X-Return-Format": "markdown"}, timeout=V49_REQUEST_TIMEOUT)
+            log_request("HLTV batch mirror", mirror_url, response.status_code, response.reason)
+            if response.status_code == 200:
+                pulled = now_iso()
+                parsed = _v49_parse_hltv_batch_markdown(response.text, target, pulled)
+                if len(parsed) >= V49_MIN_BATCH_ROWS:
+                    payload.setdefault("tables", {})[key] = {"updated_at": pulled, "target_url": target, "rows": parsed}
+                    save_json(V49_TABLE_CACHE_FILE, payload, force=True)
+                    _close_source_circuit("jina_mirror")
+                    status = {"ok": True, "provider": "Jina HLTV batch mirror", "rows": len(parsed), "status": 200,
+                              "days": days, "age_seconds": 0, "target_url": target,
+                              "body_bytes": len(response.content), "content_type": response.headers.get("content-type", "")}
+                    V49_RUNTIME["tables"][key] = parsed; V49_RUNTIME["statuses"][key] = status
+                    return parsed, status
+                _trip_source_circuit("jina_mirror", f"batch parser returned only {len(parsed)} rows", 10*60)
+            elif response.status_code in {403, 429}:
+                _trip_source_circuit("jina_mirror", f"HTTP {response.status_code}", 15*60)
+        except Exception as exc:
+            log_request("HLTV batch mirror", mirror_url, 0, str(exc))
+            _trip_source_circuit("jina_mirror", str(exc), 10*60)
+    if isinstance(cached_rows, dict) and len(cached_rows) >= V49_MIN_BATCH_ROWS and age is not None and age <= V49_TABLE_STALE_SECONDS:
+        for row in cached_rows.values():
+            if isinstance(row, dict):
+                row["_source_fresh"] = age <= 24*3600; row["_source_age_seconds"] = age
+        status = {"ok": True, "provider": "stale persistent Jina batch cache", "rows": len(cached_rows), "age_seconds": age,
+                  "days": days, "warning": "live batch mirror unavailable"}
+        V49_RUNTIME["tables"][key] = cached_rows; V49_RUNTIME["statuses"][key] = status
+        return cached_rows, status
+    status = {"ok": False, "provider": "Jina HLTV batch mirror", "rows": 0, "days": days,
+              "warning": "batch mirror unavailable and no usable persistent cache"}
+    V49_RUNTIME["statuses"][key] = status
+    return {}, status
+
+
+def _v49_merge_profile_windows(players: Sequence[str], tables: Dict[int, Dict[str, Dict[str, Any]]]) -> Dict[str, Dict[str, Any]]:
+    output: Dict[str, Dict[str, Any]] = {}
+    for player in list(dict.fromkeys(str(x or "").strip() for x in players if str(x or "").strip())):
+        matched: Dict[int, Tuple[Dict[str, Any], float]] = {}
+        for days, table in tables.items():
+            row, score = fuzzy_lookup_player(player, table)
+            if row and score >= .78:
+                matched[days] = (row, score)
+        if not matched:
+            continue
+        base_days = 365 if 365 in matched else (180 if 180 in matched else max(matched))
+        base = dict(matched[base_days][0])
+        kpr = safe_float(base.get("kpr"), None)
+        if kpr is None:
+            continue
+        # Neutral recent-form blend with sample shrinkage. Equal treatment is
+        # used for hot and cold form to avoid an Over preference.
+        window_weights = {365: .46, 90: .22, 30: .22, 15: .10}
+        total_w = 0.0; form_kpr = 0.0; form_rating = 0.0
+        form_windows: Dict[str, Any] = {}
+        for days, nominal in window_weights.items():
+            pair = matched.get(days)
+            if not pair:
+                continue
+            row = pair[0]; maps = safe_int(row.get("maps"), 0) or 0
+            shrink_target = {365: 45, 90: 24, 30: 12, 15: 5}[days]
+            reliability = clamp(maps / max(shrink_target, 1), .12, 1.0)
+            weight = nominal * reliability
+            rk = safe_float(row.get("kpr"), kpr) or kpr
+            rr = safe_float(row.get("rating"), safe_float(base.get("rating"), 1.0)) or 1.0
+            form_kpr += weight * rk; form_rating += weight * rr; total_w += weight
+            form_windows[f"{days}d_maps"] = maps
+            form_windows[f"{days}d_kpr"] = round(rk, 4)
+            form_windows[f"{days}d_rating"] = round(rr, 3)
+        if total_w > 0:
+            blended_kpr = clamp(form_kpr / total_w, .43, .98)
+            blended_rating = clamp(form_rating / total_w, .72, 1.45)
+            # Anchor half the estimate to the one-year baseline. This prevents a tiny 15-day
+            # run from pushing every selection in one direction.
+            blended_kpr = .50 * kpr + .50 * blended_kpr
+        else:
+            blended_kpr = kpr; blended_rating = safe_float(base.get("rating"), 1.0) or 1.0
+        base.update({
+            "player": player, "nickname": player, "base_kpr": round(blended_kpr, 5), "kpr": round(blended_kpr, 5),
+            "rating": round(blended_rating, 4), "form_windows": form_windows,
+            "provider": "Jina HLTV batch mirror", "updated_at": now_iso(), "generated_at": now_iso(),
+            "aliases": list(dict.fromkeys([player, base.get("player"), base.get("slug")])),
+            "kpr_source": "hltv_batch_real_aggregate_derived",
+        })
+        output[normalize_name(player)] = base
+    return output
+
+
+def _v49_build_team_index(profiles: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    grouped: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for row in profiles.values():
+        if not isinstance(row, dict):
+            continue
+        team = str(row.get("team") or "").strip()
+        if team:
+            grouped[normalize_team(team)].append(row)
+    teams: Dict[str, Dict[str, Any]] = {}
+    for key, rows in grouped.items():
+        rows = sorted(rows, key=lambda x: (safe_int(((x.get("form_windows") or {}).get("15d_maps")), 0), safe_int(x.get("maps"), 0)), reverse=True)
+        roster = list(dict.fromkeys(str(x.get("player") or "") for x in rows if str(x.get("player") or "")))[:5]
+        top = rows[:5]
+        team_name = str(rows[0].get("team") or key)
+        team_kpr = sum(safe_float(x.get("base_kpr") or x.get("kpr"), LEAGUE_KPR) or LEAGUE_KPR for x in top)
+        team_dpr = sum(safe_float(x.get("dpr"), LEAGUE_DPR) or LEAGUE_DPR for x in top)
+        teams[key] = {
+            "team": team_name, "team_id": f"mirror-team:{hashlib.sha1(key.encode()).hexdigest()[:12]}",
+            "slug": key.replace(" ", "-"),
+            # Aggregate tables identify recent team associations, but they do not prove the announced five.
+            # Keep them as candidates instead of falsely passing the lineup hard gate.
+            "current_roster": [], "roster_candidates": roster, "current_roster_maps": 0,
+            "roster_stability": 0.0, "recent_maps": 0, "recent_matches": 0,
+            "map_profiles": {}, "pick_counts": {}, "ban_counts": {}, "mapstats_samples": 0,
+            "kills_for_per_round": clamp(team_kpr, 2.4, 4.4), "deaths_allowed_per_round": clamp(team_dpr, 2.4, 4.4),
+            "provider": "Jina HLTV batch team aggregate", "updated_at": now_iso(), "map_pool_verified": False,
+        }
+    return teams
+
+
+def _v49_generate_profiles(players: Sequence[str], force: bool = False) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+    tables: Dict[int, Dict[str, Dict[str, Any]]] = {}
+    statuses: Dict[int, Dict[str, Any]] = {}
+    for days in [365, 90, 30, 15]:
+        table, status = _v49_fetch_table(days, force=force)
+        tables[days] = table; statuses[days] = status
+    profiles = _v49_merge_profile_windows(players, tables)
+    covered = len(profiles)
+    return profiles, {"ok": covered > 0, "provider": "Jina HLTV batch mirror", "profiles": covered,
+                      "requested": len(set(normalize_name(x) for x in players if str(x or "").strip())),
+                      "window_statuses": statuses}
+
+
+def v49_generate_bridge_cache(players: Sequence[str], previous: Optional[Dict[str, Any]] = None,
+                              board_rows: Optional[Sequence[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    previous = previous if _v48_valid_bridge(previous) else {"profiles": {}, "matches": [], "teams": {}}
+    fresh, status = _v49_generate_profiles(players, force=True)
+    profiles = dict(previous.get("profiles") or {})
+    # New mirror data replaces older mirror data, but never replaces an exact
+    # demo/API profile with a larger verified sample.
+    for key, row in fresh.items():
+        old = profiles.get(key) or {}
+        old_exact = str(old.get("kpr_source") or "") in {"real_kills_div_rounds", "hltv_reported_kpr", "bo3_reported_kpr", "demo_full_round_kpr"}
+        if not old_exact or safe_int(row.get("maps"), 0) >= safe_int(old.get("maps"), 0):
+            profiles[key] = row
+    teams = dict(previous.get("teams") or {})
+    teams.update(_v49_build_team_index(profiles))
+    matches: List[Dict[str, Any]] = []
+    for prop in board_rows or []:
+        team, opp = str(prop.get("team") or "").strip(), str(prop.get("opponent") or "").strip()
+        if not team or not opp:
+            continue
+        mid = hashlib.sha1(f"{normalize_team(team)}|{normalize_team(opp)}|{str(prop.get('start_time') or '')[:16]}".encode()).hexdigest()[:18]
+        matches.append({"provider_match_id": f"ud-{mid}", "match_id": f"ud-{mid}", "start_time": prop.get("start_time"),
+                        "format": "BO3", "event": str(prop.get("matchup") or "Underdog CS2"), "stage": "",
+                        "event_tier": "LOW/UNKNOWN", "environment": "UNKNOWN", "confirmed_maps": [], "veto_actions": [],
+                        "teams": [{"name": team, "team_id": (teams.get(normalize_team(team)) or {}).get("team_id") or f"mirror-team:{mid[:6]}a", "slug": normalize_team(team).replace(" ", "-")},
+                                  {"name": opp, "team_id": (teams.get(normalize_team(opp)) or {}).get("team_id") or f"mirror-team:{mid[:6]}b", "slug": normalize_team(opp).replace(" ", "-")}],
+                        "lineup_names": [], "lineup_groups": [], "lineup_source": "Underdog matchup; lineup unconfirmed",
+                        "provider": "Underdog + Jina batch mirror", "updated_at": now_iso()})
+    return {"schema_version": max(V48_BRIDGE_SCHEMA, 3), "generated_at": now_iso(), "profiles": profiles,
+            "matches": matches or list(previous.get("matches") or []), "teams": teams,
+            "source_status": {"jina_batch_mirror": status}, "refreshed_profiles": len(fresh)}
+
+
+# Replace the four blocked HLTV table pulls with four batch-mirror tables.
+def fetch_hltv_player_table(days: int) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+    return _v49_fetch_table(days, force=False)
+
+
+_v49_bridge_profile_previous = _v48_bridge_profile
+
+def _v48_bridge_profile(player: str, team_hint: str = "") -> Tuple[Optional[PlayerStats], Dict[str, Any]]:
+    candidates = _v48_bridge_candidates(player)
+    for score, row in candidates:
+        row_team = str(row.get("team") or "")
+        teams = [row_team] + list(row.get("teams") or [])
+        exact_name = normalize_name(row.get("player") or row.get("nickname") or "") == normalize_name(player)
+        team_ok = not team_hint or not any(teams) or max([name_similarity(team_hint, x) for x in teams if x] or [0]) >= .72
+        # A verified exact nickname/player-id match can outlive a transfer. In that case the current
+        # Underdog team is accepted only as current context and the row is capped at Track.
+        if score < .88 or (not team_ok and not exact_name):
+            continue
+        label = str(row.get("provider") or "Verified provider profile")
+        profile, meta = _v48_profile_record_to_playerstats(player, row, label)
+        if profile is not None:
+            derived = str(row.get("kpr_source") or "").startswith("hltv_batch")
+            warnings = list(profile.data_warnings or [])
+            if derived and "BATCH AGGREGATE KPR — TRACK UNTIL EXACT/DEMO ENRICHMENT" not in warnings:
+                warnings.append("BATCH AGGREGATE KPR — TRACK UNTIL EXACT/DEMO ENRICHMENT")
+            if exact_name and team_hint and not team_ok:
+                profile.team = team_hint
+                warnings.append("CURRENT TEAM TAKEN FROM UNDERDOG — AGGREGATE TABLE TEAM MAY BE HISTORICAL")
+            profile.data_warnings = list(dict.fromkeys(warnings))
+            return profile, {**meta, "match_score": score, "recovery_path": label,
+                              "core_kpr_verified": True, "aggregate_kpr_derived": derived,
+                              "team_context_overridden": bool(exact_name and team_hint and not team_ok),
+                              "source_fresh": bool(meta.get("source_fresh"))}
+    return _v49_bridge_profile_previous(player, team_hint)
+
+
+_v49_prefetch_previous = v48_prefetch_provider_data
+
+def v48_prefetch_provider_data(players: Sequence[str], force: bool = False) -> Dict[str, Any]:
+    # Load a prebuilt bridge when present, then self-heal with the batch mirror.
+    bridge, bridge_status = load_provider_bridge(force=False)
+    fresh, mirror_status = _v49_generate_profiles(players, force=force)
+    existing = dict(V48_RUNTIME.get("profiles") or {})
+    for key, row in fresh.items():
+        old = existing.get(key) or {}
+        old_exact = str(old.get("kpr_source") or "") in {"real_kills_div_rounds", "hltv_reported_kpr", "bo3_reported_kpr", "demo_full_round_kpr"}
+        if not old_exact or safe_int(row.get("maps"), 0) >= safe_int(old.get("maps"), 0):
+            existing[key] = row
+    V48_RUNTIME["profiles"] = existing
+    mirror_teams = _v49_build_team_index(existing)
+    runtime_teams = dict(V48_RUNTIME.get("teams") or {})
+    for key, row in mirror_teams.items():
+        runtime_teams.setdefault(key, row)
+    V48_RUNTIME["teams"] = runtime_teams
+    V48_RUNTIME["bridge"] = {"schema_version": 3, "generated_at": now_iso(), "profiles": existing,
+                             "matches": list(V48_RUNTIME.get("matches") or []), "teams": runtime_teams,
+                             "source_status": {"jina_batch_mirror": mirror_status, "prebuilt_bridge": bridge_status}}
+    missing = []
+    for player in list(dict.fromkeys(str(x or "").strip() for x in players if str(x or "").strip())):
+        local, _ = _playerstats_from_local(player)
+        profile, _ = _v48_bridge_profile(player)
+        if local is None and profile is None:
+            missing.append(player)
+    direct_status = {"ok": False, "disabled": True, "requested": len(missing),
+                     "warning": "Per-player BO3 requests disabled; batch mirror prevents 403/429 request storms"}
+    if missing and V49_ALLOW_BO3_LAST_RESORT:
+        try:
+            direct_status = _v49_prefetch_previous(missing, force=False).get("direct") or direct_status
+        except Exception as exc:
+            direct_status = {"ok": False, "disabled": False, "warning": str(exc), "requested": len(missing)}
+    _trip_source_circuit("bo3_api", "disabled in v4.9: batch mirror is primary", 24*3600)
+    V49_RUNTIME["last_prefetch"] = {"mirror": mirror_status, "bridge": bridge_status, "missing": len(missing)}
+    return {"bridge": bridge_status, "mirror": mirror_status, "direct": direct_status,
+            "unique_players": len(set(normalize_name(x) for x in players if str(x or "").strip())),
+            "missing_after_mirror": len(missing)}
+
+
+def _v49_synthetic_match(prop: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    team = str(prop.get("team") or "").strip(); opp = str(prop.get("opponent") or "").strip()
+    if not team or not opp:
+        return "", {}
+    start = str(prop.get("start_time") or "")
+    mid = hashlib.sha1(f"{normalize_team(team)}|{normalize_team(opp)}|{start[:16]}".encode()).hexdigest()[:18]
+    team_rec = (V48_RUNTIME.get("teams") or {}).get(normalize_team(team), {})
+    opp_rec = (V48_RUNTIME.get("teams") or {}).get(normalize_team(opp), {})
+    row = {
+        "provider_match_id": f"ud-{mid}", "match_id": f"ud-{mid}", "start_time": start,
+        "format": "BO3", "event": str(prop.get("matchup") or "Underdog CS2 matchup"), "stage": "",
+        "event_tier": "LOW/UNKNOWN", "environment": "UNKNOWN", "confirmed_maps": [], "veto_actions": [],
+        "teams": [
+            {"name": team, "team_id": team_rec.get("team_id") or f"mirror-team:{hashlib.sha1(normalize_team(team).encode()).hexdigest()[:12]}", "slug": normalize_team(team).replace(" ", "-")},
+            {"name": opp, "team_id": opp_rec.get("team_id") or f"mirror-team:{hashlib.sha1(normalize_team(opp).encode()).hexdigest()[:12]}", "slug": normalize_team(opp).replace(" ", "-")},
+        ],
+        "lineup_names": [], "lineup_groups": [], "lineup_source": "Underdog matchup only — lineup unconfirmed",
+        "provider": "Underdog matchup + Jina batch stats", "updated_at": now_iso(),
+    }
+    V49_RUNTIME["synthetic_matches"][f"ud-{mid}"] = row
+    return f"mirror://ud-{mid}", row
+
+
+_v49_attach_identity_previous = _v48_attach_identity
+
+def _v48_attach_identity(prop: Dict[str, Any]) -> Dict[str, Any]:
+    out = _v49_attach_identity_previous(prop)
+    if not out.get("match_url"):
+        url, _ = _v49_synthetic_match(out)
+        if url:
+            out["match_url"] = url
+    return out
+
+
+_v49_fetch_match_context_previous = fetch_match_context
+
+def fetch_match_context(match_url: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    if str(match_url).startswith("mirror://"):
+        mid = str(match_url).split("mirror://", 1)[1].strip("/")
+        row = V49_RUNTIME["synthetic_matches"].get(mid)
+        if row:
+            context = _v48_match_context_from_record(row, match_url)
+            context["provider"] = "Underdog matchup + Jina batch mirror"
+            context["lineup_names"] = []
+            context["lineup_groups"] = []
+            context["lineup_source"] = "unconfirmed"
+            return context, {"ok": True, "provider": context["provider"], "age_seconds": 0,
+                             "exact_lineup": False, "match_id": mid, "synthetic_match_context": True}
+        return {}, {"ok": False, "provider": "Jina batch mirror", "warning": "synthetic match context missing"}
+    return _v49_fetch_match_context_previous(match_url)
+
+
+_v49_match_id_previous = _match_id_from_url
+
+def _match_id_from_url(url: str) -> str:
+    if str(url).startswith("mirror://"):
+        return str(url).split("mirror://", 1)[1].strip("/")
+    return _v49_match_id_previous(url)
+
+
+_v49_team_model_previous = build_team_deep_profile
+
+def build_team_deep_profile(team_id: str, slug: str, team_name: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    row = (V48_RUNTIME.get("teams") or {}).get(normalize_team(team_name))
+    if isinstance(row, dict) and "Jina HLTV batch" in str(row.get("provider") or ""):
+        profile = dict(row)
+        profile.setdefault("team_id", team_id or row.get("team_id"))
+        profile.setdefault("slug", slug or row.get("slug"))
+        return profile, {"ok": True, "provider": row.get("provider"), "roster_fresh": False,
+                         "pool_fresh": False, "team_map_fresh": False,
+                         "warning": "team associations are aggregate candidates only; lineup and map pool remain unconfirmed"}
+    return _v49_team_model_previous(team_id, slug, team_name)
+
+
+_v49_build_board_previous = build_full_board
+
+def build_full_board(props: List[Dict[str, Any]], deep_enabled: bool = True) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    board, status = _v49_build_board_previous(props, deep_enabled)
+    profiles = sum((safe_int(r.get("profile_maps"), 0) or 0) > 0 for r in board)
+    projections = sum(r.get("projection") is not None for r in board)
+    matches = sum(bool(r.get("match_url")) for r in board)
+    mirror_status = V49_RUNTIME.get("last_prefetch") or {}
+    recovery = {
+        "lines_loaded": len(board), "verified_profiles": profiles, "matched_teams": sum(bool(r.get("team")) for r in board),
+        "matched_events": matches, "projections_generated": projections,
+        "profile_coverage_pct": round(profiles / max(len(board), 1) * 100, 1),
+        "match_coverage_pct": round(matches / max(len(board), 1) * 100, 1),
+        "projection_coverage_pct": round(projections / max(len(board), 1) * 100, 1),
+        "primary_path": "Jina batch mirror → persistent database/demo → optional prebuilt bridge",
+        "mirror_status": mirror_status,
+        "message": ("Batch mirror profiles reached the model. Unconfirmed lineup/veto rows remain Track/Pass until stronger context arrives."
+                    if projections else "Underdog lines loaded, but the batch mirror and local database returned no usable player profiles."),
+    }
+    for row in board:
+        row["model_version"] = MODEL_VERSION; row["feature_fingerprint"] = MODEL_SCHEMA_FINGERPRINT
+        flags = [x for x in list(row.get("flags") or []) if "VERIFIED DATA BRIDGE EMPTY" not in str(x)]
+        if "Jina HLTV batch" in str(row.get("profile_source") or ""):
+            flags.append("BATCH PROFILE — LINEUP/VETO UNCONFIRMED")
+            if row.get("status") in {"OFFICIAL", "PLAYABLE"}:
+                row["status"] = "TRACK"; row["status_label"] = "⚠️ TRACK — BATCH PROFILE / PRE-VETO"
+        row["flags"] = list(dict.fromkeys(flags))
+    return board, {**status, "v49_source_recovery": recovery, "v48_source_recovery": recovery,
+                   "v47_provider_recovery": recovery, "v46_source_recovery": recovery,
+                   "model_version": MODEL_VERSION, "feature_fingerprint": MODEL_SCHEMA_FINGERPRINT}
+
+
+# PrizePicks is optional consensus only. Stop request storms after one 403/429.
+_v49_prizepicks_previous = fetch_prizepicks_cs2_board
+
+def fetch_prizepicks_cs2_board() -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    if _source_circuit_open("prizepicks"):
+        return [], {"ok": False, "provider": "PrizePicks", "paused": True,
+                    "warning": "PrizePicks paused after 403/429; it is not required for projections"}
+    rows, meta = _v49_prizepicks_previous()
+    raw_status = ((meta.get("status") or {}).get("status") if isinstance(meta.get("status"), dict) else None)
+    if raw_status in {403, 429}:
+        _trip_source_circuit("prizepicks", f"HTTP {raw_status}", 30*60)
+    return rows, meta
+
+
 # ============================================================
 # SESSION BOARD LOAD
 # ============================================================
@@ -9222,7 +9756,7 @@ with st.sidebar:
     st.markdown("## 🎯 CS2 Controls")
     st.caption(APP_VERSION)
     use_underdog = st.checkbox("Pull Underdog CS2", value=True)
-    use_prizepicks = st.checkbox("Use PrizePicks for free market consensus", value=True)
+    use_prizepicks = st.checkbox("Use PrizePicks for free market consensus", value=False)
     show_prizepicks_rows = st.checkbox("Also display PrizePicks rows", value=False)
     deep_data_enabled = st.checkbox("Deep map/veto/roster data", value=DEEP_DATA_ENABLED_DEFAULT)
     show_statuses = st.multiselect(
@@ -9250,7 +9784,7 @@ st.markdown(
     f"""
 <div class="hero-panel">
   <div class="big-title">ONE WAY PICKZ — CS2</div>
-  <div class="sub-title">Maps 1–2 Kills · In-app demo center · Full five-player allocation · Historical backfill · Reviewed grading · Neutral calibration</div>
+  <div class="sub-title">Maps 1–2 Kills · Self-healing batch stats mirror · Demo center · Neutral calibration · No per-player request storm</div>
   <div style="margin-top:11px;">
     <span class="badge">WHITE + RED EDITION</span>
     <span class="badge">{_esc(MODEL_VERSION)}</span>
@@ -9801,27 +10335,32 @@ with tab_data:
                 if not isinstance(aliases,dict):aliases={}
                 aliases[normalize_name(mp)]={"alias":mp.strip(),"hltv_player_id":mid.strip(),"hltv_slug":mslug.strip() or normalize_name(mp).replace(" ","-"),"team":mteam.strip(),"opponent":mopp.strip(),"match_url":murl.strip(),"saved_at":now_iso()};save_json(PLAYER_ALIAS_FILE,aliases,force=True);st.success("Mapping saved. Refresh projections.");st.rerun()
 
-    st.markdown('<div class="section-title-pro">Verified Provider Bridge</div>', unsafe_allow_html=True)
-    st.caption("V4.8 reads a verified cache generated by GitHub Actions before making any direct provider call from Railway. The cache can also be uploaded here manually.")
+    st.markdown('<div class="section-title-pro">Batch Stats Mirror + Optional GitHub Cache</div>', unsafe_allow_html=True)
+    st.caption("V4.9 self-loads one public aggregate player table per time window through the Jina batch mirror. GitHub Actions is an optional warm cache, not a required setup step.")
     bridge_payload, bridge_state = load_provider_bridge(force=False)
     b1,b2,b3,b4=st.columns(4)
-    b1.metric("Bridge Profiles",len(bridge_payload.get("profiles") or {}))
+    b1.metric("Cached Profiles",len(bridge_payload.get("profiles") or {}))
     b2.metric("Bridge Matches",len(bridge_payload.get("matches") or []))
     b3.metric("Bridge Age",f"{int((_v48_json_age_seconds(bridge_payload) or 0)/60)} min" if bridge_payload.get("generated_at") else "—")
-    b4.metric("Bridge Source",bridge_state.get("provider","Not loaded"))
+    b4.metric("Cache Source",bridge_state.get("provider","Direct mirror on refresh"))
     bridge_upload=st.file_uploader("Upload cs2_provider_cache.json",type=["json"],key="v48_bridge_upload")
     bc1,bc2=st.columns(2)
     with bc1:
-        if st.button("RELOAD BRIDGE FROM GITHUB",use_container_width=True,key="v48_reload_bridge"):
-            V48_RUNTIME["bridge"]=None;payload,state=load_provider_bridge(force=True)
-            if payload.get("profiles"):st.success(f"Loaded {len(payload.get('profiles') or {})} verified profiles and {len(payload.get('matches') or [])} matches.")
-            else:st.error(state.get("warning") or "Provider bridge is still empty. Check the GitHub Source Bridge workflow.")
+        if st.button("REFRESH BATCH MIRROR + CACHE",use_container_width=True,key="v48_reload_bridge"):
+            V48_RUNTIME["bridge"]=None
+            V49_RUNTIME["tables"]={};V49_RUNTIME["statuses"]={};_close_source_circuit("jina_mirror")
+            current_players=[str(x.get("player") or "") for x in (st.session_state.get("cs2_board") or []) if str(x.get("player") or "")]
+            profs,mstate=_v49_generate_profiles(current_players,force=True) if current_players else ({},{"ok":False,"warning":"Refresh the real board first."})
+            payload,state=load_provider_bridge(force=True)
+            if profs:st.success(f"Batch mirror loaded {len(profs)} current-board profiles. Refresh projections once.")
+            elif payload.get("profiles"):st.success(f"Loaded {len(payload.get('profiles') or {})} cached profiles.")
+            else:st.error(mstate.get("warning") or state.get("warning") or "Batch mirror and optional cache are empty.")
             st.rerun()
     with bc2:
         if st.button("IMPORT UPLOADED BRIDGE",use_container_width=True,key="v48_import_bridge",disabled=bridge_upload is None):
             try:
                 uploaded=json.loads(bridge_upload.getvalue().decode("utf-8"))
-                if not _v48_valid_bridge(uploaded):raise ValueError("This is not a valid v4.8 provider cache.")
+                if not _v48_valid_bridge(uploaded):raise ValueError("This is not a valid v4.9 provider cache.")
                 save_json(V48_BRIDGE_LOCAL_FILE,uploaded,force=True);V48_RUNTIME["bridge"]=None;load_provider_bridge(force=False)
                 st.success("Verified provider cache imported to the Railway volume.");st.rerun()
             except Exception as exc:st.error(f"Provider cache import failed: {exc}")
@@ -9857,7 +10396,7 @@ with tab_debug:
     p1,p2,p3=st.columns(3);p1.metric("Parser Health",f"{parser_health.get('score',0):.1f}/100");p2.metric("Parser Grade",parser_health.get("grade","—"));p3.metric("Official Enabled","YES" if parser_health.get("official_enabled") else "NO")
     if parser_health.get("checks"):st.dataframe(pd.DataFrame(parser_health["checks"]),use_container_width=True,hide_index=True)
     st.markdown('<div class="section-title-pro">Source Status</div>', unsafe_allow_html=True)
-    provider=(st.session_state.get("cs2_board_status") or {}).get("v48_source_recovery") or (st.session_state.get("cs2_board_status") or {}).get("v47_provider_recovery") or {}
+    provider=(st.session_state.get("cs2_board_status") or {}).get("v49_source_recovery") or (st.session_state.get("cs2_board_status") or {}).get("v48_source_recovery") or {}
     if provider:
         s1,s2,s3,s4,s5=st.columns(5)
         s1.metric("Underdog Lines",provider.get("lines_loaded",0))
@@ -9870,13 +10409,17 @@ with tab_debug:
         else:
             st.error(provider.get("message") or "Lines loaded, but no verified statistics profiles were available.")
     circuit_cols=st.columns(3)
-    hltv_state=_source_circuit_state("hltv");bo3_state=_source_circuit_state("bo3_api")
-    circuit_cols[0].metric("HLTV", "PAUSED" if _source_circuit_open("hltv") else "OPTIONAL")
-    circuit_cols[1].metric("BO3 JSON", "PAUSED" if _source_circuit_open("bo3_api") else "DIRECT FALLBACK")
-    if circuit_cols[2].button("Reload bridge + reset sources",use_container_width=True,key="reset_v48_source_circuits"):
-        _close_source_circuit("hltv");_close_source_circuit("bo3_api");V48_RUNTIME["bridge"]=None;load_provider_bridge(force=True);st.success("Provider bridge reloaded. Refresh the board once.");st.rerun()
-    if _source_circuit_open("hltv"):
-        st.info("HLTV is disabled/paused. V4.8 uses the GitHub provider bridge, local history, demos, and direct BO3 JSON instead.")
+    mirror_rows=sum(safe_int((x or {}).get("rows"),0) or 0 for x in (V49_RUNTIME.get("statuses") or {}).values())
+    circuit_cols[0].metric("Batch Mirror", "PAUSED" if _source_circuit_open("jina_mirror") else (f"READY · {mirror_rows}" if mirror_rows else "READY"))
+    circuit_cols[1].metric("Per-player BO3", "DISABLED" if not V49_ALLOW_BO3_LAST_RESORT else ("PAUSED" if _source_circuit_open("bo3_api") else "LAST RESORT"))
+    if circuit_cols[2].button("Reset mirror + reload sources",use_container_width=True,key="reset_v48_source_circuits"):
+        for source_name in ["jina_mirror","hltv","bo3_api","prizepicks"]:_close_source_circuit(source_name)
+        V48_RUNTIME["bridge"]=None;V49_RUNTIME["tables"]={};V49_RUNTIME["statuses"]={};V49_RUNTIME["last_prefetch"]={}
+        load_provider_bridge(force=True);st.success("Source circuits reset. Press Refresh Real Board + Projections once.");st.rerun()
+    if _source_circuit_open("jina_mirror"):
+        st.warning("The batch mirror is temporarily paused after a failed response. A saved mirror/database/demo profile can still be used; reset after the cooldown or try again later.")
+    else:
+        st.info("V4.9 uses a two-to-four request batch mirror for hundreds of players. It does not send one blocked request per player.")
     st.write("Line source status")
     st.json(st.session_state.get("cs2_line_source_status") or {}, expanded=False)
     st.write("Projection source status")
@@ -9906,9 +10449,11 @@ with tab_debug:
         {"Variable": "CS2 core database", "Required": "Automatic", "Purpose": CORE_DB_FILE},
         {"Variable": "UNDERDOG_URL_OVERRIDE", "Required": "No", "Purpose": "Replacement public board endpoint if Underdog changes versions"},
         {"Variable": "PANDASCORE_TOKEN", "Required": "No", "Purpose": "Optional free schedule/roster fallback"},
-        {"Variable": "CS2_BRIDGE_REPO", "Required": "Automatic/optional", "Purpose": "owner/repository containing the data-cache branch; Railway Git variables usually infer it"},
+        {"Variable": "CS2_JINA_MIRROR_ENABLED", "Required": "Automatic", "Purpose": "true; self-contained batch player-stat mirror"},
+        {"Variable": "CS2_MIRROR_FRESH_SECONDS", "Required": "No", "Purpose": "Defaults to 21600 (6 hours)"},
+        {"Variable": "CS2_BRIDGE_REPO", "Required": "Optional", "Purpose": "Only for an optional GitHub data-cache branch"},
         {"Variable": "CS2_BRIDGE_BRANCH", "Required": "No", "Purpose": "Defaults to data-cache"},
-        {"Variable": "CS2_DIRECT_BO3_ENABLED", "Required": "No", "Purpose": "Direct BO3 JSON fallback after bridge/local/demo"},
+        {"Variable": "CS2_BO3_LAST_RESORT", "Required": "No", "Purpose": "Defaults false; avoids per-player 403/429 request storms"},
         {"Variable": "GITHUB_TOKEN", "Required": "For private bridge repo", "Purpose": "Reads private data-cache and supports optional backup"},
         {"Variable": "GITHUB_REPO", "Required": "No", "Purpose": "owner/repository for backup"},
         {"Variable": "GITHUB_BRANCH", "Required": "No", "Purpose": "Defaults to main"},
