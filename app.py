@@ -11353,7 +11353,7 @@ def _line_only_fallback_row(row: Dict[str, Any]) -> Dict[str, Any]:
     projection = float(line) + clamp(move * 0.45, -0.75, 0.75)
     edge = projection - float(line)
     if abs(edge) < 0.05:
-        lean = "PASS"
+        lean = "MARKET"
         probability = 0.50
     else:
         lean = "OVER" if edge > 0 else "UNDER"
@@ -11364,8 +11364,8 @@ def _line_only_fallback_row(row: Dict[str, Any]) -> Dict[str, Any]:
         "NO VERIFIED PLAYER PROFILE",
         "NOT ELIGIBLE FOR OFFICIAL OR BEST-WIN",
     ]))
-    status = "TRACK" if lean in {"OVER", "UNDER"} else "PASS"
-    status_label = "TRACK - LINE-ONLY PROFILE NEEDED" if status == "TRACK" else "PASS - LINE-ONLY PROFILE NEEDED"
+    status = "TRACK"
+    status_label = "TRACK - MARKET LINE / PROFILE NEEDED"
     return {
         **row,
         "projection": round(projection, 2),
@@ -11415,6 +11415,21 @@ def _line_only_fallback_row(row: Dict[str, Any]) -> Dict[str, Any]:
         "error": "No verified profile; line-only fallback shown until mappings/profiles are available",
         "line_only_fallback": True,
     }
+
+
+def best_available_rows(board: Sequence[Dict[str, Any]], limit: int = 25) -> List[Dict[str, Any]]:
+    rows = [
+        row for row in board or []
+        if row.get("projection") is not None and row.get("status") in {"OFFICIAL", "PLAYABLE", "TRACK"}
+    ]
+    def score(row: Dict[str, Any]) -> Tuple[int, float, float, float, float]:
+        verified = 1 if not row.get("line_only_fallback") and safe_int(row.get("profile_maps"), 0) > 0 else 0
+        tier = {"OFFICIAL": 4, "PLAYABLE": 3, "TRACK": 2}.get(row.get("status"), 0)
+        prob = safe_float(row.get("probability"), 0) or 0
+        edge = abs(safe_float(row.get("edge"), 0) or 0)
+        line_move = abs(safe_float(row.get("line_move"), 0) or 0)
+        return (verified, tier, prob, edge, line_move)
+    return sorted(rows, key=score, reverse=True)[:max(1, int(limit or 25))]
 
 
 def build_simple_line_only_board(props: Sequence[Dict[str, Any]], max_rows: int = 250) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
@@ -11542,6 +11557,7 @@ with st.sidebar:
     max_props_per_refresh = st.slider("Max props per refresh", 10, 250, 60, 10)
     line_only_fallback_enabled = st.checkbox("Show line-only fallback rows", value=LINE_ONLY_FALLBACK_DEFAULT)
     st.session_state["cs2_line_only_fallback_enabled"] = bool(line_only_fallback_enabled)
+    hide_line_only_passes = st.checkbox("Hide line-only PASS rows", value=True)
     deep_data_enabled = st.checkbox("Deep map/veto/roster data", value=DEEP_DATA_ENABLED_DEFAULT)
     if fast_refresh_enabled and deep_data_enabled:
         st.caption("Fast refresh limits rows first. Turn Fast refresh off when you want the full deep sweep.")
@@ -11550,7 +11566,7 @@ with st.sidebar:
     show_statuses = st.multiselect(
         "Show play tiers",
         ["OFFICIAL", "PLAYABLE", "TRACK", "PASS"],
-        default=["OFFICIAL", "PLAYABLE", "TRACK", "PASS"],
+        default=["OFFICIAL", "PLAYABLE", "TRACK"],
     )
     min_data_filter = st.slider("Minimum displayed data score", 0, 100, 0, 1)
     search_filter = st.text_input("Player/team search", "")
@@ -11616,6 +11632,8 @@ if refresh_clicked or not st.session_state.get("cs2_board"):
 
 board: List[Dict[str, Any]] = st.session_state.get("cs2_board") or []
 filtered_board = [x for x in board if x.get("status") in show_statuses and safe_int(x.get("data_score"), 0) >= min_data_filter]
+if hide_line_only_passes:
+    filtered_board = [x for x in filtered_board if not (x.get("line_only_fallback") and x.get("status") == "PASS")]
 if search_filter.strip():
     needle = normalize_name(search_filter)
     filtered_board = [x for x in filtered_board if needle in normalize_name(" ".join(str(x.get(k, "")) for k in ["player", "team", "opponent", "matchup", "event"]))]
@@ -11665,16 +11683,13 @@ if not board:
 # MAIN TABS
 # ============================================================
 
-tab_live, tab_official, tab_saved, tab_grade, tab_calibration, tab_special, tab_slip, tab_livewatch, tab_bankroll, tab_data, tab_debug = st.tabs([
+tab_live, tab_official, tab_saved, tab_grade, tab_calibration, tab_special, tab_data, tab_debug = st.tabs([
     "🎯 Live Projections",
     "🔥 Official Board",
     "📌 Saved Board",
     "✅ Grading + Learning",
     "📊 Calibration",
     "🧪 Specialized Markets",
-    "🧩 Slip Correlation",
-    "📡 Live Watch",
-    "💵 Bankroll + Odds",
     "🧰 Data Manager",
     "🔍 Debug + Settings",
 ])
@@ -11682,6 +11697,16 @@ tab_live, tab_official, tab_saved, tab_grade, tab_calibration, tab_special, tab_
 with tab_live:
     st.markdown('<div class="section-title-pro">Live Maps 1–2 Kill Board</div>', unsafe_allow_html=True)
     st.caption("Ranked by Official → Playable → Track → Pass, then by best-win score, model probability, and projection edge.")
+    best_available = best_available_rows(board, 25)
+    if best_available:
+        st.markdown('<div class="section-title-pro">Best Available Projections</div>', unsafe_allow_html=True)
+        st.caption("Verified profile projections rank first. If only line-only rows are available, they stay Track and are labeled profile-needed.")
+        best_available_df = board_dataframe(best_available)
+        best_available_cols = [c for c in [
+            "status_label", "player", "team", "opponent", "line", "projection", "lean",
+            "probability", "edge", "profile_maps", "data_score", "risk_notes"
+        ] if c in best_available_df.columns]
+        st.dataframe(best_available_df[best_available_cols], use_container_width=True, hide_index=True)
     best_candidates = [
         x for x in board
         if x.get("best_win_tier") in {"BEST", "STRONG"} and x.get("status") in {"OFFICIAL", "PLAYABLE"}
@@ -11713,6 +11738,7 @@ with tab_live:
 with tab_official:
     official = [x for x in board if x.get("status") == "OFFICIAL"]
     playable = [x for x in board if x.get("status") == "PLAYABLE"]
+    best_available_official = best_available_rows(board, 30)
     strongest = [x for x in board if x.get("best_win_tier") in {"BEST", "STRONG"} and x.get("status") in {"OFFICIAL", "PLAYABLE"}]
     st.markdown('<div class="section-title-pro">Strict Official Plays</div>', unsafe_allow_html=True)
     st.caption(
@@ -11723,7 +11749,13 @@ with tab_official:
         for row in official:
             render_pick_card(row, official_style=True)
     else:
-        st.info("No plays passed every Official gate. That is a valid slate outcome.")
+        st.info("No plays passed every strict Official gate. Showing best available projections below instead.")
+    st.markdown('<div class="section-title-pro">Best Available Board</div>', unsafe_allow_html=True)
+    if best_available_official:
+        st.caption("This section prevents an empty board. Line-only rows are informational Track rows until verified player profiles recover.")
+        st.dataframe(board_dataframe(best_available_official), use_container_width=True, hide_index=True)
+    else:
+        st.info("No projection rows are available yet. Refresh real board with Simple all-lines mode on.")
     st.markdown('<div class="section-title-pro">Best-Win Shortlist</div>', unsafe_allow_html=True)
     if strongest:
         st.dataframe(board_dataframe(strongest), use_container_width=True, hide_index=True)
@@ -11757,6 +11789,43 @@ with tab_saved:
         st.info("No saved snapshots yet. Save Official rows before matches begin.")
 
 with tab_grade:
+    st.markdown('<div class="section-title-pro">Graded Results — Wins / Losses</div>', unsafe_allow_html=True)
+    results_now = load_json(RESULT_LOG, [])
+    results_now = results_now if isinstance(results_now, list) else []
+    if results_now:
+        grade_df = pd.DataFrame(results_now)
+        if "graded_result" in grade_df.columns:
+            finished_now = grade_df[grade_df["graded_result"].isin(["WIN", "LOSS", "PUSH"])].copy()
+        else:
+            finished_now = pd.DataFrame()
+        wins_now = int((finished_now.get("graded_result", pd.Series(dtype=str)) == "WIN").sum()) if not finished_now.empty else 0
+        losses_now = int((finished_now.get("graded_result", pd.Series(dtype=str)) == "LOSS").sum()) if not finished_now.empty else 0
+        pushes_now = int((finished_now.get("graded_result", pd.Series(dtype=str)) == "PUSH").sum()) if not finished_now.empty else 0
+        g1, g2, g3, g4, g5 = st.columns(5)
+        g1.metric("Wins", wins_now)
+        g2.metric("Losses", losses_now)
+        g3.metric("Pushes", pushes_now)
+        g4.metric("Record", f"{wins_now}-{losses_now}-{pushes_now}")
+        g5.metric("Win Rate", f"{wins_now / max(wins_now + losses_now, 1) * 100:.1f}%")
+        if not finished_now.empty:
+            result_cols = [c for c in [
+                "graded_at", "player", "team", "opponent", "lean", "line", "projection",
+                "actual_kills", "graded_result", "probability", "status", "data_score", "match_url"
+            ] if c in finished_now.columns]
+            display_results = finished_now[result_cols].copy()
+            if "probability" in display_results.columns:
+                display_results["probability"] = pd.to_numeric(display_results["probability"], errors="coerce").apply(lambda x: round(x * 100, 1) if pd.notna(x) and x <= 1 else x)
+            st.dataframe(display_results.sort_values("graded_at", ascending=False), use_container_width=True, hide_index=True)
+            cdl1, cdl2, cdl3 = st.columns(3)
+            with cdl1:
+                st.download_button("Download Wins", finished_now[finished_now["graded_result"] == "WIN"].to_csv(index=False).encode("utf-8"), "cs2_wins.csv", "text/csv", use_container_width=True)
+            with cdl2:
+                st.download_button("Download Losses", finished_now[finished_now["graded_result"] == "LOSS"].to_csv(index=False).encode("utf-8"), "cs2_losses.csv", "text/csv", use_container_width=True)
+            with cdl3:
+                st.download_button("Download All Graded", finished_now.to_csv(index=False).encode("utf-8"), "cs2_all_graded_results.csv", "text/csv", use_container_width=True)
+    else:
+        st.info("No graded wins/losses yet. Save rows before matches, then grade them after the matches finish.")
+
     st.markdown('<div class="section-title-pro">Automatic Maps 1–2 Grading</div>', unsafe_allow_html=True)
     st.caption("The grader opens the saved HLTV match page, reads the first two completed map-stat pages, sums the player’s kills, then updates cautious learning profiles.")
     if st.button("✅ GRADE FINISHED MATCHES + UPDATE LEARNING", use_container_width=True, type="primary"):
@@ -11901,7 +11970,7 @@ with tab_special:
     else:
         st.info("Refresh a real board first.")
 
-with tab_slip:
+if False:
     st.markdown('<div class="section-title-pro">Correlation-Aware Slip Builder</div>', unsafe_allow_html=True)
     eligible = [x for x in board if x.get("status") in {"OFFICIAL", "PLAYABLE"} and x.get("probability")]
     options = {f"{x.get('player')} {x.get('lean')} {x.get('line')} · {x.get('team')} vs {x.get('opponent')}": x for x in eligible}
@@ -11924,7 +11993,7 @@ with tab_slip:
     else:
         st.info("Select at least two Official/Playable legs. Same-match and same-team dependencies are simulated instead of multiplying probabilities blindly.")
 
-with tab_livewatch:
+if False:
     st.markdown('<div class="section-title-pro">Live Match Watch</div>', unsafe_allow_html=True)
     st.warning("This is an informational live pace tool—not an automatic live-betting instruction. Confirm the official score, economy, lineup and market before acting.")
     live_options = {f"{x.get('player')} · {x.get('team')} vs {x.get('opponent')}": x for x in board if x.get("projection") is not None}
@@ -11950,7 +12019,7 @@ with tab_livewatch:
                 save_json(LIVE_STATE_FILE, logs[-5000:])
                 st.success("Saved.")
 
-with tab_bankroll:
+if False:
     st.markdown('<div class="section-title-pro">Bankroll + Odds Shopping</div>', unsafe_allow_html=True)
     bankroll = st.number_input("Current bankroll", min_value=0.0, value=100.0, step=10.0)
     risk_pct = st.slider("Flat risk per play", 1.0, 3.0, 1.5, 0.1)
