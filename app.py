@@ -11341,6 +11341,10 @@ def prioritize_props_for_refresh(props: Sequence[Dict[str, Any]], max_rows: int,
 
 
 LINE_ONLY_FALLBACK_DEFAULT = os.getenv("CS2_LINE_ONLY_FALLBACK", "true").strip().lower() not in {"0", "false", "no", "off"}
+ASSISTED_OFFICIAL_DEFAULT = os.getenv("CS2_ASSISTED_OFFICIAL", "true").strip().lower() not in {"0", "false", "no", "off"}
+ASSISTED_OFFICIAL_MAX_ROWS = int(max(1, min(25, float(os.getenv("CS2_ASSISTED_OFFICIAL_MAX", "12") or 12))))
+ASSISTED_OFFICIAL_MIN_PROB = float(os.getenv("CS2_ASSISTED_OFFICIAL_MIN_PROB", "0.54") or 0.54)
+ASSISTED_OFFICIAL_MIN_EDGE = float(os.getenv("CS2_ASSISTED_OFFICIAL_MIN_EDGE", "1.00") or 1.00)
 
 
 def _line_only_fallback_row(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -11350,14 +11354,16 @@ def _line_only_fallback_row(row: Dict[str, Any]) -> Dict[str, Any]:
     player = str(row.get("player") or "")
     movement = line_movement(player, row.get("market", "Maps 1-2 Kills"), row.get("start_time", ""), float(line))
     move = safe_float(movement.get("move"), 0.0) or 0.0
-    projection = float(line) + clamp(move * 0.45, -0.75, 0.75)
+    market_center = LEAGUE_KPR * DEFAULT_TWO_MAP_ROUNDS
+    market_prior_edge = clamp(market_center - float(line), -2.25, 2.25)
+    projection = float(line) + market_prior_edge + clamp(move * 0.45, -0.75, 0.75)
     edge = projection - float(line)
     if abs(edge) < 0.05:
         lean = "MARKET"
         probability = 0.50
     else:
         lean = "OVER" if edge > 0 else "UNDER"
-        probability = 0.505 + min(abs(edge), 0.75) / 0.75 * 0.02
+        probability = 0.505 + min(abs(edge), 2.25) / 2.25 * 0.06
     expected_rounds = DEFAULT_TWO_MAP_ROUNDS
     flags = list(dict.fromkeys(list(row.get("flags") or []) + [
         "LINE-ONLY FALLBACK",
@@ -11417,6 +11423,66 @@ def _line_only_fallback_row(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _assisted_official_score(row: Dict[str, Any]) -> Tuple[float, List[str]]:
+    notes = [
+        "ASSISTED OFFICIAL: MARKET-PRIOR PLAY",
+        "NO VERIFIED PLAYER PROFILE",
+        "GRADE BEFORE TRUSTING HEAVILY",
+    ]
+    prob = safe_float(row.get("probability"), 0.0) or 0.0
+    edge = abs(safe_float(row.get("edge"), 0.0) or 0.0)
+    line_move = abs(safe_float(row.get("line_move"), 0.0) or 0.0)
+    score = 0.0
+    score += clamp((prob - 0.50) / 0.09, 0, 1) * 50
+    score += clamp(edge / 2.25, 0, 1) * 35
+    score += clamp(line_move / 0.75, 0, 1) * 10
+    if row.get("lean") in {"OVER", "UNDER"}:
+        score += 5
+    return round(clamp(score, 0, 100), 1), notes
+
+
+def _promote_assisted_official_rows(board: List[Dict[str, Any]], enabled: bool = True, max_rows: int = ASSISTED_OFFICIAL_MAX_ROWS) -> Dict[str, Any]:
+    if not enabled:
+        return {"enabled": False, "promoted": 0, "message": "Assisted Official mode is off."}
+    strict_count = sum(1 for row in board if row.get("status") == "OFFICIAL" and not row.get("assisted_official"))
+    if strict_count > 0:
+        return {"enabled": True, "promoted": 0, "strict_official": strict_count, "message": "Strict Official plays are available; no assisted promotion needed."}
+    candidates = []
+    for row in board:
+        if not row.get("line_only_fallback"):
+            continue
+        if row.get("lean") not in {"OVER", "UNDER"}:
+            continue
+        prob = safe_float(row.get("probability"), 0.0) or 0.0
+        edge = abs(safe_float(row.get("edge"), 0.0) or 0.0)
+        if prob < ASSISTED_OFFICIAL_MIN_PROB or edge < ASSISTED_OFFICIAL_MIN_EDGE:
+            continue
+        score, notes = _assisted_official_score(row)
+        candidates.append((score, prob, edge, row, notes))
+    candidates.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
+    promoted = 0
+    for score, prob, edge, row, notes in candidates[:max(1, int(max_rows or ASSISTED_OFFICIAL_MAX_ROWS))]:
+        promoted += 1
+        row["status"] = "OFFICIAL"
+        row["status_label"] = "🔥 ASSISTED OFFICIAL"
+        row["official_mode"] = "ASSISTED_MARKET_PRIOR"
+        row["assisted_official"] = True
+        row["data_score"] = max(safe_int(row.get("data_score"), 0) or 0, 55)
+        row["win_score"] = max(safe_float(row.get("win_score"), 0.0) or 0.0, score)
+        row["confidence_grade"] = "B-" if score >= 76 else "C+"
+        row["best_win_tier"] = "STRONG" if score >= 76 else "WATCH"
+        row["pick_action"] = "ASSISTED OFFICIAL - GRADE"
+        row["flags"] = list(dict.fromkeys(list(row.get("flags") or []) + notes))
+        row["risk_notes"] = list(dict.fromkeys(notes + list(row.get("risk_notes") or [])))[:10]
+    return {
+        "enabled": True,
+        "promoted": promoted,
+        "strict_official": strict_count,
+        "max_rows": int(max_rows or ASSISTED_OFFICIAL_MAX_ROWS),
+        "message": f"Promoted {promoted} assisted Official plays from real market lines because strict verified profiles were unavailable.",
+    }
+
+
 def best_available_rows(board: Sequence[Dict[str, Any]], limit: int = 25) -> List[Dict[str, Any]]:
     rows = [
         row for row in board or []
@@ -11444,7 +11510,12 @@ def build_simple_line_only_board(props: Sequence[Dict[str, Any]], max_rows: int 
             "status": "PASS",
             "flags": list(prop.get("flags") or []),
         }))
-    _apply_best_win_quality(rows)
+    quality_status = _apply_best_win_quality(rows)
+    assisted_status = _promote_assisted_official_rows(
+        rows,
+        enabled=bool(st.session_state.get("cs2_assisted_official_enabled", ASSISTED_OFFICIAL_DEFAULT)),
+        max_rows=ASSISTED_OFFICIAL_MAX_ROWS,
+    )
     rows.sort(key=lambda row: (
         {"OFFICIAL": 0, "PLAYABLE": 1, "TRACK": 2, "PASS": 3}.get(row.get("status"), 9),
         -safe_float(row.get("probability"), 0),
@@ -11458,15 +11529,10 @@ def build_simple_line_only_board(props: Sequence[Dict[str, Any]], max_rows: int 
         "line_only_fallback": {
             "enabled": True,
             "rows_converted": len(rows),
-            "warning": "Simple mode skips slow profile recovery and uses real market lines only. Rows are Track/Pass, not Official.",
+            "warning": "Simple mode skips slow profile recovery and uses real market lines. Assisted Official can promote the strongest market-prior rows.",
         },
-        "best_win_quality": {
-            "eligible_rows": len(rows),
-            "best_candidates": 0,
-            "strong_candidates": 0,
-            "min_score": BEST_WIN_MIN_SCORE,
-            "top": [],
-        },
+        "best_win_quality": quality_status,
+        "assisted_official": assisted_status,
         "message": "Simple all-lines board built from real market lines without profile recovery.",
     }
 
@@ -11486,6 +11552,11 @@ def build_full_board(props: List[Dict[str, Any]], deep_enabled: bool = True) -> 
             converted += 1
     if converted:
         _apply_best_win_quality(board)
+        status["assisted_official"] = _promote_assisted_official_rows(
+            board,
+            enabled=bool(st.session_state.get("cs2_assisted_official_enabled", ASSISTED_OFFICIAL_DEFAULT)),
+            max_rows=ASSISTED_OFFICIAL_MAX_ROWS,
+        )
         order = {"OFFICIAL": 0, "PLAYABLE": 1, "TRACK": 2, "PASS": 3}
         board.sort(key=lambda row: (
             order.get(row.get("status"), 9),
@@ -11496,8 +11567,14 @@ def build_full_board(props: List[Dict[str, Any]], deep_enabled: bool = True) -> 
     status["line_only_fallback"] = {
         "enabled": True,
         "rows_converted": converted,
-        "warning": "Line-only fallback is for visibility only. It is not eligible for Official or Best-Win picks.",
+        "warning": "Line-only fallback is visible. Assisted Official can promote strongest market-prior rows when strict verified plays are unavailable.",
     }
+    if "assisted_official" not in status:
+        status["assisted_official"] = _promote_assisted_official_rows(
+            board,
+            enabled=bool(st.session_state.get("cs2_assisted_official_enabled", ASSISTED_OFFICIAL_DEFAULT)),
+            max_rows=ASSISTED_OFFICIAL_MAX_ROWS,
+        )
     return board, status
 
 
@@ -11557,12 +11634,14 @@ with st.sidebar:
     max_props_per_refresh = st.slider("Max props per refresh", 10, 250, 60, 10)
     line_only_fallback_enabled = st.checkbox("Show line-only fallback rows", value=LINE_ONLY_FALLBACK_DEFAULT)
     st.session_state["cs2_line_only_fallback_enabled"] = bool(line_only_fallback_enabled)
+    assisted_official_enabled = st.checkbox("Assisted Official when profiles missing", value=ASSISTED_OFFICIAL_DEFAULT)
+    st.session_state["cs2_assisted_official_enabled"] = bool(assisted_official_enabled)
     hide_line_only_passes = st.checkbox("Hide line-only PASS rows", value=True)
     deep_data_enabled = st.checkbox("Deep map/veto/roster data", value=DEEP_DATA_ENABLED_DEFAULT)
     if fast_refresh_enabled and deep_data_enabled:
         st.caption("Fast refresh limits rows first. Turn Fast refresh off when you want the full deep sweep.")
     if simple_line_only_mode:
-        st.caption("Simple mode loads quickly and shows every real line as Track/Pass without waiting for profile recovery.")
+        st.caption("Simple mode loads quickly. Assisted Official can promote strongest real-line rows when verified profiles are not available.")
     show_statuses = st.multiselect(
         "Show play tiers",
         ["OFFICIAL", "PLAYABLE", "TRACK", "PASS"],
@@ -11641,7 +11720,9 @@ if search_filter.strip():
 # Summary metrics
 c1, c2, c3, c4, c5, c6 = st.columns(6)
 c1.metric("Real Props", len(board))
-c2.metric("Official", sum(x.get("status") == "OFFICIAL" for x in board))
+_official_count = sum(x.get("status") == "OFFICIAL" for x in board)
+_assisted_count = sum(bool(x.get("assisted_official")) for x in board)
+c2.metric("Official", _official_count, f"{_assisted_count} assisted" if _assisted_count else None)
 c3.metric("Playable", sum(x.get("status") == "PLAYABLE" for x in board))
 c4.metric("Track", sum(x.get("status") == "TRACK" for x in board))
 c5.metric("Average Data", f"{np.mean([x.get('data_score',0) for x in board]):.0f}/100" if board else "—")
@@ -11660,8 +11741,11 @@ _line_only_status = (st.session_state.get("cs2_board_status") or {}).get("line_o
 if _line_only_status.get("rows_converted"):
     st.warning(
         f"Showing {_line_only_status.get('rows_converted')} line-only fallback rows. "
-        "These are anchored to real market lines but do not have verified player profiles, so they stay Track/Pass until real mappings/profiles recover."
+        "These are anchored to real market lines but do not have verified player profiles. Assisted Official rows are clearly labeled."
     )
+_assisted_status = (st.session_state.get("cs2_board_status") or {}).get("assisted_official") or {}
+if _assisted_status.get("promoted"):
+    st.success(_assisted_status.get("message") or f"Promoted {_assisted_status.get('promoted')} Assisted Official plays.")
 
 _source_circuit=(st.session_state.get("cs2_board_status") or {}).get("source_circuit_breaker") or {}
 if _source_circuit and not _source_circuit.get("official_enabled",False):
@@ -11736,7 +11820,8 @@ with tab_live:
         st.info("No rows match the current filters.")
 
 with tab_official:
-    official = [x for x in board if x.get("status") == "OFFICIAL"]
+    official = [x for x in board if x.get("status") == "OFFICIAL" and not x.get("assisted_official")]
+    assisted_official = [x for x in board if x.get("status") == "OFFICIAL" and x.get("assisted_official")]
     playable = [x for x in board if x.get("status") == "PLAYABLE"]
     best_available_official = best_available_rows(board, 30)
     strongest = [x for x in board if x.get("best_win_tier") in {"BEST", "STRONG"} and x.get("status") in {"OFFICIAL", "PLAYABLE"}]
@@ -11749,10 +11834,23 @@ with tab_official:
         for row in official:
             render_pick_card(row, official_style=True)
     else:
-        st.info("No plays passed every strict Official gate. Showing best available projections below instead.")
+        st.info("No plays passed every strict verified Official gate.")
+    st.markdown('<div class="section-title-pro">Assisted Official Plays</div>', unsafe_allow_html=True)
+    if assisted_official:
+        st.caption("These use real market lines with a conservative CS2 market-prior signal because verified player profiles did not load. Save and grade them separately until the record proves them.")
+        assisted_df = board_dataframe(assisted_official)
+        assisted_cols = [c for c in [
+            "status_label", "player", "team", "opponent", "lean", "line", "projection",
+            "probability", "edge", "win_score", "confidence_grade", "official_mode", "risk_notes"
+        ] if c in assisted_df.columns]
+        st.dataframe(assisted_df[assisted_cols], use_container_width=True, hide_index=True)
+        for row in assisted_official[:8]:
+            render_pick_card(row, official_style=True)
+    else:
+        st.info("No Assisted Official rows met the market-prior safety rules. Turn on Simple all-lines mode, refresh, or upload current real lines.")
     st.markdown('<div class="section-title-pro">Best Available Board</div>', unsafe_allow_html=True)
     if best_available_official:
-        st.caption("This section prevents an empty board. Line-only rows are informational Track rows until verified player profiles recover.")
+        st.caption("This section prevents an empty board. It includes strict Official, Assisted Official, Playable, and Track rows.")
         st.dataframe(board_dataframe(best_available_official), use_container_width=True, hide_index=True)
     else:
         st.info("No projection rows are available yet. Refresh real board with Simple all-lines mode on.")
