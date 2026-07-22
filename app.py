@@ -37,6 +37,7 @@ import sqlite3
 import threading
 import time
 import unicodedata
+import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter, defaultdict
 from dataclasses import dataclass, asdict
@@ -10650,12 +10651,15 @@ def _line_move_supports_lean(row: Dict[str, Any]) -> Optional[bool]:
 
 def _selection_quality_score(row: Dict[str, Any]) -> Dict[str, Any]:
     if row.get("projection") is None or row.get("status") == "PASS":
+        reason = str(row.get("error") or "")
+        if not reason:
+            reason = "Projection blocked" if row.get("projection") is None else "Passed model gates"
         return {
             "win_score": 0.0,
             "confidence_grade": "NO PLAY",
             "best_win_tier": "AVOID",
             "pick_action": "PASS",
-            "risk_notes": list(dict.fromkeys(list(row.get("flags") or []) + [str(row.get("error") or "No usable projection")]))[:10],
+            "risk_notes": list(dict.fromkeys(list(row.get("flags") or []) + [reason]))[:10],
         }
 
     prob = safe_float(row.get("probability"), 0.0) or 0.0
@@ -10965,6 +10969,325 @@ def setup_readiness_report(board: Optional[List[Dict[str, Any]]] = None) -> Dict
         "strong_candidates": board_quality.get("strong_candidates", 0),
         "graded_results": graded,
     }
+
+
+def board_recovery_exports(board: Sequence[Dict[str, Any]]) -> Dict[str, pd.DataFrame]:
+    rows = [dict(x) for x in board or []]
+    missing = []
+    for row in rows:
+        player = str(row.get("player") or "").strip()
+        if not player:
+            continue
+        no_projection = row.get("projection") is None
+        no_profile = safe_int(row.get("profile_maps"), 0) <= 0
+        if no_projection or no_profile or "NO REAL PLAYER PROFILE" in " ".join(row.get("flags") or []):
+            missing.append({
+                "Player": player,
+                "Team": row.get("team"),
+                "Opponent": row.get("opponent"),
+                "Line": row.get("line"),
+                "Start Time": row.get("start_time"),
+                "Source": row.get("source"),
+                "Issue": row.get("error") or "Missing verified profile/mapping",
+                "Current Match URL": row.get("match_url"),
+            })
+    missing_df = pd.DataFrame(missing).drop_duplicates() if missing else pd.DataFrame(columns=[
+        "Player", "Team", "Opponent", "Line", "Start Time", "Source", "Issue", "Current Match URL"
+    ])
+
+    mapping_df = pd.DataFrame([{
+        "Player": x.get("Player"),
+        "HLTV Name": x.get("Player"),
+        "HLTV Player ID": "",
+        "HLTV Slug": normalize_name(x.get("Player")).replace(" ", "-"),
+        "Team": x.get("Team") or "",
+        "Opponent": x.get("Opponent") or "",
+        "Match URL": "" if str(x.get("Current Match URL") or "").startswith("mirror://") else (x.get("Current Match URL") or ""),
+    } for x in missing]).drop_duplicates() if missing else _template_csv("player_mappings").iloc[0:0]
+
+    profile_df = pd.DataFrame([{
+        "Player": x.get("Player"),
+        "Team": x.get("Team") or "",
+        "Maps": "",
+        "Rounds": "",
+        "KPR": "",
+        "DPR": "",
+        "ADR": "",
+        "Rating": "",
+        "KD": "",
+        "HS Pct": "",
+    } for x in missing]).drop_duplicates() if missing else _template_csv("player_profiles").iloc[0:0]
+
+    issue_counts = []
+    for label, frame in [
+        ("Missing projections", pd.DataFrame([x for x in rows if x.get("projection") is None])),
+        ("Missing verified profiles", pd.DataFrame([x for x in rows if safe_int(x.get("profile_maps"), 0) <= 0])),
+        ("Passed model gates", pd.DataFrame([x for x in rows if x.get("status") == "PASS"])),
+        ("Projected rows", pd.DataFrame([x for x in rows if x.get("projection") is not None])),
+    ]:
+        issue_counts.append({"Issue": label, "Rows": len(frame)})
+
+    return {
+        "summary": pd.DataFrame(issue_counts),
+        "missing_profiles": missing_df,
+        "mapping_template": mapping_df,
+        "profile_override_template": profile_df,
+    }
+
+
+def _read_bundle_frames(uploaded_file: Any) -> Dict[str, pd.DataFrame]:
+    if uploaded_file is None:
+        return {}
+    name = str(getattr(uploaded_file, "name", "") or "").lower()
+    raw = uploaded_file.getvalue()
+    frames: Dict[str, pd.DataFrame] = {}
+    if name.endswith(".zip"):
+        with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+            for member in zf.namelist():
+                lower = member.lower()
+                if lower.endswith("/") or not lower.endswith(".csv"):
+                    continue
+                with zf.open(member) as fh:
+                    try:
+                        frames[lower] = pd.read_csv(fh)
+                    except Exception:
+                        continue
+    elif name.endswith(".xlsx") or name.endswith(".xls"):
+        try:
+            sheets = pd.read_excel(io.BytesIO(raw), sheet_name=None)
+            frames = {str(k).lower(): v for k, v in sheets.items() if isinstance(v, pd.DataFrame)}
+        except Exception:
+            frames = {}
+    elif name.endswith(".csv"):
+        frames[name] = pd.read_csv(io.BytesIO(raw))
+    return frames
+
+
+def _bundle_pick(frames: Dict[str, pd.DataFrame], *needles: str) -> pd.DataFrame:
+    wanted = [normalize_name(x) for x in needles]
+    for key, frame in frames.items():
+        k = normalize_name(key)
+        if any(x in k for x in wanted):
+            return frame
+    return pd.DataFrame()
+
+
+def _save_mapping_dataframe(df: pd.DataFrame) -> int:
+    if df is None or df.empty:
+        return 0
+    cmap = {normalize_name(c): c for c in df.columns}
+    aliases = load_json(PLAYER_ALIAS_FILE, {})
+    if not isinstance(aliases, dict):
+        aliases = {}
+    saved = 0
+
+    def value(row: pd.Series, *names: str) -> str:
+        for name in names:
+            col = cmap.get(normalize_name(name))
+            if col and row.get(col) not in [None, ""] and not pd.isna(row.get(col)):
+                return str(row.get(col)).strip()
+        return ""
+
+    for _, row in df.iterrows():
+        player = value(row, "Player", "Underdog Player")
+        if not player:
+            continue
+        aliases[normalize_name(player)] = {
+            "alias": value(row, "HLTV Name", "Alias") or player,
+            "hltv_player_id": value(row, "HLTV Player ID", "Player ID"),
+            "hltv_slug": value(row, "HLTV Slug", "Slug") or normalize_name(player).replace(" ", "-"),
+            "team": value(row, "Team"),
+            "opponent": value(row, "Opponent"),
+            "match_url": value(row, "Match URL", "HLTV Match URL"),
+            "saved_at": now_iso(),
+        }
+        saved += 1
+    if saved:
+        save_json(PLAYER_ALIAS_FILE, aliases, force=True)
+    return saved
+
+
+def _save_profile_override_dataframe(df: pd.DataFrame) -> int:
+    if df is None or df.empty:
+        return 0
+    current = load_json(PLAYER_OVERRIDES_FILE, {})
+    if not isinstance(current, dict):
+        current = {}
+    cmap = {normalize_name(c): c for c in df.columns}
+    pcol = cmap.get("player") or cmap.get("player name")
+    saved = 0
+    for _, row in df.iterrows():
+        player = str(row.get(pcol, "")).strip() if pcol else ""
+        maps = safe_int(row.get(cmap.get("maps", "")), 0)
+        kpr = safe_float(row.get(cmap.get("kpr", "")), None)
+        if not player or not maps or kpr is None:
+            continue
+        current[normalize_name(player)] = {
+            "player": player,
+            "team": row.get(cmap.get("team", ""), ""),
+            "maps": maps,
+            "rounds": safe_int(row.get(cmap.get("rounds", "")), 0),
+            "kpr": kpr,
+            "dpr": safe_float(row.get(cmap.get("dpr", "")), None),
+            "adr": safe_float(row.get(cmap.get("adr", "")), None),
+            "rating": safe_float(row.get(cmap.get("rating", "")), None),
+            "kd": safe_float(row.get(cmap.get("kd", "")), None),
+            "hs_pct": safe_float(row.get(cmap.get("hs pct", "")), None),
+            "saved_at": now_iso(),
+        }
+        saved += 1
+    if saved:
+        save_json(PLAYER_OVERRIDES_FILE, current)
+    return saved
+
+
+def import_recovery_bundle(uploaded_file: Any) -> Dict[str, Any]:
+    frames = _read_bundle_frames(uploaded_file)
+    if not frames:
+        return {"ok": False, "message": "No readable CSV/XLSX sheets found"}
+    mapping_df = _bundle_pick(frames, "mapping", "player mapping")
+    profile_df = _bundle_pick(frames, "profile override", "player profile", "profiles")
+    history_df = _bundle_pick(frames, "historical results", "graded results", "results")
+    odds_df = _bundle_pick(frames, "multibook odds", "multi book", "manual odds", "odds")
+    board_df = _bundle_pick(frames, "current board", "manual board")
+    out = {
+        "ok": True,
+        "files_read": list(frames.keys()),
+        "mappings_saved": _save_mapping_dataframe(mapping_df),
+        "profile_overrides_saved": _save_profile_override_dataframe(profile_df),
+        "historical_results": import_historical_projection_results(history_df) if not history_df.empty else {"imported": 0, "skipped": 0},
+        "manual_odds_saved": save_manual_odds_rows(odds_df) if not odds_df.empty else 0,
+        "multi_book_odds": save_multibook_odds_dataframe(odds_df) if not odds_df.empty else {"added": 0, "skipped": 0},
+        "manual_board_rows": len(parse_manual_board_dataframe(board_df)) if not board_df.empty else 0,
+    }
+    if not board_df.empty:
+        st.session_state["cs2_manual_props"] = parse_manual_board_dataframe(board_df)
+    return out
+
+
+def _classify_recovery_frame(name: str, df: pd.DataFrame) -> str:
+    key = normalize_name(name)
+    cols = {normalize_name(c) for c in (df.columns if isinstance(df, pd.DataFrame) else [])}
+    if "mapping" in key or "hltv player id" in cols or "hltv slug" in cols:
+        return "mapping"
+    if "profile override" in key or ({"player", "maps", "kpr"} <= cols):
+        return "profile"
+    if "historical result" in key or "actual kills" in cols:
+        return "historical_results"
+    if "odds" in key or "over odds" in cols or "under odds" in cols:
+        return "odds"
+    if "backfill" in key or "team score" in cols or "started side" in cols or "event type" in cols:
+        return "backfill"
+    if "board" in key or ({"player", "line", "start time"} <= cols):
+        return "board"
+    if "missing profile" in key:
+        return "checklist"
+    return "unknown"
+
+
+def import_recovery_files(uploaded_files: Sequence[Any]) -> Dict[str, Any]:
+    result: Dict[str, Any] = {
+        "ok": True,
+        "files": [],
+        "mappings_saved": 0,
+        "profile_overrides_saved": 0,
+        "historical_results_imported": 0,
+        "manual_odds_saved": 0,
+        "multi_book_odds_added": 0,
+        "backfill_rows_added": 0,
+        "manual_board_rows": 0,
+        "checklist_rows": 0,
+        "unknown_files": [],
+    }
+    manual_props: List[Dict[str, Any]] = []
+    for uploaded in uploaded_files or []:
+        name = str(getattr(uploaded, "name", "") or "uploaded.csv")
+        frames = _read_bundle_frames(uploaded)
+        if not frames:
+            result["files"].append({"file": name, "type": "unreadable", "rows": 0})
+            result["unknown_files"].append(name)
+            continue
+        for frame_name, frame in frames.items():
+            kind = _classify_recovery_frame(frame_name or name, frame)
+            rows = len(frame) if isinstance(frame, pd.DataFrame) else 0
+            entry = {"file": name, "sheet_or_csv": frame_name, "type": kind, "rows": rows}
+            try:
+                if kind == "mapping":
+                    entry["saved"] = _save_mapping_dataframe(frame)
+                    result["mappings_saved"] += int(entry["saved"])
+                elif kind == "profile":
+                    entry["saved"] = _save_profile_override_dataframe(frame)
+                    result["profile_overrides_saved"] += int(entry["saved"])
+                elif kind == "historical_results":
+                    out = import_historical_projection_results(frame, name)
+                    entry.update(out)
+                    result["historical_results_imported"] += int(out.get("imported", 0) or 0)
+                elif kind == "odds":
+                    manual = save_manual_odds_rows(frame)
+                    multi = save_multibook_odds_dataframe(frame)
+                    entry["manual_saved"] = manual
+                    entry["multi_book"] = multi
+                    result["manual_odds_saved"] += int(manual or 0)
+                    result["multi_book_odds_added"] += int((multi or {}).get("added", 0) or 0)
+                elif kind == "backfill":
+                    out = ingest_historical_backfill(frame, name)
+                    entry.update(out)
+                    result["backfill_rows_added"] += int(out.get("rows_added", 0) or 0)
+                elif kind == "board":
+                    rows_parsed = parse_manual_board_dataframe(frame)
+                    manual_props.extend(rows_parsed)
+                    entry["manual_board_rows"] = len(rows_parsed)
+                    result["manual_board_rows"] += len(rows_parsed)
+                elif kind == "checklist":
+                    result["checklist_rows"] += rows
+                    entry["note"] = "Checklist only; fill mapping/profile CSVs to fix projections"
+                else:
+                    result["unknown_files"].append(name)
+            except Exception as exc:
+                entry["error"] = str(exc)
+            result["files"].append(entry)
+    if manual_props:
+        dedup = {}
+        for prop in manual_props:
+            line = safe_float(prop.get("line"), None)
+            if not prop.get("player") or line is None:
+                continue
+            dedup[(normalize_name(prop.get("player")), float(line), str(prop.get("start_time", ""))[:16])] = prop
+        st.session_state["cs2_manual_props"] = list(dedup.values())
+    result["needs_refresh"] = bool(
+        result["mappings_saved"] or result["profile_overrides_saved"] or result["historical_results_imported"] or
+        result["manual_odds_saved"] or result["multi_book_odds_added"] or result["backfill_rows_added"] or
+        result["manual_board_rows"]
+    )
+    return result
+
+
+def built_in_recovery_file_paths() -> List[str]:
+    candidates = [
+        "/Users/j/Documents/Codex/2026-07-21/h/outputs/cs2_missing_profiles_2026-07-21.csv",
+        "/Users/j/Documents/Codex/2026-07-21/h/outputs/cs2_player_mapping_recovery_2026-07-21.csv",
+        "/Users/j/Documents/Codex/2026-07-21/h/outputs/cs2_profile_override_recovery_2026-07-21.csv",
+        "/Users/j/Documents/Codex/2026-07-21/h/outputs/cs2_projection_issue_summary_2026-07-21.csv",
+    ]
+    return [path for path in candidates if os.path.exists(path)]
+
+
+def import_built_in_recovery_files() -> Dict[str, Any]:
+    paths = built_in_recovery_file_paths()
+    if not paths:
+        return {"ok": False, "message": "No built-in recovery CSVs found on this server"}
+    result = {"ok": True, "files": [], "checklist_rows": 0}
+    for path in paths:
+        try:
+            df = pd.read_csv(path)
+            kind = _classify_recovery_frame(os.path.basename(path), df)
+            result["files"].append({"file": path, "type": kind, "rows": len(df)})
+            if kind == "checklist":
+                result["checklist_rows"] += len(df)
+        except Exception as exc:
+            result["files"].append({"file": path, "error": str(exc)})
+    result["message"] = "Built-in recovery files are templates/checklists. Fill mappings or profile overrides before importing to fix projections."
+    return result
 
 
 # ============================================================
@@ -11429,6 +11752,75 @@ with tab_data:
     r4.metric("Strong Candidates", readiness.get("strong_candidates", 0))
     st.dataframe(pd.DataFrame(readiness["checks"]), use_container_width=True, hide_index=True)
     st.caption("Fill the false rows first. The projection model can run without them, but best-win confidence improves most from graded results, mappings, odds, persistent storage, and demo/current-roster data.")
+
+    st.markdown('<div class="section-title-pro">One-File Recovery Bundle Import</div>', unsafe_allow_html=True)
+    st.caption("Upload one ZIP containing the recovery CSVs, or one Excel workbook with sheets named mapping, profile overrides, historical results, odds, and current board.")
+    recovery_bundle = st.file_uploader("Upload recovery bundle", type=["zip", "xlsx", "xls", "csv"], key="cs2_recovery_bundle_upload")
+    if st.button("IMPORT ONE-FILE RECOVERY BUNDLE", use_container_width=True, disabled=recovery_bundle is None):
+        try:
+            out = import_recovery_bundle(recovery_bundle)
+            if out.get("ok"):
+                st.success("Recovery bundle imported. Refresh projections after importing filled mappings/profiles.")
+                st.json(out, expanded=False)
+                st.rerun()
+            else:
+                st.error(out.get("message") or str(out))
+        except Exception as exc:
+            st.error(f"Recovery bundle import failed: {exc}")
+
+    st.markdown('<div class="section-title-pro">Multi-File Recovery Upload</div>', unsafe_allow_html=True)
+    st.caption("Drop the missing-profile checklist plus mapping/profile/odds/history CSVs together. The app auto-detects each file and imports the usable ones.")
+    recovery_files = st.file_uploader(
+        "Upload multiple recovery CSVs",
+        type=["csv", "zip", "xlsx", "xls"],
+        accept_multiple_files=True,
+        key="cs2_multi_recovery_upload",
+    )
+    if st.button("IMPORT MULTIPLE RECOVERY FILES", use_container_width=True, disabled=not recovery_files):
+        try:
+            out = import_recovery_files(recovery_files)
+            if out.get("needs_refresh"):
+                st.success("Recovery files imported. Refresh projections from the sidebar.")
+            else:
+                st.warning("Files were read, but no usable mapping/profile/history/odds data was saved yet.")
+            st.json(out, expanded=False)
+            if out.get("needs_refresh"):
+                st.rerun()
+        except Exception as exc:
+            st.error(f"Multi-file recovery import failed: {exc}")
+    if st.button("SHOW BUILT-IN RECOVERY FILES", use_container_width=True):
+        st.json(import_built_in_recovery_files(), expanded=False)
+
+    st.markdown('<div class="section-title-pro">Current Board Recovery Exports</div>', unsafe_allow_html=True)
+    recovery_exports = board_recovery_exports(board)
+    st.dataframe(recovery_exports["summary"], use_container_width=True, hide_index=True)
+    rc1, rc2, rc3 = st.columns(3)
+    with rc1:
+        st.download_button(
+            "Download Missing Profiles",
+            recovery_exports["missing_profiles"].to_csv(index=False).encode("utf-8"),
+            f"cs2_missing_profiles_{local_now().date().isoformat()}.csv",
+            "text/csv",
+            use_container_width=True,
+        )
+    with rc2:
+        st.download_button(
+            "Download Mapping Template",
+            recovery_exports["mapping_template"].to_csv(index=False).encode("utf-8"),
+            f"cs2_player_mapping_recovery_{local_now().date().isoformat()}.csv",
+            "text/csv",
+            use_container_width=True,
+        )
+    with rc3:
+        st.download_button(
+            "Download Profile Override Template",
+            recovery_exports["profile_override_template"].to_csv(index=False).encode("utf-8"),
+            f"cs2_profile_override_recovery_{local_now().date().isoformat()}.csv",
+            "text/csv",
+            use_container_width=True,
+        )
+    if not recovery_exports["missing_profiles"].empty:
+        st.caption("Your current issue is profile recovery: fill either exact player mappings or verified player profile overrides for these rows, then refresh projections.")
 
     st.markdown('<div class="section-title-pro">Download CSV Templates</div>', unsafe_allow_html=True)
     template_cols = st.columns(4)
