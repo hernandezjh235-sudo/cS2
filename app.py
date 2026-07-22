@@ -350,10 +350,17 @@ h1,h2,h3,h4 {color:#fff;}
 [data-testid="stDataFrame"] {border:1px solid rgba(255,47,61,.35);border-radius:14px;overflow:hidden;}
 @media(max-width:1100px){.metric-grid{grid-template-columns:repeat(3,minmax(0,1fr));}}
 @media(max-width:850px){
+ .block-container{padding:.55rem .55rem 1rem .55rem;max-width:100%;}
  .big-title{font-size:29px}.big-number{font-size:31px}.player-name{font-size:21px}
- .pick-card,.official-card{padding:14px;border-radius:17px}
+ .hero-panel{padding:13px;border-radius:16px;margin-bottom:10px}
+ .pick-card,.official-card{padding:12px;border-radius:14px;margin-bottom:10px}
+ [data-testid="stMetric"]{padding:9px;border-radius:12px}
+ .section-title-pro{font-size:19px;margin:14px 0 8px}
  .metric-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+ .metric-box{min-height:66px;padding:9px}
+ .metric-value{font-size:18px}
  .pick-card div[style*="grid-template-columns"],.official-card div[style*="grid-template-columns"]{grid-template-columns:1fr!important;}
+ div[data-testid="stDataFrame"]{font-size:12px}
 }
 </style>
 """,
@@ -4879,6 +4886,8 @@ def render_pick_card(row: Dict[str, Any], official_style: bool = False) -> None:
 """,
         unsafe_allow_html=True,
     )
+    if bool(globals().get("mobile_lite_mode", False)):
+        return
     with st.expander(f"Projection breakdown — {row.get('player')}"):
         c1, c2 = st.columns(2)
         with c1:
@@ -11761,6 +11770,8 @@ with st.sidebar:
     use_prizepicks = st.checkbox("Use PrizePicks for free market consensus", value=False)
     show_prizepicks_rows = st.checkbox("Also display PrizePicks rows", value=False)
     simple_line_only_mode = st.checkbox("Simple all-lines mode", value=True)
+    mobile_lite_mode = st.checkbox("Mobile lite / stop browser reloads", value=True)
+    mobile_preview_rows = st.slider("Mobile rows/cards shown", 5, 50, 15, 5)
     fast_refresh_enabled = st.checkbox("Fast refresh / prevent hangs", value=True)
     max_props_per_refresh = st.slider("Max props per refresh", 10, 250, 250, 10)
     line_only_fallback_enabled = st.checkbox("Show line-only fallback rows", value=LINE_ONLY_FALLBACK_DEFAULT)
@@ -11773,6 +11784,8 @@ with st.sidebar:
         st.caption("Fast refresh limits rows first. Turn Fast refresh off when you want the full deep sweep.")
     if simple_line_only_mode:
         st.caption("Simple mode loads quickly. Assisted Official can promote strongest real-line rows when verified profiles are not available.")
+    if mobile_lite_mode:
+        st.caption("Mobile lite limits tables/cards so Railway works better on phone browsers.")
     show_statuses = st.multiselect(
         "Show play tiers",
         ["OFFICIAL", "PLAYABLE", "TRACK", "PASS"],
@@ -11914,6 +11927,7 @@ with tab_live:
     st.caption("Ranked by Official → Playable → Track → Pass, then by best-win score, model probability, and projection edge.")
     render_save_for_grading_controls(board, key_prefix="live")
     best_available = best_available_rows(board, 25)
+    _preview_limit = int(mobile_preview_rows if mobile_lite_mode else 250)
     if best_available:
         st.markdown('<div class="section-title-pro">Best Available Projections</div>', unsafe_allow_html=True)
         st.caption("Verified profile projections rank first. If only line-only rows are available, they stay Track and are labeled profile-needed.")
@@ -11922,7 +11936,7 @@ with tab_live:
             "status_label", "player", "team", "opponent", "line", "projection", "lean",
             "probability", "edge", "profile_maps", "data_score", "risk_notes"
         ] if c in best_available_df.columns]
-        st.dataframe(best_available_df[best_available_cols], use_container_width=True, hide_index=True)
+        st.dataframe(best_available_df[best_available_cols].head(_preview_limit), use_container_width=True, hide_index=True)
     best_candidates = [
         x for x in board
         if x.get("best_win_tier") in {"BEST", "STRONG"} and x.get("status") in {"OFFICIAL", "PLAYABLE"}
@@ -11935,9 +11949,12 @@ with tab_live:
             "player", "team", "opponent", "lean", "line", "projection", "probability",
             "edge", "data_score", "risk_notes"
         ] if c in best_preview.columns]
-        st.dataframe(best_preview[best_cols], use_container_width=True, hide_index=True)
+        st.dataframe(best_preview[best_cols].head(_preview_limit), use_container_width=True, hide_index=True)
     if filtered_board:
-        st.dataframe(board_dataframe(filtered_board), use_container_width=True, hide_index=True)
+        display_board_df = board_dataframe(filtered_board)
+        st.dataframe(display_board_df.head(_preview_limit), use_container_width=True, hide_index=True)
+        if mobile_lite_mode and len(display_board_df) > _preview_limit:
+            st.caption(f"Mobile lite showing {_preview_limit}/{len(display_board_df)} rows. Download CSV for the full board.")
         st.download_button(
             "Download current projection CSV",
             data=board_dataframe(filtered_board).to_csv(index=False).encode("utf-8"),
@@ -11945,8 +11962,9 @@ with tab_live:
             mime="text/csv",
             use_container_width=True,
         )
-        st.markdown('<div class="section-title-pro">Mobile Projection Cards</div>', unsafe_allow_html=True)
-        for row in filtered_board:
+        st.markdown('<div class="section-title-pro">Projection Cards</div>', unsafe_allow_html=True)
+        card_rows = filtered_board[:_preview_limit] if mobile_lite_mode else filtered_board
+        for row in card_rows:
             render_pick_card(row, official_style=row.get("status") == "OFFICIAL")
     else:
         st.info("No rows match the current filters.")
@@ -11964,7 +11982,7 @@ with tab_official:
         f"data score ≥{MIN_OFFICIAL_DATA_SCORE}, ≥{MIN_OFFICIAL_PROFILE_MAPS} profile maps, no hard risk flag."
     )
     if official:
-        for row in official:
+        for row in official[:_preview_limit]:
             render_pick_card(row, official_style=True)
     else:
         st.info("No plays passed every strict verified Official gate.")
@@ -11976,25 +11994,25 @@ with tab_official:
             "status_label", "player", "team", "opponent", "lean", "line", "projection",
             "probability", "edge", "win_score", "confidence_grade", "official_mode", "risk_notes"
         ] if c in assisted_df.columns]
-        st.dataframe(assisted_df[assisted_cols], use_container_width=True, hide_index=True)
-        for row in assisted_official[:8]:
+        st.dataframe(assisted_df[assisted_cols].head(_preview_limit), use_container_width=True, hide_index=True)
+        for row in assisted_official[:min(8, _preview_limit)]:
             render_pick_card(row, official_style=True)
     else:
         st.info("No Assisted Official rows met the market-prior safety rules. Turn on Simple all-lines mode, refresh, or upload current real lines.")
     st.markdown('<div class="section-title-pro">Best Available Board</div>', unsafe_allow_html=True)
     if best_available_official:
         st.caption("This section prevents an empty board. It includes strict Official, Assisted Official, Playable, and Track rows.")
-        st.dataframe(board_dataframe(best_available_official), use_container_width=True, hide_index=True)
+        st.dataframe(board_dataframe(best_available_official).head(_preview_limit), use_container_width=True, hide_index=True)
     else:
         st.info("No projection rows are available yet. Refresh real board with Simple all-lines mode on.")
     st.markdown('<div class="section-title-pro">Best-Win Shortlist</div>', unsafe_allow_html=True)
     if strongest:
-        st.dataframe(board_dataframe(strongest), use_container_width=True, hide_index=True)
+        st.dataframe(board_dataframe(strongest).head(_preview_limit), use_container_width=True, hide_index=True)
     else:
         st.info("No row has enough combined probability, edge, data quality, and calibration support for the best-win shortlist.")
     st.markdown('<div class="section-title-pro">Playable — Below Official Gate</div>', unsafe_allow_html=True)
     if playable:
-        for row in playable:
+        for row in playable[:_preview_limit]:
             render_pick_card(row, official_style=False)
     else:
         st.info("No additional Playable rows.")
@@ -12006,7 +12024,7 @@ with tab_saved:
     if picks:
         saved_df = pd.DataFrame(picks)
         display_cols = [c for c in ["saved_at", "player", "team", "opponent", "line", "projection", "lean", "probability", "status", "status_label", "official_mode", "assisted_official", "expected_rounds", "adjusted_kpr", "likely_maps", "data_score", "graded_result", "actual_kills", "match_url"] if c in saved_df.columns]
-        st.dataframe(saved_df[display_cols].sort_values("saved_at", ascending=False), use_container_width=True, hide_index=True)
+        st.dataframe(saved_df[display_cols].sort_values("saved_at", ascending=False).head(_preview_limit), use_container_width=True, hide_index=True)
         st.download_button("Download saved snapshots", saved_df.to_csv(index=False).encode(), "cs2_official_snapshots.csv", "text/csv", use_container_width=True)
     else:
         st.info("No saved snapshots yet. Save Official rows before matches begin.")
@@ -12038,7 +12056,7 @@ with tab_grade:
             display_results = finished_now[result_cols].copy()
             if "probability" in display_results.columns:
                 display_results["probability"] = pd.to_numeric(display_results["probability"], errors="coerce").apply(lambda x: round(x * 100, 1) if pd.notna(x) and x <= 1 else x)
-            st.dataframe(display_results.sort_values("graded_at", ascending=False), use_container_width=True, hide_index=True)
+            st.dataframe(display_results.sort_values("graded_at", ascending=False).head(_preview_limit), use_container_width=True, hide_index=True)
             cdl1, cdl2, cdl3 = st.columns(3)
             with cdl1:
                 st.download_button("Download Wins", finished_now[finished_now["graded_result"] == "WIN"].to_csv(index=False).encode("utf-8"), "cs2_wins.csv", "text/csv", use_container_width=True)
@@ -12072,7 +12090,7 @@ with tab_grade:
             "text/csv",
             use_container_width=True,
         )
-        st.dataframe(template_df.head(25), use_container_width=True, hide_index=True)
+        st.dataframe(template_df.head(_preview_limit), use_container_width=True, hide_index=True)
     else:
         st.info("No pending saved picks found. Save picks before matches, then come back here for a prefilled results template.")
     st.code("snapshot_id,player,line,lean,actual_kills\nabc123,ZywOo,34.5,OVER,38", language="csv")
@@ -12088,7 +12106,7 @@ with tab_grade:
     except Exception as exc:
         st.error(f"Result CSV parse error: {exc}")
     if not result_df.empty:
-        st.dataframe(result_df, use_container_width=True, hide_index=True)
+        st.dataframe(result_df.head(_preview_limit), use_container_width=True, hide_index=True)
     c_manual_direct, c_manual_review = st.columns(2)
     with c_manual_direct:
         if st.button("✅ GRADE UPLOADED RESULTS NOW", use_container_width=True, type="primary"):
@@ -12147,7 +12165,7 @@ with tab_grade:
             c4.metric("Projection MAE", "—")
             c5.metric("Model Bias", "—")
         useful_cols = [c for c in ["graded_at", "player", "line", "projection", "lean", "actual_kills", "graded_result", "status", "probability", "data_score", "role", "likely_maps"] if c in rdf.columns]
-        st.dataframe(rdf[useful_cols].sort_values("graded_at", ascending=False), use_container_width=True, hide_index=True)
+        st.dataframe(rdf[useful_cols].sort_values("graded_at", ascending=False).head(_preview_limit), use_container_width=True, hide_index=True)
         learning = build_learning_profiles(results)
         st.subheader("Capped learning profiles")
         st.json(learning, expanded=False)
@@ -12167,17 +12185,17 @@ with tab_calibration:
     c4.metric("Calibration Gap", f"{ins.get('ece'):.3f}" if ins.get("ece") is not None else "—")
     st.caption("Official probability calibration is considered ready only after at least 50 comparable graded rows. Walk-forward testing uses only earlier rows to predict later rows.")
     if ins.get("bins"):
-        st.dataframe(pd.DataFrame(ins["bins"]), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(ins["bins"]).head(_preview_limit), use_container_width=True, hide_index=True)
     st.subheader("Chronological walk-forward results")
     if wf.get("n"):
         w1, w2, w3 = st.columns(3)
         w1.metric("Test Rows", wf["n"])
         w2.metric("Walk-Forward Brier", f"{wf['brier']:.4f}")
         w3.metric("Walk-Forward Hit Rate", f"{wf['hit_rate']*100:.1f}%")
-        st.dataframe(pd.DataFrame(wf.get("records", [])[-250:]), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(wf.get("records", [])[-_preview_limit:]), use_container_width=True, hide_index=True)
     else:
         st.info(wf.get("message", "More chronological graded projections are required."))
-    history_rows = _read_jsonl(HISTORICAL_ASOF_FILE, 5000)
+    history_rows = _read_jsonl(HISTORICAL_ASOF_FILE, 500 if mobile_lite_mode else 5000)
     st.metric("As-of Projection Records", len(history_rows))
     if history_rows:
         st.download_button("Download as-of history", pd.DataFrame(history_rows).to_csv(index=False).encode(), "cs2_asof_history.csv", "text/csv", use_container_width=True)
@@ -12194,7 +12212,7 @@ with tab_calibration:
         for key,val in (bias_report.get(section) or {}).items(): rows_section.append({"Group":key,**val})
         if rows_section:
             with st.expander(section.replace("_"," ").title(), expanded=section=="direction"):
-                st.dataframe(pd.DataFrame(rows_section),use_container_width=True,hide_index=True)
+                st.dataframe(pd.DataFrame(rows_section).head(_preview_limit),use_container_width=True,hide_index=True)
 
 with tab_special:
     st.markdown('<div class="section-title-pro">Specialized Market Research</div>', unsafe_allow_html=True)
@@ -12299,7 +12317,7 @@ with tab_data:
     r2.metric("Checks Ready", f"{readiness['ready_count']}/{readiness['total']}")
     r3.metric("Graded Results", readiness["graded_results"])
     r4.metric("Strong Candidates", readiness.get("strong_candidates", 0))
-    st.dataframe(pd.DataFrame(readiness["checks"]), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(readiness["checks"]).head(_preview_limit), use_container_width=True, hide_index=True)
     st.caption("Fill the false rows first. The projection model can run without them, but best-win confidence improves most from graded results, mappings, odds, persistent storage, and demo/current-roster data.")
 
     st.markdown('<div class="section-title-pro">One-File Recovery Bundle Import</div>', unsafe_allow_html=True)
@@ -12640,7 +12658,7 @@ with tab_data:
             except Exception as exc:st.error(f"Provider cache import failed: {exc}")
 
     st.markdown('<div class="section-title-pro">Optional Free PandaScore Connection</div>', unsafe_allow_html=True)
-    panda_rows, panda_status = fetch_pandascore_upcoming()
+    panda_rows, panda_status = ([], {"configured": False, "mobile_lite": True}) if mobile_lite_mode else fetch_pandascore_upcoming()
     if panda_status.get("configured"):
         st.success(f"PandaScore configured. Upcoming rows: {len(panda_rows)}")
         if panda_rows:
@@ -12650,9 +12668,9 @@ with tab_data:
                     "id": x.get("id"), "name": x.get("name"), "begin_at": x.get("begin_at"),
                     "status": x.get("status"), "tournament": (x.get("tournament") or {}).get("name")
                 })
-            st.dataframe(pd.DataFrame(preview), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(preview).head(_preview_limit), use_container_width=True, hide_index=True)
     else:
-        st.info("No PandaScore token configured. The core app still runs through no-key public sources. Add PANDASCORE_TOKEN as a Railway variable for an optional free schedule/roster fallback.")
+        st.info("PandaScore preview is hidden in mobile lite, or no token is configured. The core app still runs through no-key public sources.")
 
 with tab_debug:
     health=model_health_report(board,st.session_state.get("cs2_line_source_status") or {})
@@ -12663,12 +12681,15 @@ with tab_debug:
     h3.metric("Graded Projections",health['graded_binary'])
     h4.metric("Calibration",health['calibration_tier'])
     st.caption(health['note'])
-    st.json(health,expanded=False)
+    if mobile_lite_mode:
+        st.info("Mobile lite hides large debug JSON. Turn it off on desktop for full diagnostics.")
+    else:
+        st.json(health,expanded=False)
     # Always recompute with the active model version. Do not reuse an older v4.5 parser snapshot.
     parser_health=parser_consistency_report(board,st.session_state.get("cs2_board_status") or {})
     st.markdown('<div class="section-title-pro">Parser Consistency Circuit</div>', unsafe_allow_html=True)
     p1,p2,p3=st.columns(3);p1.metric("Parser Health",f"{parser_health.get('score',0):.1f}/100");p2.metric("Parser Grade",parser_health.get("grade","—"));p3.metric("Official Enabled","YES" if parser_health.get("official_enabled") else "NO")
-    if parser_health.get("checks"):st.dataframe(pd.DataFrame(parser_health["checks"]),use_container_width=True,hide_index=True)
+    if parser_health.get("checks"):st.dataframe(pd.DataFrame(parser_health["checks"]).head(_preview_limit),use_container_width=True,hide_index=True)
     st.markdown('<div class="section-title-pro">Source Status</div>', unsafe_allow_html=True)
     provider=(st.session_state.get("cs2_board_status") or {}).get("v49_source_recovery") or (st.session_state.get("cs2_board_status") or {}).get("v48_source_recovery") or {}
     if provider:
@@ -12694,10 +12715,11 @@ with tab_debug:
         st.warning("The BO3 provider is temporarily paused after a failed response. Saved database/demo profiles remain available. Reset the source and refresh again after the cooldown.")
     else:
         st.info("V5.1 loads a paginated HLTV batch through Jina first, then uses a small BO3/Jina fallback for unmatched players. Recovered profiles persist in the Railway cache.")
-    st.write("Line source status")
-    st.json(st.session_state.get("cs2_line_source_status") or {}, expanded=False)
-    st.write("Projection source status")
-    st.json(st.session_state.get("cs2_board_status") or {}, expanded=False)
+    if not mobile_lite_mode:
+        st.write("Line source status")
+        st.json(st.session_state.get("cs2_line_source_status") or {}, expanded=False)
+        st.write("Projection source status")
+        st.json(st.session_state.get("cs2_board_status") or {}, expanded=False)
     if board:
         debug_rows = []
         for row in board:
@@ -12708,12 +12730,12 @@ with tab_debug:
                 "Map Conf": row.get("map_confidence"), "Role": row.get("role"), "Data Score": row.get("data_score"),
                 "Flags": " | ".join(row.get("flags") or []), "Error": row.get("error", ""),
             })
-        st.dataframe(pd.DataFrame(debug_rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(debug_rows).head(_preview_limit), use_container_width=True, hide_index=True)
 
     st.markdown('<div class="section-title-pro">Recent Requests / Errors</div>', unsafe_allow_html=True)
     requests_log = load_json(REQUEST_LOG_FILE, [])
     if requests_log:
-        st.dataframe(pd.DataFrame(requests_log[-150:]), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(requests_log[-_preview_limit:]), use_container_width=True, hide_index=True)
     else:
         st.info("No request log entries yet.")
 
@@ -12736,7 +12758,7 @@ with tab_debug:
         {"Variable": "GITHUB_BRANCH", "Required": "No", "Purpose": "Defaults to main"},
         {"Variable": "GITHUB_AUTO_BACKUP", "Required": "No", "Purpose": "true to back up after save/grade"},
     ]
-    st.dataframe(pd.DataFrame(variables), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(variables).head(_preview_limit), use_container_width=True, hide_index=True)
     st.caption("No live credential is hardcoded in this file.")
 
     st.markdown('<div class="section-title-pro">Backup + Maintenance</div>', unsafe_allow_html=True)
