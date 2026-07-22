@@ -82,6 +82,10 @@ UNDERDOG_API_HEADERS = {
     "Referer": "https://underdogsports.com/",
 }
 PRIZEPICKS_URL = "https://api.prizepicks.com/projections"
+OWLS_UNDERDOG_CS2_URL = os.getenv(
+    "OWLS_UNDERDOG_CS2_URL",
+    "https://api.owlsinsight.com/api/v2/underdog/cs2",
+).strip()
 HLTV_BASE = "https://www.hltv.org"
 PANDASCORE_BASE = "https://api.pandascore.co"
 
@@ -968,7 +972,9 @@ def _object_text(*objects: Any) -> str:
         "first_name", "last_name", "stat", "stat_type", "appearance_stat", "display_stat",
         "market", "market_name", "projection_type", "label", "description", "sport",
         "sport_name", "league", "league_name", "team", "team_name", "opponent",
-        "opponent_name", "position", "status", "game_title", "matchup"
+        "opponent_name", "position", "status", "game_title", "matchup", "line_type",
+        "period", "period_title", "selection_header", "selection_subheader",
+        "stat_display_name", "stat_label", "stat_title", "type"
     ]
     parts: List[str] = []
     for obj in objects:
@@ -979,8 +985,20 @@ def _object_text(*objects: Any) -> str:
                 for nested in wanted:
                     if value.get(nested) not in [None, ""]:
                         parts.append(str(value[nested]))
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        for nested in wanted:
+                            if item.get(nested) not in [None, ""]:
+                                parts.append(str(item[nested]))
+                    elif item not in [None, ""]:
+                        parts.append(str(item))
             elif value not in [None, ""]:
                 parts.append(str(value))
+        for key in ["options", "choices", "outcomes"]:
+            value = a.get(key)
+            if isinstance(value, list):
+                parts.append(_object_text(*[x for x in value if isinstance(x, dict)]))
     return " | ".join(parts)
 
 
@@ -1074,6 +1092,8 @@ def _first_attr(objects: Sequence[Any], keys: Sequence[str]) -> Any:
 
 
 def _record_map(items: Any) -> Dict[str, Dict[str, Any]]:
+    if isinstance(items, dict):
+        items = list(items.values())
     if not isinstance(items, list):
         return {}
     out: Dict[str, Dict[str, Any]] = {}
@@ -1081,6 +1101,38 @@ def _record_map(items: Any) -> Dict[str, Dict[str, Any]]:
         if isinstance(item, dict) and item.get("id") not in [None, ""]:
             out[str(item.get("id"))] = item
     return out
+
+
+def _underdog_payload_root(data: Any) -> Dict[str, Any]:
+    """Return the object that owns Underdog collections across direct/proxy shapes."""
+    if not isinstance(data, dict):
+        return {}
+    root = data
+    nested = root.get("data")
+    if isinstance(nested, dict) and any(k in nested for k in ["over_under_lines", "appearances", "players"]):
+        root = nested
+    return root if isinstance(root, dict) else {}
+
+
+def _underdog_collection(root: Dict[str, Any], *names: str) -> List[Dict[str, Any]]:
+    for name in names:
+        value = root.get(name)
+        if isinstance(value, dict):
+            value = list(value.values())
+        if isinstance(value, list):
+            return [x for x in value if isinstance(x, dict)]
+    return []
+
+
+def _underdog_inactive(*objects: Any) -> bool:
+    for obj in objects:
+        a = attrs(obj)
+        status = str(a.get("status") or a.get("state") or "").lower()
+        if status in {"suspended", "removed", "closed", "inactive", "hidden", "disabled", "settled"}:
+            return True
+        if a.get("active") is False or a.get("hidden") is True or a.get("disabled") is True:
+            return True
+    return False
 
 
 def _parse_iso_datetime(value: Any) -> Optional[datetime]:
@@ -1110,19 +1162,23 @@ def _parse_underdog_top_level(data: Any) -> List[Dict[str, Any]]:
     players + appearances + games/matches + teams + over_under_lines.
     A generic JSON:API parser remains below as a second fallback.
     """
-    if not isinstance(data, dict):
+    root = _underdog_payload_root(data)
+    if not root:
         return []
-    line_items = data.get("over_under_lines")
-    appearance_items = data.get("appearances")
-    player_items = data.get("players")
-    if not isinstance(line_items, list) or not isinstance(appearance_items, list) or not isinstance(player_items, list):
+    line_items = _underdog_collection(root, "over_under_lines", "lines", "projections")
+    appearance_items = _underdog_collection(root, "appearances")
+    player_items = _underdog_collection(root, "players", "new_players")
+    if not line_items or not appearance_items or not player_items:
         return []
 
     appearances = _record_map(appearance_items)
     players = _record_map(player_items)
-    games = _record_map(data.get("games") or data.get("matches") or data.get("events") or [])
-    teams = _record_map(data.get("teams") or [])
-    sports = _record_map(data.get("sports") or [])
+    games = _record_map(
+        _underdog_collection(root, "games", "matches", "events") +
+        _underdog_collection(root, "solo_games")
+    )
+    teams = _record_map(_underdog_collection(root, "teams"))
+    sports = _record_map(_underdog_collection(root, "sports", "leagues"))
     rows: List[Dict[str, Any]] = []
 
     for line_obj in line_items:
@@ -1150,8 +1206,7 @@ def _parse_underdog_top_level(data: Any) -> List[Dict[str, Any]]:
         if not _is_cs2_m12_kills(text):
             continue
 
-        status_blob = " ".join(str(x.get(k, "")) for x in [line_obj, over_under, appearance, game_obj] for k in ["status", "state", "active", "hidden"]).lower()
-        if any(term in status_blob for term in ["suspended", "removed", "closed", "inactive", "hidden", "disabled", "settled"]):
+        if _underdog_inactive(line_obj, over_under, appearance, game_obj):
             continue
 
         first = str(player_obj.get("first_name") or "").strip()
@@ -1180,6 +1235,7 @@ def _parse_underdog_top_level(data: Any) -> List[Dict[str, Any]]:
         matchup = str(game_obj.get("title") or game_obj.get("display_title") or game_obj.get("name") or appearance.get("matchup") or "").strip()
         start_time = str(
             game_obj.get("scheduled_at") or game_obj.get("starts_at") or game_obj.get("start_time") or
+            game_obj.get("begin_at") or game_obj.get("commence_time") or
             appearance.get("scheduled_at") or appearance.get("starts_at") or ""
         ).strip()
         if not _current_line_time(start_time):
@@ -1232,7 +1288,8 @@ def fetch_underdog_cs2_board() -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
                 "parser": "top-level-v5/v6", "cache": status.get("cache"), "statuses": all_status
             }
 
-        objects = list(flatten_json(data))
+        payload = _underdog_payload_root(data) or data
+        objects = list(flatten_json(payload))
         by_id = {object_id(obj): obj for obj in objects if object_id(obj)}
         rows: List[Dict[str, Any]] = []
         rejected = 0
@@ -1251,8 +1308,7 @@ def fetch_underdog_cs2_board() -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
             if not _is_cs2_m12_kills(text):
                 rejected += 1
                 continue
-            status_blob = " ".join(str(attrs(x).get(k, "")) for x in linked if isinstance(x, dict) for k in ["status", "state", "active", "hidden"]).lower()
-            if any(x in status_blob for x in ["suspended", "removed", "closed", "inactive", "hidden", "disabled"]):
+            if _underdog_inactive(*[x for x in linked if isinstance(x, dict)]):
                 continue
             player = _extract_player_name(player_obj, appearance_obj, ou_obj, line_obj)
             line = _extract_line(line_obj, ou_obj, appearance_obj)
@@ -1290,7 +1346,34 @@ def fetch_underdog_cs2_board() -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
                 "ok": True, "provider": "Underdog", "url": url, "rows": len(result),
                 "objects": len(objects), "rejected": rejected, "parser": "generic-json", "statuses": all_status
             }
-    return [], {"ok": False, "provider": "Underdog", "rows": 0, "statuses": all_status}
+    fallback_rows, fallback_status = fetch_owls_underdog_cs2_board()
+    if fallback_rows:
+        return fallback_rows, {**fallback_status, "direct_statuses": all_status}
+    return [], {"ok": False, "provider": "Underdog", "rows": 0, "statuses": all_status,
+                "fallback": fallback_status}
+
+
+def fetch_owls_underdog_cs2_board() -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    token = str(os.getenv("OWLS_INSIGHT_API_KEY") or os.getenv("OWLS_API_KEY") or "").strip()
+    if not token or not OWLS_UNDERDOG_CS2_URL:
+        return [], {"ok": False, "provider": "Owls Insight Underdog CS2", "configured": False,
+                    "warning": "Set OWLS_INSIGHT_API_KEY to enable the optional CS2 line feed fallback"}
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    data, status = http_get_json(OWLS_UNDERDOG_CS2_URL, "Owls Insight Underdog CS2", ttl=90,
+                                 headers=headers, timeout=20, allow_stale=False)
+    rows = _parse_underdog_top_level(data)
+    for row in rows:
+        row["source"] = "Underdog"
+        row["provider_feed"] = "Owls Insight Underdog CS2"
+        row["evidence"] = f"{row.get('evidence','')[:760]} | optional cs2 feed fallback"
+    dedup: Dict[Tuple[str, float, str], Dict[str, Any]] = {}
+    for row in rows:
+        line = safe_float(row.get("line"), None)
+        if line is None:
+            continue
+        dedup[(normalize_name(row.get("player")), float(line), str(row.get("start_time", ""))[:16])] = row
+    return list(dedup.values()), {"ok": bool(dedup), "provider": "Owls Insight Underdog CS2",
+                                  "configured": True, "rows": len(dedup), "status": status}
 
 
 def fetch_prizepicks_cs2_board() -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
@@ -4677,6 +4760,7 @@ def grade_from_manual_dataframe(df: pd.DataFrame, overwrite: bool = False) -> Di
 
 def board_dataframe(board: List[Dict[str, Any]]) -> pd.DataFrame:
     cols = [
+        "best_rank", "win_score", "confidence_grade", "best_win_tier", "pick_action",
         "status_label", "player", "team", "opponent", "line", "projection", "lean",
         "probability", "edge", "expected_rounds", "adjusted_kpr", "base_kpr",
         "profile_maps", "role", "likely_maps", "map_confidence", "match_format",
@@ -4685,7 +4769,7 @@ def board_dataframe(board: List[Dict[str, Any]]) -> pd.DataFrame:
         "market_source_count", "data_score", "opening_line", "line_move", "market_probability", "market_edge",
         "raw_probability", "calibration_sample", "veto_state", "patch_era", "strength_of_schedule_factor",
         "full_lineup_model", "multi_book_market",
-        "source", "start_time", "match_url", "flags"
+        "source", "start_time", "match_url", "risk_notes", "flags"
     ]
     rows = []
     for x in board:
@@ -4696,6 +4780,7 @@ def board_dataframe(board: List[Dict[str, Any]]) -> pd.DataFrame:
         if x.get("market_edge") is not None:
             row["market_edge"] = round(float(x["market_edge"]) * 100, 1)
         row["likely_maps"] = format_likely_maps(x.get("likely_maps"))
+        row["risk_notes"] = " | ".join(x.get("risk_notes") or [])
         row["flags"] = " | ".join(x.get("flags") or [])
         rows.append(row)
     return pd.DataFrame(rows)
@@ -4728,6 +4813,8 @@ def render_pick_card(row: Dict[str, Any], official_style: bool = False) -> None:
         market_text = f"{_fmt_pct(row.get('market_probability'))} · {'AGREE' if row.get('market_agreement') else 'DISAGREE'}"
     elif row.get("consensus_line") is not None and safe_int(row.get("market_source_count"), 0) >= 2:
         market_text = f"Line {row.get('consensus_line')} · {safe_int(row.get('market_source_count'), 0)} sources"
+    win_score = safe_float(row.get("win_score"), None)
+    quality_text = "—" if win_score is None else f"{win_score:.1f} · {row.get('confidence_grade') or '—'}"
     st.markdown(
         f"""
 <div class="{card_class}">
@@ -4744,6 +4831,7 @@ def render_pick_card(row: Dict[str, Any], official_style: bool = False) -> None:
     <div><div class="metric-label">Maps 1-2</div><div style="font-size:23px;font-weight:950;">{_esc(map_text)}</div><div class="muted">Map confidence {_esc(row.get('map_confidence'))}%</div></div>
   </div>
   <div class="metric-grid">
+    <div class="metric-box"><div class="metric-label">Best-Win Score</div><div class="metric-value">{_esc(quality_text)}</div><div class="small-muted">{_esc(row.get('pick_action'))}</div></div>
     <div class="metric-box"><div class="metric-label">Expected Rounds</div><div class="metric-value">{_esc(row.get('expected_rounds'))}</div><div class="small-muted">SD {_esc(row.get('rounds_sd'))}</div></div>
     <div class="metric-box"><div class="metric-label">Adjusted KPR</div><div class="metric-value">{_esc(row.get('adjusted_kpr'))}</div><div class="small-muted">Base {_esc(row.get('base_kpr'))}</div></div>
     <div class="metric-box"><div class="metric-label">Role</div><div class="metric-value" style="font-size:17px;">{_esc(row.get('role'))}</div><div class="small-muted">{_esc(row.get('role_method'))}</div></div>
@@ -10545,6 +10633,341 @@ def build_full_board(props: List[Dict[str, Any]], deep_enabled: bool = True) -> 
 
 
 # ============================================================
+# BEST-WIN SELECTION QUALITY LAYER
+# ============================================================
+
+BEST_WIN_MIN_SCORE = float(os.getenv("CS2_BEST_WIN_MIN_SCORE", "72") or 72)
+BEST_WIN_MAX_MODEL_DISAGREEMENT = float(os.getenv("CS2_BEST_WIN_MAX_DISAGREEMENT", "3.25") or 3.25)
+
+
+def _line_move_supports_lean(row: Dict[str, Any]) -> Optional[bool]:
+    move = safe_float(row.get("line_move"), None)
+    lean = str(row.get("lean") or "")
+    if move is None or abs(move) < 0.26 or lean not in {"OVER", "UNDER"}:
+        return None
+    return bool((lean == "OVER" and move > 0) or (lean == "UNDER" and move < 0))
+
+
+def _selection_quality_score(row: Dict[str, Any]) -> Dict[str, Any]:
+    if row.get("projection") is None or row.get("status") == "PASS":
+        return {
+            "win_score": 0.0,
+            "confidence_grade": "NO PLAY",
+            "best_win_tier": "AVOID",
+            "pick_action": "PASS",
+            "risk_notes": list(dict.fromkeys(list(row.get("flags") or []) + [str(row.get("error") or "No usable projection")]))[:10],
+        }
+
+    prob = safe_float(row.get("probability"), 0.0) or 0.0
+    raw_prob = safe_float(row.get("raw_probability"), prob) or prob
+    edge = abs(safe_float(row.get("edge"), 0.0) or 0.0)
+    data = safe_float(row.get("data_score"), 0.0) or 0.0
+    health = safe_float((row.get("accuracy_health") or {}).get("score"), None)
+    if health is None:
+        health = 72.0 if row.get("status") in {"OFFICIAL", "PLAYABLE"} else 52.0
+    lower = safe_float(row.get("calibration_lower90"), None)
+    model_disagreement = safe_float(row.get("model_disagreement"), None)
+    if model_disagreement is None:
+        model_disagreement = safe_float(((row.get("model_components") or {}).get("model_disagreement")), 0.0) or 0.0
+
+    score = 0.0
+    score += clamp((prob - 0.50) / 0.18, 0, 1) * 30
+    score += clamp((raw_prob - 0.50) / 0.20, 0, 1) * 8
+    score += clamp(edge / 4.0, 0, 1) * 22
+    score += clamp(data / 100.0, 0, 1) * 18
+    score += clamp(health / 100.0, 0, 1) * 12
+    score += clamp((safe_float(row.get("profile_maps"), 0) or 0) / 80.0, 0, 1) * 4
+
+    if lower is not None:
+        score += clamp((lower - 0.50) / 0.12, 0, 1) * 6
+    if row.get("market_agreement") is True:
+        score += 4
+    elif row.get("market_agreement") is False:
+        score -= 8
+
+    move_ok = _line_move_supports_lean(row)
+    if move_ok is True:
+        score += 2
+    elif move_ok is False:
+        score -= 3
+
+    risk_notes = list(row.get("flags") or [])
+    if model_disagreement > BEST_WIN_MAX_MODEL_DISAGREEMENT:
+        score -= min(12, (model_disagreement - BEST_WIN_MAX_MODEL_DISAGREEMENT) * 4)
+        risk_notes.append("DIRECT/SHARE MODELS TOO FAR APART")
+    if safe_int(row.get("current_roster_maps"), 0) < MIN_CURRENT_ROSTER_MAPS:
+        score -= 5
+        risk_notes.append("THIN CURRENT ROSTER SAMPLE")
+    if str(row.get("veto_state") or "") == "PRE_VETO":
+        score -= 4
+        risk_notes.append("PRE-VETO MAP RISK")
+    if not row.get("core_kpr_verified"):
+        score -= 10
+        risk_notes.append("CORE KPR NOT VERIFIED")
+    if not row.get("player_source_fresh"):
+        score -= 5
+        risk_notes.append("PLAYER DATA STALE")
+    if lower is not None and lower < 0.525:
+        score -= 7
+        risk_notes.append("WEAK CALIBRATION FLOOR")
+
+    score = round(clamp(score, 0, 100), 1)
+    if score >= 84 and row.get("status") == "OFFICIAL":
+        grade, tier, action = "A", "BEST", "BEST WIN CANDIDATE"
+    elif score >= BEST_WIN_MIN_SCORE and row.get("status") in {"OFFICIAL", "PLAYABLE"}:
+        grade, tier, action = "B", "STRONG", "PLAYABLE CANDIDATE"
+    elif score >= 58 and row.get("status") in {"OFFICIAL", "PLAYABLE", "TRACK"}:
+        grade, tier, action = "C", "WATCH", "TRACK ONLY"
+    else:
+        grade, tier, action = "D", "AVOID", "PASS / WAIT"
+
+    return {
+        "win_score": score,
+        "confidence_grade": grade,
+        "best_win_tier": tier,
+        "pick_action": action,
+        "risk_notes": list(dict.fromkeys(str(x) for x in risk_notes if str(x).strip()))[:10],
+        "line_move_supports_lean": move_ok,
+        "projection_quality": {
+            "probability": round(prob, 4),
+            "raw_probability": round(raw_prob, 4),
+            "edge": round(edge, 3),
+            "data_score": round(data, 1),
+            "accuracy_health": round(health, 1),
+            "calibration_lower90": lower,
+            "model_disagreement": round(model_disagreement, 3),
+        },
+    }
+
+
+def _apply_best_win_quality(board: List[Dict[str, Any]]) -> Dict[str, Any]:
+    playable_rows = [row for row in board if row.get("projection") is not None and row.get("status") != "PASS"]
+    for row in board:
+        quality = _selection_quality_score(row)
+        row.update(quality)
+        if row.get("status") == "OFFICIAL" and quality["win_score"] < BEST_WIN_MIN_SCORE:
+            row["status"] = "PLAYABLE" if quality["win_score"] >= 64 else "TRACK"
+            row["status_label"] = "✅ PLAYABLE — QUALITY SCORE" if row["status"] == "PLAYABLE" else "⚠️ TRACK — QUALITY SCORE"
+            row["flags"] = list(dict.fromkeys(list(row.get("flags") or []) + ["BEST-WIN QUALITY SCORE BELOW OFFICIAL THRESHOLD"]))
+    ranked = sorted(
+        playable_rows,
+        key=lambda r: (
+            -safe_float(r.get("win_score"), 0),
+            -safe_float(r.get("probability"), 0),
+            -safe_float(r.get("abs_edge"), 0),
+            -safe_float(r.get("data_score"), 0),
+        ),
+    )
+    for idx, row in enumerate(ranked, start=1):
+        row["best_rank"] = idx
+    return {
+        "eligible_rows": len(playable_rows),
+        "best_candidates": sum(1 for row in ranked if row.get("best_win_tier") == "BEST"),
+        "strong_candidates": sum(1 for row in ranked if row.get("best_win_tier") in {"BEST", "STRONG"}),
+        "min_score": BEST_WIN_MIN_SCORE,
+        "top": [
+            {
+                "rank": row.get("best_rank"),
+                "player": row.get("player"),
+                "lean": row.get("lean"),
+                "line": row.get("line"),
+                "projection": row.get("projection"),
+                "probability": row.get("probability"),
+                "win_score": row.get("win_score"),
+                "tier": row.get("best_win_tier"),
+            }
+            for row in ranked[:8]
+        ],
+    }
+
+
+_v51_quality_build_full_board = build_full_board
+
+
+def build_full_board(props: List[Dict[str, Any]], deep_enabled: bool = True) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    board, status = _v51_quality_build_full_board(props, deep_enabled)
+    quality = _apply_best_win_quality(board)
+    order = {"OFFICIAL": 0, "PLAYABLE": 1, "TRACK": 2, "PASS": 3}
+    board.sort(key=lambda row: (
+        order.get(row.get("status"), 9),
+        -safe_float(row.get("win_score"), 0),
+        -safe_float(row.get("probability"), 0),
+        -safe_float(row.get("abs_edge"), 0),
+    ))
+    status["best_win_quality"] = quality
+    return board, status
+
+
+# ============================================================
+# SETUP / DATA COMPLETENESS HELPERS
+# ============================================================
+
+def _template_csv(name: str) -> pd.DataFrame:
+    templates = {
+        "current_board": pd.DataFrame([{
+            "Player": "ZywOo", "Team": "Vitality", "Opponent": "G2", "Line": 34.5,
+            "Start Time": "2026-08-01T18:00:00Z", "Match URL": "https://www.hltv.org/matches/...",
+            "Source": "Underdog",
+        }]),
+        "historical_results": pd.DataFrame([{
+            "Player": "ZywOo", "Team": "Vitality", "Opponent": "G2", "Line": 34.5,
+            "Projection": 36.8, "Lean": "OVER", "Probability": 0.62,
+            "Actual Kills": 38, "Status": "PLAYABLE", "Match URL": "https://www.hltv.org/matches/...",
+            "Projection Time": "2026-07-15T18:00:00Z",
+        }]),
+        "player_mappings": pd.DataFrame([{
+            "Player": "ZywOo", "HLTV Name": "ZywOo", "HLTV Player ID": "11893",
+            "HLTV Slug": "zywoo", "Team": "Vitality", "Opponent": "G2",
+            "Match URL": "https://www.hltv.org/matches/...",
+        }]),
+        "player_profiles": pd.DataFrame([{
+            "Player": "ZywOo", "Team": "Vitality", "Maps": 50, "Rounds": 1100,
+            "KPR": 0.82, "DPR": 0.62, "ADR": 84.0, "Rating": 1.25, "KD": 1.32,
+            "HS Pct": 41.0,
+        }]),
+        "multibook_odds": pd.DataFrame([{
+            "Player": "ZywOo", "Line": 34.5, "Over Odds": -115, "Under Odds": -105,
+            "Book": "Book", "Match ID": "",
+        }]),
+        "historical_backfill": pd.DataFrame([{
+            "Team": "Vitality", "Opponent": "G2", "Map": "Mirage", "Team Score": 13,
+            "Opponent Score": 10, "Match ID": "hltv-123", "Date": "2026-07-15T18:00:00Z",
+            "Action": "picked", "Started Side": "CT", "Player": "ZywOo",
+            "Event Type": "VERIFIED_CURRENT_ROSTER",
+        }]),
+        "demo_telemetry": pd.DataFrame([{
+            "player": "ZywOo", "map": "Mirage", "match_id": "demo-123", "match_rounds": 23,
+            "round": 1, "headshot": 0, "weapon": "ak47", "side": "T", "opening": 0,
+            "trade": 0, "team": "Vitality", "opponent": "G2", "opponent_rank": 5,
+            "event_tier": "S", "event_time": "2026-07-15T18:00:00Z",
+        }]),
+    }
+    return templates.get(name, pd.DataFrame())
+
+
+def import_historical_projection_results(df: pd.DataFrame, source_name: str = "historical result import") -> Dict[str, Any]:
+    if df is None or df.empty:
+        return {"imported": 0, "skipped": 0, "message": "No rows supplied"}
+    cmap = {normalize_name(c): c for c in df.columns}
+
+    def col(*names: str) -> Optional[str]:
+        return next((cmap.get(normalize_name(name)) for name in names if cmap.get(normalize_name(name))), None)
+
+    pcol = col("Player", "Player Name")
+    lcol = col("Line")
+    actual_col = col("Actual Kills", "Kills", "Actual")
+    lean_col = col("Lean", "Pick")
+    if not pcol or not lcol or not actual_col or not lean_col:
+        return {"imported": 0, "skipped": len(df), "message": "Need Player, Line, Lean, and Actual Kills columns"}
+
+    projection_col = col("Projection", "Projected Kills")
+    probability_col = col("Probability", "Prob")
+    team_col = col("Team")
+    opp_col = col("Opponent")
+    status_col = col("Status", "Tier")
+    match_url_col = col("Match URL", "HLTV URL")
+    time_col = col("Projection Time", "Saved At", "Date", "Start Time")
+    source_col = col("Source")
+
+    results = load_json(RESULT_LOG, [])
+    picks = load_json(PICK_LOG, [])
+    results = results if isinstance(results, list) else []
+    picks = picks if isinstance(picks, list) else []
+    existing = {str(x.get("snapshot_id") or snapshot_key(x)) for x in results}
+    imported = skipped = 0
+    for _, raw in df.iterrows():
+        player = str(raw.get(pcol) or "").strip()
+        line = safe_float(raw.get(lcol), None)
+        actual = safe_float(raw.get(actual_col), None)
+        lean = str(raw.get(lean_col) or "").strip().upper()
+        if not player or line is None or actual is None or lean not in {"OVER", "UNDER"}:
+            skipped += 1
+            continue
+        projection_time = str(raw.get(time_col) or now_iso()) if time_col else now_iso()
+        row = {
+            "player": player,
+            "team": str(raw.get(team_col) or "") if team_col else "",
+            "opponent": str(raw.get(opp_col) or "") if opp_col else "",
+            "line": float(line),
+            "projection": safe_float(raw.get(projection_col), None) if projection_col else None,
+            "projection_before_learning": safe_float(raw.get(projection_col), None) if projection_col else None,
+            "lean": lean,
+            "probability": safe_float(raw.get(probability_col), None) if probability_col else None,
+            "raw_probability": safe_float(raw.get(probability_col), None) if probability_col else None,
+            "status": str(raw.get(status_col) or "HISTORICAL").upper() if status_col else "HISTORICAL",
+            "actual_kills": float(actual),
+            "graded_result": grade_result(lean, float(line), float(actual)),
+            "graded_at": now_iso(),
+            "projection_time": projection_time,
+            "saved_at": projection_time,
+            "start_time": projection_time,
+            "match_url": str(raw.get(match_url_col) or "") if match_url_col else "",
+            "source": str(raw.get(source_col) or source_name) if source_col else source_name,
+            "grade_source": source_name,
+            "model_version": MODEL_VERSION,
+            "feature_fingerprint": MODEL_SCHEMA_FINGERPRINT,
+        }
+        sid = hashlib.sha256(
+            f"hist|{normalize_name(player)}|{line:.1f}|{lean}|{actual}|{projection_time[:16]}".encode()
+        ).hexdigest()[:18]
+        row["snapshot_id"] = sid
+        if sid in existing:
+            skipped += 1
+            continue
+        existing.add(sid)
+        results.append(row)
+        picks.append({**row, "saved_at": projection_time})
+        try:
+            sqlite_store_projection(row)
+            sqlite_mark_projection_graded(sid, row["graded_result"], float(actual), {"historical_import": True, "source": source_name})
+        except Exception:
+            pass
+        imported += 1
+    save_json(RESULT_LOG, results[-20000:], github_backup=bool(get_secret("GITHUB_AUTO_BACKUP", "").lower() in {"1", "true", "yes"}))
+    save_json(PICK_LOG, picks[-20000:])
+    if imported:
+        build_learning_profiles()
+        save_calibration_state()
+    return {"imported": imported, "skipped": skipped, "graded_results": len(results)}
+
+
+def setup_readiness_report(board: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    board = board or []
+    graded = len([x for x in load_json(RESULT_LOG, []) if isinstance(x, dict) and str(x.get("graded_result")) in {"WIN", "LOSS"}])
+    mappings = _load_json_dict(PLAYER_ALIAS_FILE)
+    profiles = _load_json_dict(PLAYER_DATABASE_FILE)
+    profile_overrides = load_json(PLAYER_OVERRIDES_FILE, {})
+    odds = load_json(MANUAL_ODDS_FILE, {})
+    bridge_payload, bridge_status = load_provider_bridge(force=False)
+    persistent_ok = os.path.abspath(STORAGE_DIR).startswith("/data/") or bool(os.getenv("CS2_DATA_DIR", "").strip())
+    env_rows = [
+        {"item": "Persistent storage", "ready": persistent_ok, "detail": STORAGE_DIR},
+        {"item": "Underdog direct/fallback", "ready": bool(UNDERDOG_URLS), "detail": "direct endpoints configured"},
+        {"item": "Owls CS2 fallback", "ready": bool(os.getenv("OWLS_INSIGHT_API_KEY") or os.getenv("OWLS_API_KEY")), "detail": "set OWLS_INSIGHT_API_KEY"},
+        {"item": "PandaScore schedule/roster", "ready": bool(get_secret("PANDASCORE_TOKEN")), "detail": "optional PANDASCORE_TOKEN"},
+        {"item": "Graded result sample", "ready": graded >= MIN_CALIBRATION_PRELIMINARY, "detail": f"{graded}/{MIN_CALIBRATION_PRELIMINARY} minimum"},
+        {"item": "Strong calibration sample", "ready": graded >= MIN_CALIBRATION_USABLE, "detail": f"{graded}/{MIN_CALIBRATION_USABLE} usable"},
+        {"item": "Player mappings", "ready": len(mappings) > 0, "detail": f"{len(mappings)} saved"},
+        {"item": "Profile database", "ready": len(profiles) > 0 or bool(profile_overrides), "detail": f"{len(profiles)} database / {len(profile_overrides) if isinstance(profile_overrides, dict) else 0} overrides"},
+        {"item": "Manual odds", "ready": bool(odds), "detail": f"{len(odds) if isinstance(odds, dict) else 0} player-lines"},
+        {"item": "Provider bridge/cache", "ready": bool((bridge_payload.get('profiles') or {})), "detail": bridge_status.get("provider", "none")},
+        {"item": "Demo telemetry", "ready": _sqlite_count("demo_events") > 0, "detail": f"{_sqlite_count('demo_events')} kill events / {_sqlite_count('demo_rounds')} rounds"},
+    ]
+    ready_count = sum(bool(x["ready"]) for x in env_rows)
+    board_quality = (st.session_state.get("cs2_board_status") or {}).get("best_win_quality") or {}
+    return {
+        "score": round(100 * ready_count / max(len(env_rows), 1), 1),
+        "ready_count": ready_count,
+        "total": len(env_rows),
+        "checks": env_rows,
+        "best_win_quality": board_quality,
+        "board_rows": len(board),
+        "strong_candidates": board_quality.get("strong_candidates", 0),
+        "graded_results": graded,
+    }
+
+
+# ============================================================
 # SESSION BOARD LOAD
 # ============================================================
 
@@ -10573,7 +10996,10 @@ def load_real_props(use_underdog: bool, use_prizepicks: bool, show_prizepicks_ro
     props.extend(st.session_state.get("cs2_manual_props") or [])
     dedup = {}
     for prop in props:
-        key = (normalize_name(prop.get("player")), float(prop.get("line", 0)), prop.get("source"), str(prop.get("start_time", ""))[:16])
+        line = safe_float(prop.get("line"), None)
+        if not prop.get("player") or line is None:
+            continue
+        key = (normalize_name(prop.get("player")), float(line), prop.get("source"), str(prop.get("start_time", ""))[:16])
         dedup[key] = prop
     annotated = annotate_market_consensus(list(dedup.values()))
     if use_underdog and use_prizepicks and not show_prizepicks_rows:
@@ -10698,7 +11124,20 @@ tab_live, tab_official, tab_saved, tab_grade, tab_calibration, tab_special, tab_
 
 with tab_live:
     st.markdown('<div class="section-title-pro">Live Maps 1–2 Kill Board</div>', unsafe_allow_html=True)
-    st.caption("Ranked by Official → Playable → Track → Pass, then by model probability and projection edge.")
+    st.caption("Ranked by Official → Playable → Track → Pass, then by best-win score, model probability, and projection edge.")
+    best_candidates = [
+        x for x in board
+        if x.get("best_win_tier") in {"BEST", "STRONG"} and x.get("status") in {"OFFICIAL", "PLAYABLE"}
+    ]
+    if best_candidates:
+        st.markdown('<div class="section-title-pro">Best Win Candidates</div>', unsafe_allow_html=True)
+        best_preview = board_dataframe(best_candidates[:8])
+        best_cols = [c for c in [
+            "best_rank", "win_score", "confidence_grade", "best_win_tier", "pick_action",
+            "player", "team", "opponent", "lean", "line", "projection", "probability",
+            "edge", "data_score", "risk_notes"
+        ] if c in best_preview.columns]
+        st.dataframe(best_preview[best_cols], use_container_width=True, hide_index=True)
     if filtered_board:
         st.dataframe(board_dataframe(filtered_board), use_container_width=True, hide_index=True)
         st.download_button(
@@ -10717,6 +11156,7 @@ with tab_live:
 with tab_official:
     official = [x for x in board if x.get("status") == "OFFICIAL"]
     playable = [x for x in board if x.get("status") == "PLAYABLE"]
+    strongest = [x for x in board if x.get("best_win_tier") in {"BEST", "STRONG"} and x.get("status") in {"OFFICIAL", "PLAYABLE"}]
     st.markdown('<div class="section-title-pro">Strict Official Plays</div>', unsafe_allow_html=True)
     st.caption(
         f"Initial gate: ≥{MIN_OFFICIAL_PROB*100:.1f}% model probability, ≥{MIN_OFFICIAL_EDGE:.1f} kills edge, "
@@ -10727,6 +11167,11 @@ with tab_official:
             render_pick_card(row, official_style=True)
     else:
         st.info("No plays passed every Official gate. That is a valid slate outcome.")
+    st.markdown('<div class="section-title-pro">Best-Win Shortlist</div>', unsafe_allow_html=True)
+    if strongest:
+        st.dataframe(board_dataframe(strongest), use_container_width=True, hide_index=True)
+    else:
+        st.info("No row has enough combined probability, edge, data quality, and calibration support for the best-win shortlist.")
     st.markdown('<div class="section-title-pro">Playable — Below Official Gate</div>', unsafe_allow_html=True)
     if playable:
         for row in playable:
@@ -10975,6 +11420,60 @@ with tab_bankroll:
 
 
 with tab_data:
+    st.markdown('<div class="section-title-pro">All-In Setup + Missing Data</div>', unsafe_allow_html=True)
+    readiness = setup_readiness_report(board)
+    r1, r2, r3, r4 = st.columns(4)
+    r1.metric("Setup Readiness", f"{readiness['score']:.1f}/100")
+    r2.metric("Checks Ready", f"{readiness['ready_count']}/{readiness['total']}")
+    r3.metric("Graded Results", readiness["graded_results"])
+    r4.metric("Strong Candidates", readiness.get("strong_candidates", 0))
+    st.dataframe(pd.DataFrame(readiness["checks"]), use_container_width=True, hide_index=True)
+    st.caption("Fill the false rows first. The projection model can run without them, but best-win confidence improves most from graded results, mappings, odds, persistent storage, and demo/current-roster data.")
+
+    st.markdown('<div class="section-title-pro">Download CSV Templates</div>', unsafe_allow_html=True)
+    template_cols = st.columns(4)
+    template_specs = [
+        ("Current Board", "current_board", "cs2_current_board_template.csv"),
+        ("Historical Results", "historical_results", "cs2_historical_results_template.csv"),
+        ("Player Mappings", "player_mappings", "cs2_player_mappings_template.csv"),
+        ("Player Profiles", "player_profiles", "cs2_player_profiles_template.csv"),
+        ("Multi-Book Odds", "multibook_odds", "cs2_multibook_odds_template.csv"),
+        ("Historical Backfill", "historical_backfill", "cs2_historical_backfill_template.csv"),
+        ("Demo Telemetry", "demo_telemetry", "cs2_demo_telemetry_template.csv"),
+    ]
+    for idx, (label, key, filename) in enumerate(template_specs):
+        with template_cols[idx % len(template_cols)]:
+            st.download_button(
+                label,
+                _template_csv(key).to_csv(index=False).encode("utf-8"),
+                filename,
+                "text/csv",
+                use_container_width=True,
+                key=f"template_{key}",
+            )
+
+    st.markdown('<div class="section-title-pro">Historical Projection Results Import</div>', unsafe_allow_html=True)
+    st.caption("Use real old picks/results to train calibration and learning. Required columns: Player, Line, Lean, Actual Kills. Recommended: Projection, Probability, Team, Opponent, Match URL, Projection Time.")
+    hist_file = st.file_uploader("Upload historical projection results CSV", type=["csv"], key="cs2_hist_results_upload")
+    hist_text = st.text_area("Or paste historical projection results CSV", height=120, key="cs2_hist_results_text")
+    hist_df = pd.DataFrame()
+    try:
+        if hist_file is not None:
+            hist_df = pd.read_csv(hist_file)
+        elif hist_text.strip():
+            hist_df = pd.read_csv(io.StringIO(hist_text.strip()))
+    except Exception as exc:
+        st.error(f"Historical result CSV parse error: {exc}")
+    if not hist_df.empty:
+        st.dataframe(hist_df.head(250), use_container_width=True, hide_index=True)
+    if st.button("IMPORT HISTORICAL RESULTS + REBUILD LEARNING", use_container_width=True, type="primary"):
+        out = import_historical_projection_results(hist_df)
+        if out.get("imported"):
+            st.success(f"Imported {out['imported']} historical graded rows; skipped {out['skipped']}.")
+            st.rerun()
+        else:
+            st.warning(out.get("message") or str(out))
+
     st.markdown('<div class="section-title-pro">Real Board Import Fallback</div>', unsafe_allow_html=True)
     st.caption("Use this only when the public pick’em endpoint blocks Railway. These must be real current lines; the engine never manufactures lines.")
     st.code("Player,Team,Opponent,Line,Start Time,Match URL,Source\nZywOo,Vitality,G2,34.5,2026-07-13T12:00:00Z,https://www.hltv.org/matches/...,Underdog", language="csv")
@@ -11282,7 +11781,10 @@ with tab_debug:
         {"Variable": "CS2_DATA_DIR", "Required": "Recommended", "Purpose": "Railway volume path; use /data/cs2_engine"},
         {"Variable": "CS2 core database", "Required": "Automatic", "Purpose": CORE_DB_FILE},
         {"Variable": "UNDERDOG_URL_OVERRIDE", "Required": "No", "Purpose": "Replacement public board endpoint if Underdog changes versions"},
+        {"Variable": "OWLS_INSIGHT_API_KEY", "Required": "Recommended", "Purpose": "Optional Underdog CS2 fallback line feed"},
+        {"Variable": "OWLS_UNDERDOG_CS2_URL", "Required": "No", "Purpose": "Override fallback line feed endpoint; defaults to /api/v2/underdog/cs2"},
         {"Variable": "PANDASCORE_TOKEN", "Required": "No", "Purpose": "Optional free schedule/roster fallback"},
+        {"Variable": "JINA_API_KEY", "Required": "Recommended", "Purpose": "Improves reliability for HLTV/BO3 Reader profile recovery"},
         {"Variable": "CS2_JINA_MIRROR_ENABLED", "Required": "Automatic", "Purpose": "true; self-contained batch player-stat mirror"},
         {"Variable": "CS2_MIRROR_FRESH_SECONDS", "Required": "No", "Purpose": "Defaults to 21600 (6 hours)"},
         {"Variable": "CS2_BRIDGE_REPO", "Required": "Optional", "Purpose": "Only for an optional GitHub data-cache branch"},
@@ -11297,7 +11799,17 @@ with tab_debug:
     st.caption("No live credential is hardcoded in this file.")
 
     st.markdown('<div class="section-title-pro">Backup + Maintenance</div>', unsafe_allow_html=True)
-    backup_files = [PICK_LOG, RESULT_LOG, LEARNING_FILE, LINE_HISTORY_FILE, MANUAL_ODDS_FILE, ROLE_OVERRIDES_FILE, PLAYER_OVERRIDES_FILE]
+    backup_files = [
+        PICK_LOG, RESULT_LOG, LEARNING_FILE, LINE_HISTORY_FILE, MANUAL_ODDS_FILE,
+        ROLE_OVERRIDES_FILE, PLAYER_OVERRIDES_FILE, PLAYER_ALIAS_FILE,
+        PLAYER_DATABASE_FILE, TEAM_DATABASE_FILE, MATCH_DATABASE_FILE, MAP_DATABASE_FILE,
+        VETO_DATABASE_FILE, ROSTER_DATABASE_FILE, CALIBRATION_FILE, PATCH_ERAS_FILE,
+        DEMO_DATABASE_FILE, BOOK_ODDS_HISTORY_FILE, SLIP_HISTORY_FILE, HISTORICAL_ASOF_FILE,
+    ]
+    clearable_log_files = [
+        PICK_LOG, RESULT_LOG, LEARNING_FILE, LINE_HISTORY_FILE, MANUAL_ODDS_FILE,
+        ROLE_OVERRIDES_FILE, PLAYER_OVERRIDES_FILE, REQUEST_LOG_FILE,
+    ]
     if st.button("☁️ BACK UP ALL CS2 DATA TO GITHUB", use_container_width=True):
         outcomes = [github_backup_file(path) for path in backup_files if os.path.exists(path)]
         st.write(outcomes)
@@ -11313,7 +11825,7 @@ with tab_debug:
     with c3:
         confirm_clear = st.checkbox("Confirm clear all CS2 logs", value=False)
         if st.button("Clear ALL CS2 logs", disabled=not confirm_clear):
-            for path in backup_files + [REQUEST_LOG_FILE]:
+            for path in clearable_log_files:
                 save_json(path, {} if path in [LEARNING_FILE, LINE_HISTORY_FILE, MANUAL_ODDS_FILE, ROLE_OVERRIDES_FILE, PLAYER_OVERRIDES_FILE] else [], force=True)
             st.error("All CS2 logs cleared.")
 
