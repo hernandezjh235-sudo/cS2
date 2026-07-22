@@ -103,7 +103,7 @@ MIN_OFFICIAL_PROFILE_MAPS = 25
 MIN_MAP_CONFIDENCE = 52
 MAX_LEARNING_PROJECTION_SHIFT = 0.40
 MAX_LEARNING_PROB_SHIFT = 0.045
-SIMULATIONS = 30000
+SIMULATIONS = int(max(2500, min(30000, float(os.getenv("CS2_SIMULATIONS", "10000") or 10000))))
 DEEP_PULL_MATCH_LIMIT = int(max(6, min(50, float(os.getenv("CS2_DEEP_MATCH_LIMIT", "30") or 30))))
 DEEP_PULL_MAPSTATS_LIMIT = int(max(6, min(50, float(os.getenv("CS2_DEEP_MAPSTATS_LIMIT", "30") or 30))))
 DEEP_DATA_ENABLED_DEFAULT = os.getenv("CS2_DEEP_DATA", "true").strip().lower() not in {"0", "false", "no", "off"}
@@ -11290,6 +11290,202 @@ def import_built_in_recovery_files() -> Dict[str, Any]:
     return result
 
 
+def prioritize_props_for_refresh(props: Sequence[Dict[str, Any]], max_rows: int, fast_mode: bool = True) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    rows = [dict(x) for x in props or []]
+    if not rows:
+        return [], {"input_rows": 0, "projected_rows": 0, "fast_mode": fast_mode}
+    max_rows = int(max(1, max_rows or len(rows)))
+    aliases = _load_json_dict(PLAYER_ALIAS_FILE)
+    player_db = _load_json_dict(PLAYER_DATABASE_FILE)
+    overrides = load_json(PLAYER_OVERRIDES_FILE, {})
+    overrides = overrides if isinstance(overrides, dict) else {}
+
+    def score(row: Dict[str, Any]) -> Tuple[int, float, float, str]:
+        player_key = normalize_name(row.get("player"))
+        start = str(row.get("start_time") or "")
+        line = safe_float(row.get("line"), 0) or 0
+        s = 0
+        if player_key in aliases:
+            s += 60
+        if player_key in player_db:
+            s += 55
+        if player_key in overrides:
+            s += 55
+        if row.get("match_url") and not str(row.get("match_url")).startswith("mirror://"):
+            s += 12
+        if row.get("team") and row.get("opponent"):
+            s += 8
+        if str(row.get("source")) == "Underdog":
+            s += 4
+        if MIN_M12_KILL_LINE <= line <= MAX_M12_KILL_LINE:
+            s += 4
+        parsed = _parse_iso_datetime(start)
+        seconds_until = (parsed - datetime.now(timezone.utc)).total_seconds() if parsed else 10**9
+        # Prefer soon slates after known-profile rows.
+        soon = -abs(seconds_until) if seconds_until >= -3600 else -10**12
+        return (s, soon, -line, player_key)
+
+    if fast_mode:
+        rows = sorted(rows, key=score, reverse=True)
+    selected = rows[:max_rows]
+    skipped = max(0, len(rows) - len(selected))
+    return selected, {
+        "input_rows": len(rows),
+        "projected_rows": len(selected),
+        "skipped_rows": skipped,
+        "fast_mode": bool(fast_mode),
+        "max_rows": max_rows,
+        "message": f"Fast refresh processed {len(selected)}/{len(rows)} rows. Increase Max props per refresh after profile mappings are filled."
+        if skipped else f"Processed all {len(selected)} rows.",
+    }
+
+
+LINE_ONLY_FALLBACK_DEFAULT = os.getenv("CS2_LINE_ONLY_FALLBACK", "true").strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _line_only_fallback_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    line = safe_float(row.get("line"), None)
+    if line is None:
+        return row
+    player = str(row.get("player") or "")
+    movement = line_movement(player, row.get("market", "Maps 1-2 Kills"), row.get("start_time", ""), float(line))
+    move = safe_float(movement.get("move"), 0.0) or 0.0
+    projection = float(line) + clamp(move * 0.45, -0.75, 0.75)
+    edge = projection - float(line)
+    if abs(edge) < 0.05:
+        lean = "PASS"
+        probability = 0.50
+    else:
+        lean = "OVER" if edge > 0 else "UNDER"
+        probability = 0.505 + min(abs(edge), 0.75) / 0.75 * 0.02
+    expected_rounds = DEFAULT_TWO_MAP_ROUNDS
+    flags = list(dict.fromkeys(list(row.get("flags") or []) + [
+        "LINE-ONLY FALLBACK",
+        "NO VERIFIED PLAYER PROFILE",
+        "NOT ELIGIBLE FOR OFFICIAL OR BEST-WIN",
+    ]))
+    status = "TRACK" if lean in {"OVER", "UNDER"} else "PASS"
+    status_label = "TRACK - LINE-ONLY PROFILE NEEDED" if status == "TRACK" else "PASS - LINE-ONLY PROFILE NEEDED"
+    return {
+        **row,
+        "projection": round(projection, 2),
+        "projection_before_learning": round(projection, 2),
+        "median": round(projection, 1),
+        "edge": round(edge, 2),
+        "abs_edge": round(abs(edge), 2),
+        "lean": lean,
+        "probability": round(probability, 4),
+        "raw_probability": round(probability, 4),
+        "over_probability": round(probability if lean == "OVER" else 1.0 - probability if lean == "UNDER" else 0.5, 4),
+        "under_probability": round(probability if lean == "UNDER" else 1.0 - probability if lean == "OVER" else 0.5, 4),
+        "push_probability": 0.0,
+        "floor_20": round(max(0.0, projection - 5.0), 1),
+        "ceiling_80": round(projection + 5.0, 1),
+        "p10": round(max(0.0, projection - 8.0), 1),
+        "p90": round(projection + 8.0, 1),
+        "sim_sd": 6.0,
+        "expected_rounds": round(expected_rounds, 2),
+        "rounds_sd": 5.0,
+        "adjusted_kpr": round(float(line) / expected_rounds, 4),
+        "base_kpr": None,
+        "profile_maps": 0,
+        "profile_rounds": 0,
+        "profile_source": "LINE-ONLY MARKET PRIOR",
+        "profile_warnings": ["No verified player stats found; projection is anchored to real market line"],
+        "role": "Unknown",
+        "role_confidence": 0.0,
+        "likely_maps": ["Unconfirmed", "Unconfirmed"],
+        "map_confidence": 0.0,
+        "match_format": row.get("match_format") or "UNKNOWN",
+        "environment": row.get("environment") or "UNKNOWN",
+        "event_tier": row.get("event_tier") or "LOW/UNKNOWN",
+        "current_roster_maps": 0,
+        "roster_stability": 0.0,
+        "data_score": max(safe_int(row.get("data_score"), 0) or 0, 8),
+        "status": status,
+        "status_label": status_label,
+        "opening_line": movement.get("opening_line"),
+        "line_move": movement.get("move"),
+        "line_observations": movement.get("observations"),
+        "core_kpr_verified": False,
+        "player_source_fresh": False,
+        "market_scope_verified": bool(row.get("market_scope_verified", True)),
+        "flags": flags,
+        "risk_notes": flags[:10],
+        "error": "No verified profile; line-only fallback shown until mappings/profiles are available",
+        "line_only_fallback": True,
+    }
+
+
+def build_simple_line_only_board(props: Sequence[Dict[str, Any]], max_rows: int = 250) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    rows = []
+    for prop in list(props or [])[:max(1, int(max_rows or 250))]:
+        line = safe_float(prop.get("line"), None)
+        if not prop.get("player") or line is None:
+            continue
+        rows.append(_line_only_fallback_row({
+            **prop,
+            "projection": None,
+            "status": "PASS",
+            "flags": list(prop.get("flags") or []),
+        }))
+    _apply_best_win_quality(rows)
+    rows.sort(key=lambda row: (
+        {"OFFICIAL": 0, "PLAYABLE": 1, "TRACK": 2, "PASS": 3}.get(row.get("status"), 9),
+        -safe_float(row.get("probability"), 0),
+        -abs(safe_float(row.get("line_move"), 0) or 0),
+        str(row.get("start_time") or ""),
+    ))
+    return rows, {
+        "mode": "simple_line_only",
+        "lines_loaded": len(props or []),
+        "rows_built": len(rows),
+        "line_only_fallback": {
+            "enabled": True,
+            "rows_converted": len(rows),
+            "warning": "Simple mode skips slow profile recovery and uses real market lines only. Rows are Track/Pass, not Official.",
+        },
+        "best_win_quality": {
+            "eligible_rows": len(rows),
+            "best_candidates": 0,
+            "strong_candidates": 0,
+            "min_score": BEST_WIN_MIN_SCORE,
+            "top": [],
+        },
+        "message": "Simple all-lines board built from real market lines without profile recovery.",
+    }
+
+
+_verified_profile_build_full_board = build_full_board
+
+
+def build_full_board(props: List[Dict[str, Any]], deep_enabled: bool = True) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    board, status = _verified_profile_build_full_board(props, deep_enabled)
+    allow = bool(st.session_state.get("cs2_line_only_fallback_enabled", LINE_ONLY_FALLBACK_DEFAULT))
+    if not allow:
+        return board, status
+    converted = 0
+    for idx, row in enumerate(list(board)):
+        if row.get("projection") is None and safe_float(row.get("line"), None) is not None:
+            board[idx] = _line_only_fallback_row(row)
+            converted += 1
+    if converted:
+        _apply_best_win_quality(board)
+        order = {"OFFICIAL": 0, "PLAYABLE": 1, "TRACK": 2, "PASS": 3}
+        board.sort(key=lambda row: (
+            order.get(row.get("status"), 9),
+            -safe_float(row.get("win_score"), 0),
+            -safe_float(row.get("probability"), 0),
+            -safe_float(row.get("abs_edge"), 0),
+        ))
+    status["line_only_fallback"] = {
+        "enabled": True,
+        "rows_converted": converted,
+        "warning": "Line-only fallback is for visibility only. It is not eligible for Official or Best-Win picks.",
+    }
+    return board, status
+
+
 # ============================================================
 # SESSION BOARD LOAD
 # ============================================================
@@ -11341,7 +11537,16 @@ with st.sidebar:
     use_underdog = st.checkbox("Pull Underdog CS2", value=True)
     use_prizepicks = st.checkbox("Use PrizePicks for free market consensus", value=False)
     show_prizepicks_rows = st.checkbox("Also display PrizePicks rows", value=False)
+    simple_line_only_mode = st.checkbox("Simple all-lines mode", value=True)
+    fast_refresh_enabled = st.checkbox("Fast refresh / prevent hangs", value=True)
+    max_props_per_refresh = st.slider("Max props per refresh", 10, 250, 60, 10)
+    line_only_fallback_enabled = st.checkbox("Show line-only fallback rows", value=LINE_ONLY_FALLBACK_DEFAULT)
+    st.session_state["cs2_line_only_fallback_enabled"] = bool(line_only_fallback_enabled)
     deep_data_enabled = st.checkbox("Deep map/veto/roster data", value=DEEP_DATA_ENABLED_DEFAULT)
+    if fast_refresh_enabled and deep_data_enabled:
+        st.caption("Fast refresh limits rows first. Turn Fast refresh off when you want the full deep sweep.")
+    if simple_line_only_mode:
+        st.caption("Simple mode loads quickly and shows every real line as Track/Pass without waiting for profile recovery.")
     show_statuses = st.multiselect(
         "Show play tiers",
         ["OFFICIAL", "PLAYABLE", "TRACK", "PASS"],
@@ -11379,10 +11584,30 @@ st.markdown(
 )
 
 if refresh_clicked or not st.session_state.get("cs2_board"):
-    with st.spinner("Pulling exact Underdog markets, map/side form, vetoes, roster timelines, opponent/SOS data, calibration, and correlated simulations..."):
+    spinner_text = "Pulling real CS2 lines and building simple all-lines board..." if simple_line_only_mode else "Pulling exact Underdog markets, map/side form, vetoes, roster timelines, opponent/SOS data, calibration, and correlated simulations..."
+    with st.spinner(spinner_text):
         props, source_status = load_real_props(use_underdog, use_prizepicks, show_prizepicks_rows)
         update_line_history(props)
-        board, board_status = build_full_board(props, deep_enabled=deep_data_enabled)
+        if simple_line_only_mode:
+            board, board_status = build_simple_line_only_board(props, max_rows=max_props_per_refresh)
+            board_status["refresh_scope"] = {
+                "input_rows": len(props),
+                "projected_rows": len(board),
+                "skipped_rows": max(0, len(props) - len(board)),
+                "fast_mode": True,
+                "simple_line_only_mode": True,
+                "max_rows": max_props_per_refresh,
+                "message": f"Simple mode built {len(board)}/{len(props)} line-only rows without slow profile recovery.",
+            }
+        else:
+            project_props, refresh_meta = prioritize_props_for_refresh(
+                props,
+                max_props_per_refresh,
+                fast_mode=fast_refresh_enabled,
+            )
+            board, board_status = build_full_board(project_props, deep_enabled=bool(deep_data_enabled and not fast_refresh_enabled))
+            board_status["refresh_scope"] = refresh_meta
+        board_status["all_real_props_loaded"] = len(props)
         st.session_state["cs2_board"] = board
         save_asof_projection_history(board, source_status)
         st.session_state["cs2_board_status"] = board_status
@@ -11410,6 +11635,15 @@ if last_refresh_text != "—":
     except Exception:
         pass
 c6.metric("Last Refresh", last_refresh_text)
+_refresh_scope = (st.session_state.get("cs2_board_status") or {}).get("refresh_scope") or {}
+if _refresh_scope.get("skipped_rows"):
+    st.info(_refresh_scope.get("message") or f"Processed {_refresh_scope.get('projected_rows')} of {_refresh_scope.get('input_rows')} rows.")
+_line_only_status = (st.session_state.get("cs2_board_status") or {}).get("line_only_fallback") or {}
+if _line_only_status.get("rows_converted"):
+    st.warning(
+        f"Showing {_line_only_status.get('rows_converted')} line-only fallback rows. "
+        "These are anchored to real market lines but do not have verified player profiles, so they stay Track/Pass until real mappings/profiles recover."
+    )
 
 _source_circuit=(st.session_state.get("cs2_board_status") or {}).get("source_circuit_breaker") or {}
 if _source_circuit and not _source_circuit.get("official_enabled",False):
