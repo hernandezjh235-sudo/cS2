@@ -4523,13 +4523,17 @@ def snapshot_key(row: Dict[str, Any]) -> str:
     ).hexdigest()
 
 
-def save_official_snapshots(board: List[Dict[str, Any]], include_playable: bool = False) -> Dict[str, int]:
+def save_official_snapshots(board: List[Dict[str, Any]], include_playable: bool = False, include_track: bool = False) -> Dict[str, int]:
     existing = load_json(PICK_LOG, [])
     if not isinstance(existing, list):
         existing = []
     known = {x.get("snapshot_id") for x in existing}
     added = skipped = 0
-    allowed = {"OFFICIAL", "PLAYABLE"} if include_playable else {"OFFICIAL"}
+    allowed = {"OFFICIAL"}
+    if include_playable:
+        allowed.add("PLAYABLE")
+    if include_track:
+        allowed.add("TRACK")
     for row in board:
         if row.get("status") not in allowed:
             continue
@@ -4550,6 +4554,31 @@ def save_official_snapshots(board: List[Dict[str, Any]], include_playable: bool 
         added += 1
     save_json(PICK_LOG, existing, github_backup=bool(get_secret("GITHUB_AUTO_BACKUP", "").lower() in {"1", "true", "yes"}))
     return {"added": added, "skipped": skipped}
+
+
+def render_save_for_grading_controls(board: List[Dict[str, Any]], key_prefix: str = "save") -> None:
+    official_count = sum(x.get("status") == "OFFICIAL" for x in board)
+    assisted_count = sum(bool(x.get("assisted_official")) for x in board)
+    playable_count = sum(x.get("status") == "PLAYABLE" for x in board)
+    track_count = sum(x.get("status") == "TRACK" and x.get("projection") is not None for x in board)
+    st.markdown('<div class="section-title-pro">Save Before Match For Grading</div>', unsafe_allow_html=True)
+    st.caption(
+        f"Save before the matches start. Current save pool: {official_count} Official "
+        f"({assisted_count} Assisted), {playable_count} Playable, and {track_count} Track projections."
+    )
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button("💾 SAVE OFFICIAL / ASSISTED PICKS FOR GRADING", use_container_width=True, type="primary", key=f"{key_prefix}_official_grade"):
+            out = save_official_snapshots(board, include_playable=False)
+            st.success(f"Saved {out['added']} Official/Assisted rows for grading; skipped {out['skipped']} already saved.")
+    with c2:
+        if st.button("💾 SAVE OFFICIAL + PLAYABLE FOR GRADING", use_container_width=True, key=f"{key_prefix}_official_playable_grade"):
+            out = save_official_snapshots(board, include_playable=True)
+            st.success(f"Saved {out['added']} rows for grading; skipped {out['skipped']} already saved.")
+    with c3:
+        if st.button("💾 SAVE ALL PROJECTED ROWS FOR GRADING", use_container_width=True, key=f"{key_prefix}_all_projected_grade"):
+            out = save_official_snapshots(board, include_playable=True, include_track=True)
+            st.success(f"Saved {out['added']} projected rows for grading; skipped {out['skipped']} already saved.")
 
 
 def _mapstats_links(match_page: str) -> List[str]:
@@ -6918,6 +6947,108 @@ def reject_manual_grade_reviews(review_ids: Sequence[str], reviewer_note: str=""
     with _sqlite_connect() as conn:
         for rid in ids:conn.execute("UPDATE manual_grade_reviews SET review_status='REJECTED',reviewer_note=?,reviewed_at=? WHERE review_id=?",(reviewer_note,now_iso(),rid))
     return len(ids)
+
+
+def manual_results_template_from_saved_picks() -> pd.DataFrame:
+    picks = load_json(PICK_LOG, [])
+    picks = picks if isinstance(picks, list) else []
+    rows = []
+    for row in picks:
+        if str(row.get("graded_result") or "PENDING").upper() in {"WIN", "LOSS", "PUSH"}:
+            continue
+        rows.append({
+            "snapshot_id": row.get("snapshot_id") or snapshot_key(row),
+            "player": row.get("player"),
+            "team": row.get("team"),
+            "opponent": row.get("opponent"),
+            "lean": row.get("lean"),
+            "line": row.get("line"),
+            "projection": row.get("projection"),
+            "status_label": row.get("status_label") or row.get("status"),
+            "start_time": row.get("start_time"),
+            "actual_kills": "",
+        })
+    return pd.DataFrame(rows)
+
+
+def grade_results_immediately_from_dataframe(df: pd.DataFrame, overwrite: bool = False) -> Dict[str, Any]:
+    if df is None or df.empty:
+        return {"graded": 0, "unmatched": 0, "skipped": 0, "message": "No rows"}
+    cmap = {normalize_name(c): c for c in df.columns}
+    sid_col = cmap.get("snapshot id") or cmap.get("snapshot_id")
+    player_col = cmap.get("player") or cmap.get("player name")
+    actual_col = cmap.get("actual kills") or cmap.get("actual_kills") or cmap.get("kills") or cmap.get("actual")
+    line_col = cmap.get("line")
+    lean_col = cmap.get("lean")
+    if not actual_col or not (sid_col or player_col):
+        return {"graded": 0, "unmatched": len(df), "skipped": 0, "message": "Need snapshot_id or player, plus actual_kills."}
+
+    picks = load_json(PICK_LOG, [])
+    picks = picks if isinstance(picks, list) else []
+    results = load_json(RESULT_LOG, [])
+    results = results if isinstance(results, list) else []
+    result_ids = {str(x.get("snapshot_id")) for x in results}
+    by_sid = {str(row.get("snapshot_id") or snapshot_key(row)): row for row in picks}
+    graded = unmatched = skipped = 0
+
+    for _, raw in df.iterrows():
+        actual = safe_float(raw.get(actual_col), None)
+        if actual is None:
+            skipped += 1
+            continue
+        row = None
+        if sid_col:
+            sid = str(raw.get(sid_col) or "").strip()
+            row = by_sid.get(sid)
+        if row is None and player_col:
+            player = str(raw.get(player_col) or "").strip()
+            line_filter = safe_float(raw.get(line_col), None) if line_col else None
+            lean_filter = str(raw.get(lean_col) or "").strip().upper() if lean_col else ""
+            candidates = []
+            for pick in picks:
+                score = name_similarity(player, pick.get("player"))
+                if line_filter is not None and abs((safe_float(pick.get("line"), 0) or 0) - line_filter) > 0.01:
+                    score -= 0.30
+                if lean_filter and str(pick.get("lean") or "").upper() != lean_filter:
+                    score -= 0.10
+                if score >= 0.82:
+                    candidates.append((score, pick))
+            if candidates:
+                row = max(candidates, key=lambda x: x[0])[1]
+        if row is None:
+            unmatched += 1
+            continue
+        sid = str(row.get("snapshot_id") or snapshot_key(row))
+        if sid in result_ids and not overwrite:
+            skipped += 1
+            continue
+        label = grade_result(str(row.get("lean")), float(row.get("line")), float(actual))
+        grade_meta = {"manual_upload": True, "training_eligible": True, "confirmation_weight": 0.80}
+        out = dict(row)
+        out.update({
+            "snapshot_id": sid,
+            "actual_kills": float(actual),
+            "graded_result": label,
+            "graded_at": now_iso(),
+            "grade_source": "manual results upload",
+            "grade_meta": grade_meta,
+        })
+        if overwrite:
+            results = [x for x in results if str(x.get("snapshot_id")) != sid]
+        results.append(out)
+        result_ids.add(sid)
+        for pick in picks:
+            if str(pick.get("snapshot_id") or snapshot_key(pick)) == sid:
+                pick.update({"actual_kills": float(actual), "graded_result": label, "graded_at": now_iso(), "grade_source": "manual results upload", "grade_meta": grade_meta})
+        sqlite_mark_projection_graded(sid, label, float(actual), grade_meta)
+        graded += 1
+
+    save_json(PICK_LOG, picks)
+    save_json(RESULT_LOG, results, github_backup=bool(get_secret("GITHUB_AUTO_BACKUP", "").lower() in {"1", "true", "yes"}))
+    if graded:
+        build_learning_profiles()
+        save_calibration_state()
+    return {"graded": graded, "unmatched": unmatched, "skipped": skipped, "message": "Manual results graded immediately."}
 
 
 def save_multibook_odds_dataframe(df: pd.DataFrame) -> Dict[str,int]:
@@ -11342,7 +11473,7 @@ def prioritize_props_for_refresh(props: Sequence[Dict[str, Any]], max_rows: int,
 
 LINE_ONLY_FALLBACK_DEFAULT = os.getenv("CS2_LINE_ONLY_FALLBACK", "true").strip().lower() not in {"0", "false", "no", "off"}
 ASSISTED_OFFICIAL_DEFAULT = os.getenv("CS2_ASSISTED_OFFICIAL", "true").strip().lower() not in {"0", "false", "no", "off"}
-ASSISTED_OFFICIAL_MAX_ROWS = int(max(1, min(25, float(os.getenv("CS2_ASSISTED_OFFICIAL_MAX", "12") or 12))))
+ASSISTED_OFFICIAL_MAX_ROWS = int(max(1, min(50, float(os.getenv("CS2_ASSISTED_OFFICIAL_MAX", "25") or 25))))
 ASSISTED_OFFICIAL_MIN_PROB = float(os.getenv("CS2_ASSISTED_OFFICIAL_MIN_PROB", "0.54") or 0.54)
 ASSISTED_OFFICIAL_MIN_EDGE = float(os.getenv("CS2_ASSISTED_OFFICIAL_MIN_EDGE", "1.00") or 1.00)
 
@@ -11631,7 +11762,7 @@ with st.sidebar:
     show_prizepicks_rows = st.checkbox("Also display PrizePicks rows", value=False)
     simple_line_only_mode = st.checkbox("Simple all-lines mode", value=True)
     fast_refresh_enabled = st.checkbox("Fast refresh / prevent hangs", value=True)
-    max_props_per_refresh = st.slider("Max props per refresh", 10, 250, 60, 10)
+    max_props_per_refresh = st.slider("Max props per refresh", 10, 250, 250, 10)
     line_only_fallback_enabled = st.checkbox("Show line-only fallback rows", value=LINE_ONLY_FALLBACK_DEFAULT)
     st.session_state["cs2_line_only_fallback_enabled"] = bool(line_only_fallback_enabled)
     assisted_official_enabled = st.checkbox("Assisted Official when profiles missing", value=ASSISTED_OFFICIAL_DEFAULT)
@@ -11781,6 +11912,7 @@ tab_live, tab_official, tab_saved, tab_grade, tab_calibration, tab_special, tab_
 with tab_live:
     st.markdown('<div class="section-title-pro">Live Maps 1–2 Kill Board</div>', unsafe_allow_html=True)
     st.caption("Ranked by Official → Playable → Track → Pass, then by best-win score, model probability, and projection edge.")
+    render_save_for_grading_controls(board, key_prefix="live")
     best_available = best_available_rows(board, 25)
     if best_available:
         st.markdown('<div class="section-title-pro">Best Available Projections</div>', unsafe_allow_html=True)
@@ -11825,6 +11957,7 @@ with tab_official:
     playable = [x for x in board if x.get("status") == "PLAYABLE"]
     best_available_official = best_available_rows(board, 30)
     strongest = [x for x in board if x.get("best_win_tier") in {"BEST", "STRONG"} and x.get("status") in {"OFFICIAL", "PLAYABLE"}]
+    render_save_for_grading_controls(board, key_prefix="official_top")
     st.markdown('<div class="section-title-pro">Strict Official Plays</div>', unsafe_allow_html=True)
     st.caption(
         f"Initial gate: ≥{MIN_OFFICIAL_PROB*100:.1f}% model probability, ≥{MIN_OFFICIAL_EDGE:.1f} kills edge, "
@@ -11865,22 +11998,14 @@ with tab_official:
             render_pick_card(row, official_style=False)
     else:
         st.info("No additional Playable rows.")
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("💾 SAVE OFFICIAL PRE-MATCH SNAPSHOT", use_container_width=True, type="primary"):
-            out = save_official_snapshots(board, include_playable=False)
-            st.success(f"Saved {out['added']} new Official rows; skipped {out['skipped']} duplicates.")
-    with c2:
-        if st.button("💾 SAVE OFFICIAL + PLAYABLE SNAPSHOT", use_container_width=True):
-            out = save_official_snapshots(board, include_playable=True)
-            st.success(f"Saved {out['added']} new rows; skipped {out['skipped']} duplicates.")
+    render_save_for_grading_controls(board, key_prefix="official_bottom")
 
 with tab_saved:
     st.markdown('<div class="section-title-pro">Saved Before-Game Snapshots</div>', unsafe_allow_html=True)
     picks = load_json(PICK_LOG, [])
     if picks:
         saved_df = pd.DataFrame(picks)
-        display_cols = [c for c in ["saved_at", "player", "team", "opponent", "line", "projection", "lean", "probability", "status", "expected_rounds", "adjusted_kpr", "likely_maps", "data_score", "graded_result", "actual_kills", "match_url"] if c in saved_df.columns]
+        display_cols = [c for c in ["saved_at", "player", "team", "opponent", "line", "projection", "lean", "probability", "status", "status_label", "official_mode", "assisted_official", "expected_rounds", "adjusted_kpr", "likely_maps", "data_score", "graded_result", "actual_kills", "match_url"] if c in saved_df.columns]
         st.dataframe(saved_df[display_cols].sort_values("saved_at", ascending=False), use_container_width=True, hide_index=True)
         st.download_button("Download saved snapshots", saved_df.to_csv(index=False).encode(), "cs2_official_snapshots.csv", "text/csv", use_container_width=True)
     else:
@@ -11937,7 +12062,20 @@ with tab_grade:
         st.write(diagnostic)
 
     st.markdown('<div class="section-title-pro">Manual Result Fallback</div>', unsafe_allow_html=True)
-    st.code("Player,Actual Kills,Line\nZywOo,38,34.5", language="csv")
+    st.caption("Best workflow: download the template from your saved picks, fill only actual_kills after the match, then upload it here.")
+    template_df = manual_results_template_from_saved_picks()
+    if not template_df.empty:
+        st.download_button(
+            "Download Prefilled Results Template",
+            template_df.to_csv(index=False).encode("utf-8"),
+            f"cs2_actual_results_template_{local_now().date().isoformat()}.csv",
+            "text/csv",
+            use_container_width=True,
+        )
+        st.dataframe(template_df.head(25), use_container_width=True, hide_index=True)
+    else:
+        st.info("No pending saved picks found. Save picks before matches, then come back here for a prefilled results template.")
+    st.code("snapshot_id,player,line,lean,actual_kills\nabc123,ZywOo,34.5,OVER,38", language="csv")
     manual_result_upload = st.file_uploader("Upload actual results CSV", type=["csv"], key="cs2_results_upload")
     manual_result_text = st.text_area("Or paste actual results CSV", height=120, key="cs2_results_text")
     overwrite_results = st.checkbox("Overwrite an already graded matching snapshot", value=False)
@@ -11951,12 +12089,22 @@ with tab_grade:
         st.error(f"Result CSV parse error: {exc}")
     if not result_df.empty:
         st.dataframe(result_df, use_container_width=True, hide_index=True)
-    if st.button("🧾 STAGE MANUAL RESULTS FOR REVIEW", use_container_width=True):
-        out = grade_from_manual_dataframe(result_df, overwrite=overwrite_results)
-        if out.get("staged"):
-            st.success(f"Staged {out['staged']} rows for review; unmatched {out['unmatched']}.")
-        else:
-            st.warning(str(out))
+    c_manual_direct, c_manual_review = st.columns(2)
+    with c_manual_direct:
+        if st.button("✅ GRADE UPLOADED RESULTS NOW", use_container_width=True, type="primary"):
+            out = grade_results_immediately_from_dataframe(result_df, overwrite=overwrite_results)
+            if out.get("graded"):
+                st.success(f"Graded {out['graded']} rows now; unmatched {out.get('unmatched', 0)}; skipped {out.get('skipped', 0)}.")
+                st.rerun()
+            else:
+                st.warning(str(out))
+    with c_manual_review:
+        if st.button("🧾 STAGE RESULTS FOR REVIEW", use_container_width=True):
+            out = grade_from_manual_dataframe(result_df, overwrite=overwrite_results)
+            if out.get("staged"):
+                st.success(f"Staged {out['staged']} rows for review; unmatched {out['unmatched']}.")
+            else:
+                st.warning(str(out))
     pending_manual = _manual_review_rows("PENDING")
     if pending_manual:
         st.subheader("Manual grade review queue")
