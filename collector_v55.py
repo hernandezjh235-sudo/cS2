@@ -1,4 +1,4 @@
-"""OneWayPickz CS2 v5.8.2 collector entrypoint.
+"""OneWayPickz CS2 v5.8.3 collector entrypoint.
 
 Keeps protected projection math untouched while adding verified profile recovery,
 real match/player IDs, five-player roster context, durable identity persistence,
@@ -20,6 +20,7 @@ for patch in [
     ROOT / "autofeed_context_v57.py",
     ROOT / "autofeed_liveboard_v58.py",
     ROOT / "autofeed_liveboard_v582.py",
+    ROOT / "autofeed_liveboard_v583.py",
 ]:
     if patch not in base.PATCH_PATHS:
         base.PATCH_PATHS.append(patch)
@@ -81,7 +82,7 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
             merged["team"] = team
             merged["provider_team_verified"] = bool(dbrec.get("provider_team_verified", True))
             merged["identity_verified_at"] = dbrec.get("identity_verified_at")
-            merged["identity_verified_source"] = dbrec.get("identity_verified_source") or "v5.8.2 collector"
+            merged["identity_verified_source"] = dbrec.get("identity_verified_source") or "v5.8.3 collector"
             if dbrec.get("player_id") and not merged.get("player_id"):
                 merged["player_id"] = dbrec.get("player_id")
             profiles[key] = merged
@@ -103,7 +104,7 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
     bridge["teams"] = teams
     status = dict(bridge.get("source_status") or {})
     status.update({
-        "autofeed_version": "5.8.2",
+        "autofeed_version": "5.8.3",
         "verified_profile_count": len(profiles),
         "team_count": len(teams),
         "match_count": len(bridge.get("matches") or []),
@@ -120,10 +121,10 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
     seed = ns.get("_v54_seed_databases_from_bridge")
     if callable(seed):
         try:
-            bridge["source_status"]["database_seed_v582"] = seed(bridge)
+            bridge["source_status"]["database_seed_v583"] = seed(bridge)
             ns["save_json"](str(path), bridge, force=True)
         except Exception as exc:
-            bridge["source_status"]["database_seed_v582_warning"] = str(exc)
+            bridge["source_status"]["database_seed_v583_warning"] = str(exc)
     return bridge
 
 
