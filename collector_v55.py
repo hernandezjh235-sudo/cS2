@@ -1,7 +1,8 @@
-"""OneWayPickz CS2 v5.6 collector entrypoint.
+"""OneWayPickz CS2 v5.6.2 collector entrypoint.
 
 Keeps protected projection math untouched while adding the complete verified-data
-readiness overlays, real BO3 match recovery, and durable current-team exports.
+readiness overlays, real BO3 match recovery, durable current-team exports, and
+final pre-model identity carry through all board wrappers.
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ for patch in [
     ROOT / "autofeed_readiness_v55.py",
     ROOT / "autofeed_identity_v551.py",
     ROOT / "autofeed_production_v56.py",
+    ROOT / "autofeed_identity_v562.py",
 ]:
     if patch not in base.PATCH_PATHS:
         base.PATCH_PATHS.append(patch)
@@ -54,9 +56,6 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
     except Exception:
         team_db = {}
 
-    # Pull the current-team decision made during board construction back into
-    # the portable provider cache. This prevents a Railway restart from losing
-    # the exact player -> current team mapping.
     for key, rec in list(profiles.items()):
         dbrec = player_db.get(key) if isinstance(player_db, dict) else None
         if not isinstance(dbrec, dict):
@@ -87,7 +86,7 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
     bridge["teams"] = teams
     status = dict(bridge.get("source_status") or {})
     status.update({
-        "autofeed_version": "5.6",
+        "autofeed_version": "5.6.2",
         "verified_profile_count": len(profiles),
         "team_count": len(teams),
         "match_count": len(bridge.get("matches") or []),
