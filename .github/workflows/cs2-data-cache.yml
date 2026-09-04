@@ -43,13 +43,29 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Compile production runtime
+        env:
+          CS2_DATA_DIR: /tmp/cs2_engine
+        run: |
+          mkdir -p /tmp/cs2_engine
+          RUNTIME="$(python prepare_web_app.py | tail -n 1)"
+          python -m py_compile "$RUNTIME" collector_v55.py github_cache_sync_v55.py autofeed_production_v56.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('/tmp/cs2_engine/.web_runtime_status.json')
+          if not p.exists(): raise SystemExit('web runtime status missing')
+          s=json.loads(p.read_text())
+          if not s.get('ok') or s.get('runtime_version')!='5.6': raise SystemExit(f'v5.6 runtime not ready: {s}')
+          print('runtime validation:',s)
+          PY
+
       - name: Restore prior verified cache
         env:
           CS2_DATA_DIR: /tmp/cs2_engine
           CS2_BRIDGE_REPO: ${{ github.repository }}
           CS2_BRIDGE_BRANCH: data-cache
         run: |
-          mkdir -p /tmp/cs2_engine
           python github_cache_sync_v55.py pull --data-dir /tmp/cs2_engine --repo "${GITHUB_REPOSITORY}" --branch data-cache || true
           python - <<'PY'
           import json
@@ -66,7 +82,7 @@ jobs:
               'graded':len(load('cs2_graded_results.json',[])),
               'line_history':len(load('cs2_line_history.json',[])),
           }
-          (root/'.v55_before.json').write_text(json.dumps(before))
+          (root/'.v56_before.json').write_text(json.dumps(before))
           print('prior cache:',before)
           PY
 
@@ -93,46 +109,54 @@ jobs:
           import json
           from pathlib import Path
           root=Path('/tmp/cs2_engine')
+          def load(name, default):
+              try: return json.loads((root/name).read_text())
+              except Exception: return default
           status_path=root/'.autofeed_collector_status.json'
           if not status_path.exists(): raise SystemExit('collector status file missing')
           s=json.loads(status_path.read_text())
           if not s.get('ok'): raise SystemExit(f"collector failed: {s.get('error') or s}")
           if int(s.get('underdog_rows') or 0)<=0: raise SystemExit('collector returned no real Underdog rows')
-          before=json.loads((root/'.v55_before.json').read_text())
-          def load(name, default):
-              try: return json.loads((root/name).read_text())
-              except Exception: return default
+          before=json.loads((root/'.v56_before.json').read_text())
           provider=load('cs2_provider_cache.json',{})
+          source_status=provider.get('source_status') or {} if isinstance(provider,dict) else {}
           after={
               'profiles':len(provider.get('profiles') or {}) if isinstance(provider,dict) else 0,
               'teams':len(provider.get('teams') or {}) if isinstance(provider,dict) else 0,
               'matches':len(provider.get('matches') or []) if isinstance(provider,dict) else 0,
+              'verified_team_profiles':int(source_status.get('verified_team_profiles') or 0),
               'graded':len(load('cs2_graded_results.json',[])),
               'line_history':len(load('cs2_line_history.json',[])),
           }
           for key in ['profiles','graded','line_history']:
               if after[key] < before[key]: raise SystemExit(f'regression blocked: {key} {before[key]} -> {after[key]}')
-          readiness=load('cs2_data_readiness.json',{})
-          if not isinstance(readiness,dict) or readiness.get('version')!='5.5':
-              raise SystemExit(f'v5.5 readiness report missing: {readiness}')
-          print('collector validation:', {'before':before,'after':after,'readiness':readiness})
+          if after['profiles']>0 and after['teams']<=0:
+              raise SystemExit(f'identity pipeline failed: {after["profiles"]} profiles but zero teams')
+          operational=load('cs2_operational_status.json',{})
+          if not isinstance(operational,dict) or operational.get('version')!='5.6':
+              raise SystemExit(f'v5.6 operational report missing: {operational}')
+          if not operational.get('pipeline_ready'):
+              raise SystemExit(f'production pipeline is not ready yet: {operational}')
+          print('collector validation:', {'before':before,'after':after,'operational':operational})
           PY
 
-      - name: Build portable v5.5 data cache
+      - name: Build portable v5.6 data cache
         run: |
           rm -rf /tmp/cs2_cache_publish
           python github_cache_sync_v55.py package --data-dir /tmp/cs2_engine --output-dir /tmp/cs2_cache_publish
           python - <<'PY'
           import json
           from pathlib import Path
-          p=Path('/tmp/cs2_cache_publish/cs2_data_manifest.json')
-          m=json.loads(p.read_text())
+          root=Path('/tmp/cs2_cache_publish')
+          m=json.loads((root/'cs2_data_manifest.json').read_text())
           files=m.get('files') or []
           names={x.get('name') for x in files}
-          required={'cs2_provider_cache.json','player_database.json','team_database.json','match_database.json','roster_database.json','veto_database.json','cs2_line_history.json','cs2_core_v42.sqlite3','cs2_data_readiness.json'}
+          required={'cs2_provider_cache.json','player_database.json','team_database.json','match_database.json','map_database.json','roster_database.json','veto_database.json','cs2_line_history.json','cs2_core_v42.sqlite3','cs2_data_readiness.json','cs2_grading_health.json','cs2_operational_status.json'}
           missing=required-names
           if missing: raise SystemExit(f'refusing cache missing required data: {sorted(missing)}')
-          if m.get('repo_cache_version')!='5.5': raise SystemExit(f'wrong cache version: {m.get("repo_cache_version")}')
+          if m.get('repo_cache_version')!='5.6': raise SystemExit(f'wrong cache version: {m.get("repo_cache_version")}')
+          for standalone in ['cs2_provider_cache.json','cs2_data_readiness.json','cs2_grading_health.json','cs2_operational_status.json']:
+              if not (root/standalone).exists(): raise SystemExit(f'missing standalone status file: {standalone}')
           print('cache validation:', {'files':len(files),'archive_size':m.get('archive_size'),'required_ok':True})
           PY
           ls -lh /tmp/cs2_cache_publish
@@ -149,5 +173,5 @@ jobs:
           git rm -rf . || true
           cp -a /tmp/cs2_cache_publish/. .
           git add -A
-          git commit -m "Refresh CS2 v5.5 data cache $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          git commit -m "Refresh CS2 v5.6 production data cache $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           git push origin HEAD:data-cache --force
