@@ -18,13 +18,13 @@ export CS2_EMBEDDED_COLLECTOR="${CS2_EMBEDDED_COLLECTOR:-true}"
 
 mkdir -p "${DATA_DIR}" 2>/dev/null || true
 
-# Web health must not depend on a data-provider patch or recovery request.
-# The committed app is syntax-checked and Streamlit starts immediately.
-python -m py_compile app.py collector.py
+# Web health depends only on the committed Streamlit app.
+# Recovery/provider code is intentionally NOT part of web startup validation.
+python -m py_compile app.py
 
-# Full-gas data collection runs independently after the web server has had time
-# to become healthy. collector.py patches an isolated temporary copy of app.py,
-# never the live Streamlit source file.
+# Full-gas collection is independent and delayed until Streamlit is already healthy.
+# collector.py patches an isolated /tmp copy of app.py and writes only persistent
+# data to CS2_DATA_DIR; it never mutates the live Streamlit source.
 if [[ "${CS2_EMBEDDED_COLLECTOR}" =~ ^(1|true|TRUE|True|yes|YES|Yes|on|ON|On)$ ]]; then
   (
     sleep 60
