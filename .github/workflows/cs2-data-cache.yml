@@ -5,9 +5,13 @@ on:
     branches: [main]
     paths:
       - "collector.py"
+      - "collector_v55.py"
       - "github_cache_sync.py"
+      - "github_cache_sync_v55.py"
       - "autofeed_*.py"
       - "prepare_web_app.py"
+      - "start.sh"
+      - "railway.collector.toml"
       - ".github/workflows/cs2-data-cache.yml"
   schedule:
     - cron: "*/10 * * * *"
@@ -23,7 +27,7 @@ concurrency:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 18
     steps:
       - name: Checkout main code
         uses: actions/checkout@v4
@@ -39,16 +43,34 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Restore prior public cache
+      - name: Restore prior verified cache
         env:
           CS2_DATA_DIR: /tmp/cs2_engine
           CS2_BRIDGE_REPO: ${{ github.repository }}
           CS2_BRIDGE_BRANCH: data-cache
         run: |
           mkdir -p /tmp/cs2_engine
-          python github_cache_sync.py pull --data-dir /tmp/cs2_engine --repo "${GITHUB_REPOSITORY}" --branch data-cache || true
+          python github_cache_sync_v55.py pull --data-dir /tmp/cs2_engine --repo "${GITHUB_REPOSITORY}" --branch data-cache || true
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('/tmp/cs2_engine')
+          def load(name, default):
+              try: return json.loads((root/name).read_text())
+              except Exception: return default
+          provider=load('cs2_provider_cache.json',{})
+          before={
+              'profiles':len(provider.get('profiles') or {}) if isinstance(provider,dict) else 0,
+              'teams':len(provider.get('teams') or {}) if isinstance(provider,dict) else 0,
+              'matches':len(provider.get('matches') or []) if isinstance(provider,dict) else 0,
+              'graded':len(load('cs2_graded_results.json',[])),
+              'line_history':len(load('cs2_line_history.json',[])),
+          }
+          (root/'.v55_before.json').write_text(json.dumps(before))
+          print('prior cache:',before)
+          PY
 
-      - name: Collect verified CS2 data
+      - name: Collect complete verified CS2 data
         env:
           CS2_DATA_DIR: /tmp/cs2_engine
           CS2_BRIDGE_REPO: ${{ github.repository }}
@@ -61,48 +83,57 @@ jobs:
           CS2_BO3_PROFILES_PER_REFRESH: "180"
           CS2_AUTOFEED_DIRECT_PROFILE_BATCH: "60"
           CS2_AUTOFEED_DIRECT_WORKERS: "4"
+          CS2_HLTV_BATCH_PAGES: "12"
+          CS2_HLTV_BATCH_WORKERS: "4"
           JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
         run: |
-          python collector.py
+          python collector_v55.py
           cat /tmp/cs2_engine/.autofeed_collector_status.json
           python - <<'PY'
           import json
           from pathlib import Path
-          p = Path('/tmp/cs2_engine/.autofeed_collector_status.json')
-          if not p.exists():
-              raise SystemExit('collector status file missing')
-          s = json.loads(p.read_text())
-          if not s.get('ok'):
-              raise SystemExit(f"collector failed: {s.get('error') or s}")
-          if int(s.get('underdog_rows') or 0) <= 0:
-              raise SystemExit('collector returned no real Underdog rows')
-          print('collector validation:', {
-              'underdog_rows': s.get('underdog_rows'),
-              'verified_profile_rows': s.get('verified_profile_rows'),
-              'projection_rows_saved': s.get('projection_rows_saved'),
-              'github_bridge_profiles_after': s.get('github_bridge_profiles_after'),
-              'github_bridge_teams_after': s.get('github_bridge_teams_after'),
-              'github_bridge_matches_after': s.get('github_bridge_matches_after'),
-          })
+          root=Path('/tmp/cs2_engine')
+          status_path=root/'.autofeed_collector_status.json'
+          if not status_path.exists(): raise SystemExit('collector status file missing')
+          s=json.loads(status_path.read_text())
+          if not s.get('ok'): raise SystemExit(f"collector failed: {s.get('error') or s}")
+          if int(s.get('underdog_rows') or 0)<=0: raise SystemExit('collector returned no real Underdog rows')
+          before=json.loads((root/'.v55_before.json').read_text())
+          def load(name, default):
+              try: return json.loads((root/name).read_text())
+              except Exception: return default
+          provider=load('cs2_provider_cache.json',{})
+          after={
+              'profiles':len(provider.get('profiles') or {}) if isinstance(provider,dict) else 0,
+              'teams':len(provider.get('teams') or {}) if isinstance(provider,dict) else 0,
+              'matches':len(provider.get('matches') or []) if isinstance(provider,dict) else 0,
+              'graded':len(load('cs2_graded_results.json',[])),
+              'line_history':len(load('cs2_line_history.json',[])),
+          }
+          for key in ['profiles','graded','line_history']:
+              if after[key] < before[key]: raise SystemExit(f'regression blocked: {key} {before[key]} -> {after[key]}')
+          readiness=load('cs2_data_readiness.json',{})
+          if not isinstance(readiness,dict) or readiness.get('version')!='5.5':
+              raise SystemExit(f'v5.5 readiness report missing: {readiness}')
+          print('collector validation:', {'before':before,'after':after,'readiness':readiness})
           PY
 
-      - name: Build portable data cache
+      - name: Build portable v5.5 data cache
         run: |
           rm -rf /tmp/cs2_cache_publish
-          python github_cache_sync.py package --data-dir /tmp/cs2_engine --output-dir /tmp/cs2_cache_publish
+          python github_cache_sync_v55.py package --data-dir /tmp/cs2_engine --output-dir /tmp/cs2_cache_publish
           python - <<'PY'
           import json
           from pathlib import Path
-          p = Path('/tmp/cs2_cache_publish/cs2_data_manifest.json')
-          m = json.loads(p.read_text())
-          files = m.get('files') or []
-          if not files:
-              raise SystemExit('refusing to publish an empty CS2 data cache')
-          required_any = {'cs2_line_history.json', 'cs2_core_v42.sqlite3', 'cs2_provider_cache.json', 'player_database.json'}
-          names = {x.get('name') for x in files}
-          if not (names & required_any):
-              raise SystemExit(f'cache missing core data files: {sorted(names)}')
-          print('cache validation:', {'files': len(files), 'archive_size': m.get('archive_size'), 'names': sorted(names)})
+          p=Path('/tmp/cs2_cache_publish/cs2_data_manifest.json')
+          m=json.loads(p.read_text())
+          files=m.get('files') or []
+          names={x.get('name') for x in files}
+          required={'cs2_provider_cache.json','player_database.json','team_database.json','match_database.json','roster_database.json','veto_database.json','cs2_line_history.json','cs2_core_v42.sqlite3','cs2_data_readiness.json'}
+          missing=required-names
+          if missing: raise SystemExit(f'refusing cache missing required data: {sorted(missing)}')
+          if m.get('repo_cache_version')!='5.5': raise SystemExit(f'wrong cache version: {m.get("repo_cache_version")}')
+          print('cache validation:', {'files':len(files),'archive_size':m.get('archive_size'),'required_ok':True})
           PY
           ls -lh /tmp/cs2_cache_publish
 
@@ -118,5 +149,5 @@ jobs:
           git rm -rf . || true
           cp -a /tmp/cs2_cache_publish/. .
           git add -A
-          git commit -m "Refresh CS2 data cache $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          git commit -m "Refresh CS2 v5.5 data cache $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           git push origin HEAD:data-cache --force
