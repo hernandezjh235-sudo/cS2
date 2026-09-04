@@ -13,18 +13,23 @@ export CS2_COLLECT_PROJECTIONS="${CS2_COLLECT_PROJECTIONS:-true}"
 export CS2_AUTO_GRADE="${CS2_AUTO_GRADE:-true}"
 export CS2_DEEP_DATA="${CS2_DEEP_DATA:-true}"
 export CS2_BO3_PROFILES_PER_REFRESH="${CS2_BO3_PROFILES_PER_REFRESH:-180}"
+export CS2_AUTOFEED_DIRECT_PROFILE_BATCH="${CS2_AUTOFEED_DIRECT_PROFILE_BATCH:-24}"
+export CS2_AUTOFEED_DIRECT_WORKERS="${CS2_AUTOFEED_DIRECT_WORKERS:-3}"
 export CS2_EMBEDDED_COLLECTOR="${CS2_EMBEDDED_COLLECTOR:-true}"
 
 # Railway volumes are normally mounted at /data. Local runs may not have it.
 mkdir -p "${DATA_DIR}" 2>/dev/null || true
 
-# Apply the small idempotent data/identity/persistence patch before launch.
+# Apply idempotent data/identity/persistence patches before launch.
 if [[ -f "autofeed_patch.py" ]]; then
   python autofeed_patch.py app.py
 fi
+if [[ -f "autofeed_recovery_v53.py" ]]; then
+  python autofeed_recovery_v53.py app.py
+fi
 
 # Fail early with a clear deployment log if the source is invalid.
-python -m py_compile app.py collector.py autofeed_patch.py
+python -m py_compile app.py collector.py autofeed_patch.py autofeed_recovery_v53.py
 
 # Self-feeding mode: the web service also runs the collector every 10 minutes.
 # collector.py has a shared-volume lock/heartbeat, so a separate Railway cron
