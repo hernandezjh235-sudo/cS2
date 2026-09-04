@@ -13,6 +13,7 @@ export CS2_COLLECT_PROJECTIONS="${CS2_COLLECT_PROJECTIONS:-true}"
 export CS2_AUTO_GRADE="${CS2_AUTO_GRADE:-true}"
 export CS2_DEEP_DATA="${CS2_DEEP_DATA:-true}"
 export CS2_BO3_PROFILES_PER_REFRESH="${CS2_BO3_PROFILES_PER_REFRESH:-180}"
+export CS2_EMBEDDED_COLLECTOR="${CS2_EMBEDDED_COLLECTOR:-true}"
 
 # Railway volumes are normally mounted at /data. Local runs may not have it.
 mkdir -p "${DATA_DIR}" 2>/dev/null || true
@@ -23,7 +24,20 @@ if [[ -f "autofeed_patch.py" ]]; then
 fi
 
 # Fail early with a clear deployment log if the source is invalid.
-python -m py_compile app.py
+python -m py_compile app.py collector.py autofeed_patch.py
+
+# Self-feeding mode: the web service also runs the collector every 10 minutes.
+# collector.py has a shared-volume lock/heartbeat, so a separate Railway cron
+# collector can coexist without running the same collection cycle concurrently.
+if [[ "${CS2_EMBEDDED_COLLECTOR,,}" =~ ^(1|true|yes|on)$ ]]; then
+  (
+    sleep 20
+    while true; do
+      python collector.py || true
+      sleep 600
+    done
+  ) &
+fi
 
 exec python -m streamlit run app.py \
   --server.address=0.0.0.0 \
