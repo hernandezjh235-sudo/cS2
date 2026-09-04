@@ -63,13 +63,47 @@ jobs:
           CS2_AUTOFEED_DIRECT_WORKERS: "4"
           JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
         run: |
-          python collector.py || true
-          test -f /tmp/cs2_engine/.autofeed_collector_status.json && cat /tmp/cs2_engine/.autofeed_collector_status.json || true
+          python collector.py
+          cat /tmp/cs2_engine/.autofeed_collector_status.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('/tmp/cs2_engine/.autofeed_collector_status.json')
+          if not p.exists():
+              raise SystemExit('collector status file missing')
+          s = json.loads(p.read_text())
+          if not s.get('ok'):
+              raise SystemExit(f"collector failed: {s.get('error') or s}")
+          if int(s.get('underdog_rows') or 0) <= 0:
+              raise SystemExit('collector returned no real Underdog rows')
+          print('collector validation:', {
+              'underdog_rows': s.get('underdog_rows'),
+              'verified_profile_rows': s.get('verified_profile_rows'),
+              'projection_rows_saved': s.get('projection_rows_saved'),
+              'github_bridge_profiles_after': s.get('github_bridge_profiles_after'),
+              'github_bridge_teams_after': s.get('github_bridge_teams_after'),
+              'github_bridge_matches_after': s.get('github_bridge_matches_after'),
+          })
+          PY
 
       - name: Build portable data cache
         run: |
           rm -rf /tmp/cs2_cache_publish
           python github_cache_sync.py package --data-dir /tmp/cs2_engine --output-dir /tmp/cs2_cache_publish
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('/tmp/cs2_cache_publish/cs2_data_manifest.json')
+          m = json.loads(p.read_text())
+          files = m.get('files') or []
+          if not files:
+              raise SystemExit('refusing to publish an empty CS2 data cache')
+          required_any = {'cs2_line_history.json', 'cs2_core_v42.sqlite3', 'cs2_provider_cache.json', 'player_database.json'}
+          names = {x.get('name') for x in files}
+          if not (names & required_any):
+              raise SystemExit(f'cache missing core data files: {sorted(names)}')
+          print('cache validation:', {'files': len(files), 'archive_size': m.get('archive_size'), 'names': sorted(names)})
+          PY
           ls -lh /tmp/cs2_cache_publish
 
       - name: Publish single-snapshot data-cache branch
