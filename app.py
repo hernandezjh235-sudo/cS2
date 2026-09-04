@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+\# -*- coding: utf-8 -*-
 """
 ONEWAYPICKZ CS2 MAPS 1-2 KILL PROJECTION ENGINE
 Single-file Streamlit/Railway application.
@@ -12092,7 +12092,7 @@ def _audit_json_bytes(payload: Any) -> bytes:
 
 def build_full_live_audit_zip() -> bytes:
     """Create a read-only audit package of the current app state without secrets."""
-    audit_df = app_audit_dataframe()
+    audit_df = build_app_audit_dataframe()
     health = app_data_health_report()
 
     # Only explicit, non-secret UI/runtime settings are exported.
