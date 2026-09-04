@@ -13,8 +13,9 @@ export CS2_COLLECT_PROJECTIONS="${CS2_COLLECT_PROJECTIONS:-true}"
 export CS2_AUTO_GRADE="${CS2_AUTO_GRADE:-true}"
 export CS2_DEEP_DATA="${CS2_DEEP_DATA:-true}"
 export CS2_BO3_PROFILES_PER_REFRESH="${CS2_BO3_PROFILES_PER_REFRESH:-180}"
-export CS2_AUTOFEED_DIRECT_PROFILE_BATCH="${CS2_AUTOFEED_DIRECT_PROFILE_BATCH:-24}"
-export CS2_AUTOFEED_DIRECT_WORKERS="${CS2_AUTOFEED_DIRECT_WORKERS:-3}"
+# Full-gas direct recovery within the v5.3 provider-safe caps.
+export CS2_AUTOFEED_DIRECT_PROFILE_BATCH="${CS2_AUTOFEED_DIRECT_PROFILE_BATCH:-60}"
+export CS2_AUTOFEED_DIRECT_WORKERS="${CS2_AUTOFEED_DIRECT_WORKERS:-4}"
 export CS2_EMBEDDED_COLLECTOR="${CS2_EMBEDDED_COLLECTOR:-true}"
 
 # Railway volumes are normally mounted at /data. Local runs may not have it.
@@ -32,8 +33,8 @@ fi
 python -m py_compile app.py collector.py autofeed_patch.py autofeed_recovery_v53.py
 
 # Self-feeding mode: the web service also runs the collector every 10 minutes.
-# collector.py has a shared-volume lock/heartbeat, so a separate Railway cron
-# collector can coexist without running the same collection cycle concurrently.
+# Keeping the cadence at 10 minutes avoids worsening upstream 429 throttling;
+# each cycle now uses the maximum v5.3 direct recovery batch/workers instead.
 if [[ "${CS2_EMBEDDED_COLLECTOR,,}" =~ ^(1|true|yes|on)$ ]]; then
   (
     sleep 20
