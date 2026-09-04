@@ -49,14 +49,14 @@ jobs:
         run: |
           mkdir -p /tmp/cs2_engine
           RUNTIME="$(python prepare_web_app.py | tail -n 1)"
-          python -m py_compile "$RUNTIME" collector_v55.py github_cache_sync_v55.py autofeed_production_v56.py
+          python -m py_compile "$RUNTIME" collector_v55.py github_cache_sync_v55.py autofeed_production_v56.py autofeed_identity_v562.py
           python - <<'PY'
           import json
           from pathlib import Path
           p=Path('/tmp/cs2_engine/.web_runtime_status.json')
           if not p.exists(): raise SystemExit('web runtime status missing')
           s=json.loads(p.read_text())
-          if not s.get('ok') or s.get('runtime_version')!='5.6': raise SystemExit(f'v5.6 runtime not ready: {s}')
+          if not s.get('ok') or s.get('runtime_version')!='5.6.2': raise SystemExit(f'v5.6.2 runtime not ready: {s}')
           print('runtime validation:',s)
           PY
 
