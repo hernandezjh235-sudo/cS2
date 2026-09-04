@@ -42,30 +42,31 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Compile v5.8.7 production runtime
+      - name: Compile v5.8.9 production runtime
         env:
           CS2_DATA_DIR: /tmp/cs2_engine
         run: |
           mkdir -p /tmp/cs2_engine
           RUNTIME="$(python prepare_web_app.py | tail -n 1)"
-          python -m py_compile "$RUNTIME" collector_v55.py github_cache_sync_v582.py autofeed_completion_v587.py
+          python -m py_compile "$RUNTIME" collector_v55.py github_cache_sync_v582.py autofeed_completion_v588.py autofeed_handoff_v589.py
           python - <<'PY'
           import json
           from pathlib import Path
           p=Path('/tmp/cs2_engine/.web_runtime_status.json')
           if not p.exists(): raise SystemExit('web runtime status missing')
           s=json.loads(p.read_text())
-          if not s.get('ok') or s.get('runtime_version')!='5.8.7':
-              raise SystemExit(f'v5.8.7 runtime not ready: {s}')
+          if not s.get('ok') or s.get('runtime_version')!='5.8.9':
+              raise SystemExit(f'v5.8.9 runtime not ready: {s}')
           patches={x.get('file'):x for x in s.get('patches') or []}
           required=[
               'autofeed_context_v57.py','autofeed_liveboard_v58.py','autofeed_webfast_v581.py',
               'autofeed_liveboard_v582.py','autofeed_liveboard_v583.py','autofeed_liveboard_v584.py',
-              'autofeed_premodel_v585.py','autofeed_verified_v586.py','autofeed_completion_v587.py'
+              'autofeed_premodel_v585.py','autofeed_verified_v586.py','autofeed_completion_v587.py',
+              'autofeed_completion_v588.py','autofeed_handoff_v589.py'
           ]
           missing=[x for x in required if not patches.get(x,{}).get('ok')]
           if missing: raise SystemExit(f'required runtime patches missing: {missing}')
-          if s.get('completion_layer')!='5.8.7': raise SystemExit(f'completion layer missing: {s}')
+          if s.get('completion_layer')!='5.8.9': raise SystemExit(f'completion layer missing: {s}')
           print('runtime validation:',s)
           PY
 
@@ -89,9 +90,10 @@ jobs:
               'teams':len(provider.get('teams') or {}) if isinstance(provider,dict) else 0,
               'matches':len(provider.get('matches') or []) if isinstance(provider,dict) else 0,
               'graded':len(load('cs2_graded_results.json',[])),
+              'snapshots':len(load('cs2_official_snapshots.json',[])),
               'line_history':len(load('cs2_line_history.json',[])),
           }
-          (root/'.v587_before.json').write_text(json.dumps(before))
+          (root/'.v589_before.json').write_text(json.dumps(before))
           print('prior cache:',before)
           PY
 
@@ -133,22 +135,26 @@ jobs:
           if not s.get('ok'): raise SystemExit(f"collector failed: {s.get('error') or s}")
           if int(s.get('underdog_rows') or 0)<=0: raise SystemExit('no real Underdog CS2 Maps 1-2 rows')
 
-          before=json.loads((root/'.v587_before.json').read_text())
+          before=json.loads((root/'.v589_before.json').read_text())
           provider=load('cs2_provider_cache.json',{})
           src=(provider.get('source_status') or {}) if isinstance(provider,dict) else {}
           after={
               'profiles':len(provider.get('profiles') or {}) if isinstance(provider,dict) else 0,
               'teams':len(provider.get('teams') or {}) if isinstance(provider,dict) else 0,
               'matches':len(provider.get('matches') or []) if isinstance(provider,dict) else 0,
+              'exact_source_identity_rows':int(src.get('exact_source_identity_rows') or 0),
               'provider_context_rows':int(src.get('provider_context_rows') or 0),
               'provider_match_rows':int(src.get('real_provider_match_rows') or 0),
               'deep_team_map_rows':int(src.get('deep_team_map_rows') or 0),
               'projection_ready_rows':int(src.get('projection_ready_rows') or 0),
               'official_ready_rows':int(src.get('official_ready_rows') or 0),
+              'freeze_candidate_rows':int(src.get('freeze_candidate_rows') or 0),
+              'blank_source_team_rows':int(src.get('supported_exact_id_blank_team_rows') or 0),
               'graded':len(load('cs2_graded_results.json',[])),
+              'snapshots':len(load('cs2_official_snapshots.json',[])),
               'line_history':len(load('cs2_line_history.json',[])),
           }
-          for key in ['profiles','graded','line_history']:
+          for key in ['profiles','graded','snapshots','line_history']:
               if after[key] < before[key]: raise SystemExit(f'regression blocked: {key} {before[key]} -> {after[key]}')
           if after['profiles']>0 and after['teams']<=0:
               raise SystemExit(f'identity persistence failed: {after}')
@@ -156,36 +162,54 @@ jobs:
           context=load('cs2_context_health.json',{})
           readiness=load('cs2_data_readiness.json',{})
           live=load('cs2_live_line_catalog.json',{})
-          if context.get('version')!='5.8.7' or context.get('runtime_layer')!='5.8.7':
-              raise SystemExit(f'v5.8.7 context report missing: {context}')
-          if readiness.get('version')!='5.8.7' or int(readiness.get('board_rows') or 0)<=0:
-              raise SystemExit(f'v5.8.7 readiness report missing: {readiness}')
+          grading=load('cs2_grading_health.json',{})
+          if context.get('version')!='5.8.9' or context.get('runtime_layer')!='5.8.9':
+              raise SystemExit(f'v5.8.9 context report missing: {context}')
+          if readiness.get('version')!='5.8.9' or int(readiness.get('board_rows') or 0)<=0:
+              raise SystemExit(f'v5.8.9 readiness report missing: {readiness}')
           if int(context.get('non_cs2_rows_visible') or 0)!=0:
               raise SystemExit(f'non-CS2 rows leaked: {context}')
           if live.get('version')!='5.8.6' or int(live.get('model_supported_lines') or 0)<=0:
               raise SystemExit(f'strict CS2 live catalog missing: {live}')
 
           board_status=s.get('board_status') or {}
-          completion=board_status.get('v587_completion') or {}
-          if not completion: raise SystemExit(f'v5.8.7 completion report missing: {board_status}')
-          if int(completion.get('verified_profile_rows') or 0)<=0:
-              raise SystemExit(f'no verified player profiles reached board: {completion}')
-          if int(completion.get('core_kpr_rows') or 0)<=0:
-              raise SystemExit(f'no verified Core KPR reached board: {completion}')
-          # This is the defect v5.8.7 fixes: source identity may never suppress
-          # the actual stats-provider match/deep-data recovery path.
-          if int(completion.get('real_provider_match_rows') or 0)<=0:
-              raise SystemExit(f'provider match recovery still blocked: {completion}')
-          if int(completion.get('projection_ready_rows') or 0)<=0:
-              raise SystemExit(f'zero verified projections after completed handoff: {completion}')
+          identity=board_status.get('v588_completion') or {}
+          handoff=board_status.get('v589_verified_handoff') or {}
+          ud=((s.get('underdog_status') or {}).get('v588_authoritative_source_identity') or {})
+          if not identity: raise SystemExit(f'v5.8.8 identity completion report missing: {board_status}')
+          if not handoff: raise SystemExit(f'v5.8.9 freeze/grading handoff missing: {board_status}')
+          if int(ud.get('supported_exact_id_blank_team_rows') or 0)!=0:
+              raise SystemExit(f'primary-source team names still blank after exact IDs: {ud}')
+          if int(identity.get('exact_source_identity_rows') or 0)<=0:
+              raise SystemExit(f'no authoritative current source identities reached board: {identity}')
+          if int(identity.get('verified_profile_rows') or 0)<=0:
+              raise SystemExit(f'no verified player profiles reached board: {identity}')
+          if int(identity.get('core_kpr_rows') or 0)<=0:
+              raise SystemExit(f'no verified Core KPR reached board: {identity}')
+          if int(identity.get('real_provider_match_rows') or 0)<=0:
+              raise SystemExit(f'provider match recovery still blocked: {identity}')
+          if int(identity.get('deep_team_map_rows') or 0)<=0:
+              raise SystemExit(f'provider match recovered but deep team/opponent map context is still empty: {identity}')
+          if int(handoff.get('projection_ready_rows') or 0)<=0:
+              raise SystemExit(f'zero verified projections after completed handoff: {handoff}')
 
-          print('v5.8.7 verified data:', {
+          freeze=s.get('auto_freeze') or {}
+          if int(handoff.get('freeze_candidate_rows') or 0)>0:
+              if int(freeze.get('eligible') or 0)<=0 and int(freeze.get('freeze_candidates') or 0)<=0:
+                  raise SystemExit(f'freeze candidates exist but pregame freeze handoff did not see them: {freeze}')
+              if int(freeze.get('added') or 0)+int(freeze.get('skipped') or 0)<=0:
+                  raise SystemExit(f'freeze candidates exist but no snapshot was added or already present: {freeze}')
+          if int(grading.get('errors') or 0)>0:
+              raise SystemExit(f'automatic grading health reports errors: {grading}')
+
+          print('v5.8.9 verified data:', {
               'before':before,'after':after,'context':context,'readiness':readiness,
-              'completion':completion,'live':{k:v for k,v in live.items() if k!='rows'}
+              'identity':identity,'handoff':handoff,'freeze':freeze,'grading':grading,
+              'live':{k:v for k,v in live.items() if k!='rows'}
           })
           PY
 
-      - name: Build portable v5.8.7 runtime data cache
+      - name: Build portable v5.8.9 runtime data cache
         run: |
           rm -rf /tmp/cs2_cache_publish
           python github_cache_sync_v582.py package --data-dir /tmp/cs2_engine --output-dir /tmp/cs2_cache_publish
@@ -199,7 +223,7 @@ jobs:
           missing=required-names
           if missing: raise SystemExit(f'refusing incomplete cache: {sorted(missing)}')
           if m.get('repo_cache_version')!='5.8.2': raise SystemExit(f'wrong cache-format version: {m.get("repo_cache_version")}')
-          print('cache validation:',{'runtime':'5.8.7','files':len(names),'archive_size':m.get('archive_size')})
+          print('cache validation:',{'runtime':'5.8.9','files':len(names),'archive_size':m.get('archive_size')})
           PY
 
       - name: Publish single-snapshot data-cache branch
@@ -214,5 +238,5 @@ jobs:
           git rm -rf . || true
           cp -a /tmp/cs2_cache_publish/. .
           git add -A
-          git commit -m "Refresh CS2 v5.8.7 live data $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          git commit -m "Refresh CS2 v5.8.9 live data $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           git push origin HEAD:data-cache --force
