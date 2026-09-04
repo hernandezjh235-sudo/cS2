@@ -21,6 +21,7 @@ PATCHES = [
     ROOT / "autofeed_context_v57.py",
     ROOT / "autofeed_liveboard_v58.py",
     ROOT / "autofeed_webfast_v581.py",
+    ROOT / "autofeed_liveboard_v582.py",
 ]
 
 
@@ -64,8 +65,8 @@ def main() -> int:
         compile(TARGET_APP.read_text(encoding="utf-8"), str(TARGET_APP), "exec")
         status["ok"] = True
         status["runtime_app"] = str(TARGET_APP)
-        status["runtime_version"] = "5.8"
-        status["web_latency_layer"] = "5.8.1"
+        status["runtime_version"] = "5.8.2"
+        status["web_latency_layer"] = "5.8.2"
         _write_status(status)
         print(str(TARGET_APP))
         return 0
