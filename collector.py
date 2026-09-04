@@ -1,19 +1,22 @@
-"""Railway cron collector for OneWayPickz CS2 v5.3 autofeed.
+"""Railway collector for OneWayPickz CS2 v5.3 autofeed.
 
-Runs every 10 minutes and keeps the shared Railway volume populated without
-manual CSV/demo uploads: real lines, market ticks, verified profiles, player/team
-mappings, full-board projections, persistent entities, pregame freezes, and grading.
+The collector runs independently of the web server. It copies app.py to an
+isolated temporary runtime file, applies data-recovery overlays there, and writes
+only persistent CS2 data back to CS2_DATA_DIR. The live Streamlit source is never
+mutated by collection.
 """
 from __future__ import annotations
 
 import importlib.util
 import json
 import os
+import shutil
 import sys
 import types
 from pathlib import Path
 
-APP_PATH = Path(__file__).with_name("app.py")
+SOURCE_APP_PATH = Path(__file__).with_name("app.py")
+RUNTIME_APP_PATH = Path(os.getenv("CS2_COLLECTOR_RUNTIME_APP", "/tmp/onewaypickz_cs2_collector_app.py"))
 PATCH_PATHS = [
     Path(__file__).with_name("autofeed_patch.py"),
     Path(__file__).with_name("autofeed_recovery_v53.py"),
@@ -25,7 +28,10 @@ def truthy(name: str, default: str = "false") -> bool:
     return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
 
 
-def ensure_runtime_patch() -> None:
+def build_runtime_app() -> Path:
+    """Build a patched collector-only app copy without touching live app.py."""
+    RUNTIME_APP_PATH.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(SOURCE_APP_PATH, RUNTIME_APP_PATH)
     for idx, patch_path in enumerate(PATCH_PATHS):
         if not patch_path.exists():
             continue
@@ -33,18 +39,21 @@ def ensure_runtime_patch() -> None:
         module = importlib.util.module_from_spec(spec)
         assert spec.loader is not None
         spec.loader.exec_module(module)
-        module.patch_app(APP_PATH)
+        module.patch_app(RUNTIME_APP_PATH)
+    # Validate the fully patched collector copy before executing definitions.
+    compile(RUNTIME_APP_PATH.read_text(encoding="utf-8"), str(RUNTIME_APP_PATH), "exec")
+    return RUNTIME_APP_PATH
 
 
 def load_engine() -> dict:
-    ensure_runtime_patch()
-    source = APP_PATH.read_text(encoding="utf-8")
+    runtime_path = build_runtime_app()
+    source = runtime_path.read_text(encoding="utf-8")
     definitions = source.split(MARKER)[0]
     module_name = "onewaypickz_cs2_collector_runtime"
     module = types.ModuleType(module_name)
-    module.__file__ = str(APP_PATH)
+    module.__file__ = str(runtime_path)
     sys.modules[module_name] = module
-    exec(compile(definitions, str(APP_PATH), "exec"), module.__dict__)
+    exec(compile(definitions, str(runtime_path), "exec"), module.__dict__)
     return module.__dict__
 
 
@@ -56,8 +65,8 @@ def main() -> int:
     os.environ.setdefault("CS2_AUTO_GRADE", "true")
     os.environ.setdefault("CS2_DEEP_DATA", "true")
     os.environ.setdefault("CS2_BO3_PROFILES_PER_REFRESH", "180")
-    os.environ.setdefault("CS2_AUTOFEED_DIRECT_PROFILE_BATCH", "24")
-    os.environ.setdefault("CS2_AUTOFEED_DIRECT_WORKERS", "3")
+    os.environ.setdefault("CS2_AUTOFEED_DIRECT_PROFILE_BATCH", "60")
+    os.environ.setdefault("CS2_AUTOFEED_DIRECT_WORKERS", "4")
 
     ns = load_engine()
     ud_rows, ud_meta = ns["fetch_underdog_cs2_board"]()
@@ -66,7 +75,11 @@ def main() -> int:
     if collect_pp:
         pp_rows, pp_meta = ns["fetch_prizepicks_cs2_board"]()
     else:
-        pp_rows, pp_meta = [], {"ok": False, "disabled": True, "message": "PrizePicks collector disabled; Underdog is primary."}
+        pp_rows, pp_meta = [], {
+            "ok": False,
+            "disabled": True,
+            "message": "PrizePicks collector disabled; Underdog is primary.",
+        }
 
     all_rows = ns["annotate_market_consensus"](list(ud_rows) + list(pp_rows))
     ticks = ns["sqlite_store_market_ticks"](all_rows)
@@ -83,36 +96,50 @@ def main() -> int:
 
     props = [x for x in all_rows if str(x.get("source")) == "Underdog"]
     if props:
-        players = list(dict.fromkeys(str(x.get("player") or "").strip() for x in props if str(x.get("player") or "").strip()))
+        players = list(
+            dict.fromkeys(
+                str(x.get("player") or "").strip()
+                for x in props
+                if str(x.get("player") or "").strip()
+            )
+        )
 
-        # Existing v5.1 batch/cache path stays enabled.
         prefetch = ns.get("v48_prefetch_provider_data")
         if callable(prefetch):
             try:
                 profile_recovery = prefetch(players, force=False) or {}
             except Exception as exc:
-                profile_recovery = {"ok": False, "warning": str(exc), "requested": len(players)}
+                profile_recovery = {
+                    "ok": False,
+                    "warning": str(exc),
+                    "requested": len(players),
+                }
 
-        # V5.3 adds a controlled direct-BO3 progressive fallback. This is most
-        # useful when the Jina aggregate source returns HTTP 429. It also
-        # re-fetches cached profiles missing provider-team metadata so player
-        # side mappings can be corrected automatically.
         direct_recovery = ns.get("_autofeed_direct_profile_recovery")
         if callable(direct_recovery):
             try:
                 direct_profile_recovery = direct_recovery(players) or {}
             except Exception as exc:
-                direct_profile_recovery = {"ok": False, "warning": str(exc), "requested": len(players)}
+                direct_profile_recovery = {
+                    "ok": False,
+                    "warning": str(exc),
+                    "requested": len(players),
+                }
 
-        # Build every real Underdog row. Source TTLs/caches prevent needless
-        # repeated network requests while the databases continue to deepen.
-        board, board_status = ns["build_full_board"](props, truthy("CS2_DEEP_DATA", "true"))
+        board, board_status = ns["build_full_board"](
+            props, truthy("CS2_DEEP_DATA", "true")
+        )
         board_status = dict(board_status or {})
         board_status["autofeed_direct_profile_recovery_v53"] = direct_profile_recovery
 
         ns["save_asof_projection_history"](
             board,
-            {"Underdog": ud_meta, "PrizePicks": pp_meta, "collector": True, "autofeed": "v5.3"},
+            {
+                "Underdog": ud_meta,
+                "PrizePicks": pp_meta,
+                "collector": True,
+                "autofeed": "v5.3-isolated",
+            },
         )
 
         auto_freeze = ns.get("auto_freeze_verified_pregame")
@@ -120,7 +147,12 @@ def main() -> int:
             try:
                 freeze_status = auto_freeze(board) or freeze_status
             except Exception as exc:
-                freeze_status = {"added": 0, "skipped": 0, "eligible": 0, "warning": str(exc)}
+                freeze_status = {
+                    "added": 0,
+                    "skipped": 0,
+                    "eligible": 0,
+                    "warning": str(exc),
+                }
 
         maint = ns.get("run_v45_collector_maintenance")
         if callable(maint):
@@ -131,7 +163,11 @@ def main() -> int:
 
         ns["save_model_fit"](
             "collector:deep_history",
-            {"sample": len(board), "fit_type": "collector_autofeed_v53", "completed_at": ns["now_iso"]()},
+            {
+                "sample": len(board),
+                "fit_type": "collector_autofeed_v53_isolated",
+                "completed_at": ns["now_iso"](),
+            },
         )
 
     if truthy("CS2_AUTO_GRADE", "true"):
@@ -140,22 +176,31 @@ def main() -> int:
             try:
                 grade_status = grader() or grade_status
             except Exception as exc:
-                grade_status = {"graded": 0, "pending": 0, "errors": 1, "warning": str(exc)}
+                grade_status = {
+                    "graded": 0,
+                    "pending": 0,
+                    "errors": 1,
+                    "warning": str(exc),
+                }
 
     db_status = ns.get("database_status", lambda: {})()
-    model_health = ns["model_health_report"](board, {"Underdog": ud_meta, "PrizePicks": pp_meta})
-    verified = sum((ns["safe_int"](row.get("profile_maps"), 0) or 0) > 0 for row in board)
+    model_health = ns["model_health_report"](
+        board, {"Underdog": ud_meta, "PrizePicks": pp_meta}
+    )
+    verified = sum(
+        (ns["safe_int"](row.get("profile_maps"), 0) or 0) > 0 for row in board
+    )
     projected = sum(row.get("projection") is not None for row in board)
     verified_team_rows = sum(bool(row.get("provider_team_verified")) for row in board)
 
     summary = {
         "ok": bool(ud_rows),
-        "autofeed_version": "5.3",
+        "autofeed_version": "5.3-isolated-full-gas",
         "underdog_rows": len(ud_rows),
         "prizepicks_rows": len(pp_rows),
         "market_ticks_added": ticks,
         "line_history_updated": True,
-        "unique_players": len({str(x.get('player') or '') for x in props}),
+        "unique_players": len({str(x.get("player") or "") for x in props}),
         "verified_profile_rows": verified,
         "verified_team_rows": verified_team_rows,
         "projection_rows_saved": projected,
@@ -177,7 +222,7 @@ def main() -> int:
 
 
 def run_locked() -> int:
-    """Prevent the web-embedded collector and Railway cron collector from overlapping."""
+    """Prevent embedded and Railway cron collectors from overlapping."""
     import fcntl
     import time
 
@@ -190,7 +235,15 @@ def run_locked() -> int:
         try:
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            print(json.dumps({"ok": True, "skipped": True, "reason": "another autofeed collector is running"}))
+            print(
+                json.dumps(
+                    {
+                        "ok": True,
+                        "skipped": True,
+                        "reason": "another autofeed collector is running",
+                    }
+                )
+            )
             return 0
 
         try:
@@ -198,7 +251,16 @@ def run_locked() -> int:
         except Exception:
             age = 10**9
         if age < 480:
-            print(json.dumps({"ok": True, "skipped": True, "reason": "recent autofeed cycle already completed", "heartbeat_age_seconds": round(age, 1)}))
+            print(
+                json.dumps(
+                    {
+                        "ok": True,
+                        "skipped": True,
+                        "reason": "recent autofeed cycle already completed",
+                        "heartbeat_age_seconds": round(age, 1),
+                    }
+                )
+            )
             return 0
 
         heartbeat_path.touch()
