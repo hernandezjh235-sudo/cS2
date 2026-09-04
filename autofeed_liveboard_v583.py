@@ -147,14 +147,32 @@ if "build_full_board" in globals():
             str(x.get("start_time") or ""),
             normalize_name(x.get("player")),
         ))
+        visible_supported = sum(_v583_supported_market(x) for x in board)
         status["v583_line_completeness"] = {
             "supported_input_rows": len(incoming),
             "board_rows": len(board),
             "data_building_rows_added": added,
-            "supported_rows_visible": sum(_v583_supported_market(x) for x in board),
+            "supported_rows_visible": visible_supported,
             "no_line_cap": True,
             "projection_math_changed": False,
         }
+        # Keep the context-health file stamped with the actual final runtime
+        # layer and final board size. Existing verified counters are preserved.
+        try:
+            health_path = globals().get("V57_CONTEXT_HEALTH_FILE")
+            if health_path:
+                health = load_json(health_path, {}) or {}
+                if isinstance(health, dict):
+                    health["version"] = "5.7"
+                    health["runtime_layer"] = "5.8.3"
+                    health["updated_at"] = now_iso()
+                    health["board_rows"] = len(board)
+                    health["supported_rows_visible"] = visible_supported
+                    health["data_building_rows"] = sum(x.get("projection") is None for x in board)
+                    save_json(health_path, health, force=True)
+                    status["v57_context_health"] = health
+        except Exception as exc:
+            status["v583_context_stamp_warning"] = f"{type(exc).__name__}: {exc}"
         return board, status
 
 
