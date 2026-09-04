@@ -1,4 +1,4 @@
-"""OneWayPickz CS2 v5.8.8 collector entrypoint.
+"""OneWayPickz CS2 v5.8.9 collector entrypoint.
 
 Keeps protected projection math untouched while adding verified profile recovery,
 exact source player/game/team IDs, authoritative current-team side recovery,
@@ -28,6 +28,7 @@ for patch in [
     ROOT / "autofeed_verified_v586.py",
     ROOT / "autofeed_completion_v587.py",
     ROOT / "autofeed_completion_v588.py",
+    ROOT / "autofeed_handoff_v589.py",
 ]:
     if patch not in base.PATCH_PATHS:
         base.PATCH_PATHS.append(patch)
@@ -98,7 +99,7 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
             merged["team"] = team
             merged["provider_team_verified"] = bool(dbrec.get("provider_team_verified", True))
             merged["identity_verified_at"] = dbrec.get("identity_verified_at")
-            merged["identity_verified_source"] = dbrec.get("identity_verified_source") or "v5.8.8 collector"
+            merged["identity_verified_source"] = dbrec.get("identity_verified_source") or "v5.8.9 collector"
             if dbrec.get("player_id") and not merged.get("player_id"):
                 merged["player_id"] = dbrec.get("player_id")
             profiles[key] = merged
@@ -120,7 +121,7 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
     bridge["teams"] = teams
     status = dict(bridge.get("source_status") or {})
     status.update({
-        "autofeed_version": "5.8.8",
+        "autofeed_version": "5.8.9",
         "verified_profile_count": len(profiles),
         "team_count": len(teams),
         "match_count": len(bridge.get("matches") or []),
@@ -136,6 +137,7 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
         "deep_team_map_rows": sum((int((x or {}).get("team_recent_maps") or 0) > 0 and int((x or {}).get("opponent_mapstats_samples") or 0) > 0) for x in board),
         "projection_ready_rows": sum(bool((x or {}).get("projection_data_ready")) for x in board),
         "official_ready_rows": sum(bool((x or {}).get("official_data_ready")) for x in board),
+        "freeze_candidate_rows": sum(bool((x or {}).get("projection_data_ready") and (x or {}).get("lean") in {"OVER", "UNDER"} and (x or {}).get("status") in {"OFFICIAL", "PLAYABLE", "TRACK"}) for x in board),
         "supported_exact_id_blank_team_rows": sum(bool((x or {}).get("model_supported") and (x or {}).get("market_scope_verified") and (x or {}).get("source_identity_ids") and (not (x or {}).get("team") or not (x or {}).get("opponent"))) for x in board),
         "non_cs2_rows_visible": sum(not bool(ns.get("_v586_is_cs2", lambda _: True)(x)) for x in board),
     })
@@ -150,6 +152,7 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
             status["core_kpr_rows"] = int(context.get("core_kpr_rows") or 0)
             status["exact_source_identity_rows"] = int(context.get("exact_source_identity_rows") or status.get("exact_source_identity_rows") or 0)
             status["supported_exact_id_blank_team_rows"] = int(context.get("supported_exact_id_blank_team_rows") or 0)
+            status["freeze_candidate_rows"] = int(context.get("freeze_candidate_rows") or status.get("freeze_candidate_rows") or 0)
         if isinstance(readiness, dict):
             status["readiness_version"] = readiness.get("version")
             status["missing_projection_requirements"] = dict(readiness.get("missing_projection_requirements") or {})
@@ -162,10 +165,10 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
     seed = ns.get("_v54_seed_databases_from_bridge")
     if callable(seed):
         try:
-            bridge["source_status"]["database_seed_v588"] = seed(bridge)
+            bridge["source_status"]["database_seed_v589"] = seed(bridge)
             ns["save_json"](str(path), bridge, force=True)
         except Exception as exc:
-            bridge["source_status"]["database_seed_v588_warning"] = str(exc)
+            bridge["source_status"]["database_seed_v589_warning"] = str(exc)
     return bridge
 
 
