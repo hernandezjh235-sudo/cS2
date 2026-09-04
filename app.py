@@ -12081,6 +12081,122 @@ def app_data_health_report() -> Dict[str, Any]:
 
 
 # ============================================================
+# FULL LIVE AUDIT DOWNLOAD — SIDEBAR (read-only)
+# Mirrors the always-available audit control used in the other apps.
+# This does not change projections, probabilities, play tiers, or grading.
+# ============================================================
+
+def _audit_json_bytes(payload: Any) -> bytes:
+    return json.dumps(payload, ensure_ascii=False, indent=2, default=str).encode("utf-8")
+
+
+def build_full_live_audit_zip() -> bytes:
+    """Create a read-only audit package of the current app state without secrets."""
+    audit_df = app_audit_dataframe()
+    health = app_data_health_report()
+
+    # Only explicit, non-secret UI/runtime settings are exported.
+    settings_snapshot = {
+        "app_version": APP_VERSION,
+        "model_version": MODEL_VERSION,
+        "captured_at": now_iso(),
+        "storage_dir": STORAGE_DIR,
+        "use_underdog": bool(use_underdog),
+        "use_prizepicks": bool(use_prizepicks),
+        "show_prizepicks_rows": bool(show_prizepicks_rows),
+        "simple_line_only_mode": bool(simple_line_only_mode),
+        "fast_refresh_enabled": bool(fast_refresh_enabled),
+        "max_props_per_refresh": int(max_props_per_refresh),
+        "line_only_fallback_enabled": bool(line_only_fallback_enabled),
+        "assisted_official_enabled": bool(assisted_official_enabled),
+        "deep_data_enabled": bool(deep_data_enabled),
+        "show_statuses": list(show_statuses),
+        "minimum_displayed_data_score": int(min_data_filter),
+        "search_filter": str(search_filter or ""),
+        "last_refresh_iso": st.session_state.get("cs2_last_refresh_iso"),
+    }
+
+    source_snapshot = {
+        "line_source_status": st.session_state.get("cs2_line_source_status") or {},
+        "board_status": st.session_state.get("cs2_board_status") or {},
+    }
+
+    current_board_df = board_dataframe(board) if board else pd.DataFrame()
+    filtered_board_df = board_dataframe(filtered_board) if filtered_board else pd.DataFrame()
+
+    picks = load_json(PICK_LOG, [])
+    results = load_json(RESULT_LOG, [])
+    learning = load_json(LEARNING_FILE, {})
+    line_history = load_json(LINE_HISTORY_FILE, [])
+
+    manifest = {
+        "package": "CS2 full live audit",
+        "captured_at": now_iso(),
+        "description": "Read-only snapshot of live inputs -> calculations -> projections -> decisions -> grading/learning. No credentials or secrets are exported.",
+        "files": [
+            "manifest.json",
+            "settings.json",
+            "data_health.json",
+            "source_status.json",
+            "current_board.csv",
+            "filtered_board.csv",
+            "pregame_to_result_audit.csv",
+            "saved_snapshots.json",
+            "graded_results.json",
+            "learning_state.json",
+            "line_history.json",
+        ],
+    }
+
+    bio = io.BytesIO()
+    with zipfile.ZipFile(bio, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("manifest.json", _audit_json_bytes(manifest))
+        zf.writestr("settings.json", _audit_json_bytes(settings_snapshot))
+        zf.writestr("data_health.json", _audit_json_bytes(health))
+        zf.writestr("source_status.json", _audit_json_bytes(source_snapshot))
+        zf.writestr("current_board.csv", current_board_df.to_csv(index=False).encode("utf-8"))
+        zf.writestr("filtered_board.csv", filtered_board_df.to_csv(index=False).encode("utf-8"))
+        zf.writestr("pregame_to_result_audit.csv", audit_df.to_csv(index=False).encode("utf-8"))
+        zf.writestr("saved_snapshots.json", _audit_json_bytes(picks if isinstance(picks, (list, dict)) else []))
+        zf.writestr("graded_results.json", _audit_json_bytes(results if isinstance(results, (list, dict)) else []))
+        zf.writestr("learning_state.json", _audit_json_bytes(learning if isinstance(learning, (list, dict)) else {}))
+        zf.writestr("line_history.json", _audit_json_bytes(line_history if isinstance(line_history, (list, dict)) else []))
+    return bio.getvalue()
+
+
+with st.sidebar:
+    st.markdown("---")
+    with st.expander("🧪 FULL LIVE AUDIT DOWNLOAD", expanded=True):
+        _audit_download_enabled = st.toggle(
+            "Enable audit download",
+            value=False,
+            key="cs2_enable_full_live_audit_download",
+            help="Creates a read-only snapshot of the current CS2 app state. It does not change projections or grading.",
+        )
+        st.caption(
+            "Read-only snapshot of live inputs → calculations → projections → decisions → grading/learning across the app. No secrets are exported."
+        )
+        if _audit_download_enabled:
+            try:
+                _audit_zip = build_full_live_audit_zip()
+                st.download_button(
+                    "⬇️ Download Full Live Audit",
+                    data=_audit_zip,
+                    file_name=f"cs2_full_live_audit_{local_now().strftime('%Y%m%d_%H%M%S')}.zip",
+                    mime="application/zip",
+                    use_container_width=True,
+                    key="cs2_full_live_audit_zip_download",
+                )
+                _audit_health = app_data_health_report()
+                st.caption(
+                    f"Board {len(board)} · Saved {_audit_health.get('saved_snapshots', 0)} · "
+                    f"Graded {_audit_health.get('graded_results', 0)} · Pending {_audit_health.get('pending_saved_grades', 0)}"
+                )
+            except Exception as exc:
+                st.error(f"Audit package could not be built: {exc}")
+
+
+# ============================================================
 # MAIN TABS
 # ============================================================
 
