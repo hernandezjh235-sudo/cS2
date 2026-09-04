@@ -21,6 +21,7 @@ export CS2_BRIDGE_REPO="${CS2_BRIDGE_REPO:-hernandezjh235-sudo/cS2}"
 export CS2_BRIDGE_BRANCH="${CS2_BRIDGE_BRANCH:-data-cache}"
 export CS2_EMBEDDED_COLLECTOR="${CS2_EMBEDDED_COLLECTOR:-true}"
 export CS2_WEB_FAST_REFRESH="${CS2_WEB_FAST_REFRESH:-true}"
+export CS2_WEB_ALLOW_PROVIDER_NETWORK="${CS2_WEB_ALLOW_PROVIDER_NETWORK:-false}"
 
 mkdir -p "${DATA_DIR}" 2>/dev/null || true
 
@@ -35,12 +36,12 @@ python -m py_compile "${WEB_APP_PATH}"
 if [[ "${CS2_EMBEDDED_COLLECTOR}" =~ ^(1|true|TRUE|True|yes|YES|Yes|on|ON|On)$ ]]; then
   (
     sleep 2
-    python github_cache_sync_v55.py pull --data-dir "${DATA_DIR}" --repo "${CS2_BRIDGE_REPO}" --branch "${CS2_BRIDGE_BRANCH}" || true
+    python github_cache_sync_v582.py pull --data-dir "${DATA_DIR}" --repo "${CS2_BRIDGE_REPO}" --branch "${CS2_BRIDGE_BRANCH}" || true
     sleep 2
     while true; do
       python collector_v55.py || true
       sleep 285
-      python github_cache_sync_v55.py pull --data-dir "${DATA_DIR}" --repo "${CS2_BRIDGE_REPO}" --branch "${CS2_BRIDGE_BRANCH}" || true
+      python github_cache_sync_v582.py pull --data-dir "${DATA_DIR}" --repo "${CS2_BRIDGE_REPO}" --branch "${CS2_BRIDGE_BRANCH}" || true
       sleep 15
     done
   ) &
