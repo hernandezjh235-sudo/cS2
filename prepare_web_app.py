@@ -26,6 +26,7 @@ PATCHES = [
     ROOT / "autofeed_liveboard_v584.py",
     ROOT / "autofeed_premodel_v585.py",
     ROOT / "autofeed_verified_v586.py",
+    ROOT / "autofeed_completion_v587.py",
 ]
 
 
@@ -69,10 +70,11 @@ def main() -> int:
         compile(TARGET_APP.read_text(encoding="utf-8"), str(TARGET_APP), "exec")
         status["ok"] = True
         status["runtime_app"] = str(TARGET_APP)
-        status["runtime_version"] = "5.8.6"
+        status["runtime_version"] = "5.8.7"
         status["web_latency_layer"] = "5.8.4"
         status["premodel_context_layer"] = "5.8.5"
         status["verified_source_layer"] = "5.8.6"
+        status["completion_layer"] = "5.8.7"
         _write_status(status)
         print(str(TARGET_APP))
         return 0
