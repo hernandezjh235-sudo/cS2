@@ -1,7 +1,7 @@
-"""OneWayPickz CS2 v5.5 collector entrypoint.
+"""OneWayPickz CS2 v5.5.1 collector entrypoint.
 
-Keeps the protected app/model code untouched while adding the v5.5 complete-data
-readiness overlay and fixing provider roster export into the shared GitHub cache.
+Keeps protected projection math untouched while adding the complete verified-data
+readiness overlays and exporting current roster context into the GitHub cache.
 """
 from __future__ import annotations
 
@@ -9,9 +9,9 @@ import collector as base
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-V55_PATCH = ROOT / "autofeed_readiness_v55.py"
-if V55_PATCH not in base.PATCH_PATHS:
-    base.PATCH_PATHS.append(V55_PATCH)
+for patch in [ROOT / "autofeed_readiness_v55.py", ROOT / "autofeed_identity_v551.py"]:
+    if patch not in base.PATCH_PATHS:
+        base.PATCH_PATHS.append(patch)
 
 _base_bridge_match_from_row = base._bridge_match_from_row
 
