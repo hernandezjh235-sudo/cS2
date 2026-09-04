@@ -152,5 +152,42 @@ def main() -> int:
     return 0 if summary["ok"] else 2
 
 
+def run_locked() -> int:
+    """Prevent the web-embedded collector and Railway cron collector from overlapping."""
+    import fcntl
+    import time
+
+    data_dir = Path(os.getenv("CS2_DATA_DIR", "/data/cs2_engine"))
+    data_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = data_dir / ".autofeed_collector.lock"
+    heartbeat_path = data_dir / ".autofeed_collector.heartbeat"
+    fh = lock_path.open("a+", encoding="utf-8")
+    try:
+        try:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print(json.dumps({"ok": True, "skipped": True, "reason": "another autofeed collector is running"}))
+            return 0
+
+        try:
+            age = time.time() - heartbeat_path.stat().st_mtime
+        except Exception:
+            age = 10**9
+        if age < 480:
+            print(json.dumps({"ok": True, "skipped": True, "reason": "recent autofeed cycle already completed", "heartbeat_age_seconds": round(age, 1)}))
+            return 0
+
+        heartbeat_path.touch()
+        code = main()
+        heartbeat_path.touch()
+        return code
+    finally:
+        try:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        except Exception:
+            pass
+        fh.close()
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(run_locked())
