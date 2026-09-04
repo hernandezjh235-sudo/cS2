@@ -57,7 +57,7 @@ import streamlit as st
 # ============================================================
 
 APP_NAME = "ONE WAY PICKZ — CS2"
-APP_VERSION = "CS2 v5.0 — DIRECT BO3 PROFILE CACHE + PROGRESSIVE BOARD RECOVERY"
+APP_VERSION = "CS2 v5.2 — AUTOFEED VERIFIED DATA + PREGAME FREEZE"
 MODEL_VERSION = "OWP_CS2_KILLS_M12_4.9"
 SEED_VERSION = "CS2_ACCURACY_SEED_2026_07_15_V49"
 
@@ -9932,7 +9932,7 @@ def build_full_board(props: List[Dict[str, Any]], deep_enabled: bool = True) -> 
 # profile to the persistent database, and reuses those profiles on future
 # refreshes. No league-average KPR is used to create a projection.
 
-APP_VERSION = "CS2 v5.0 — DIRECT BO3 PROFILE CACHE + PROGRESSIVE BOARD RECOVERY"
+APP_VERSION = "CS2 v5.2 — AUTOFEED VERIFIED DATA + PREGAME FREEZE"
 MODEL_VERSION = "OWP_CS2_KILLS_M12_5.0"
 MODEL_SCHEMA_FINGERPRINT = "v50_direct_bo3_public_pages_progressive_cache_schema1"
 SOURCE_RECOVERY_VERSION = "5.0"
@@ -11481,7 +11481,7 @@ def prioritize_props_for_refresh(props: Sequence[Dict[str, Any]], max_rows: int,
 
 
 LINE_ONLY_FALLBACK_DEFAULT = os.getenv("CS2_LINE_ONLY_FALLBACK", "true").strip().lower() not in {"0", "false", "no", "off"}
-ASSISTED_OFFICIAL_DEFAULT = os.getenv("CS2_ASSISTED_OFFICIAL", "true").strip().lower() not in {"0", "false", "no", "off"}
+ASSISTED_OFFICIAL_DEFAULT = os.getenv("CS2_ASSISTED_OFFICIAL", "false").strip().lower() not in {"0", "false", "no", "off"}
 ASSISTED_OFFICIAL_MAX_ROWS = int(max(1, min(50, float(os.getenv("CS2_ASSISTED_OFFICIAL_MAX", "25") or 25))))
 ASSISTED_OFFICIAL_MIN_PROB = float(os.getenv("CS2_ASSISTED_OFFICIAL_MIN_PROB", "0.54") or 0.54)
 ASSISTED_OFFICIAL_MIN_EDGE = float(os.getenv("CS2_ASSISTED_OFFICIAL_MIN_EDGE", "1.00") or 1.00)
@@ -11718,6 +11718,1399 @@ def build_full_board(props: List[Dict[str, Any]], deep_enabled: bool = True) -> 
     return board, status
 
 
+
+# === ONEWAYPICKZ CS2 AUTOFEED ACCURACY PATCH V5.2 ===
+# Data/identity/persistence hardening only. The protected projection math above is unchanged.
+AUTOFEED_VERSION = "5.2"
+
+
+def _autofeed_verified_profile_row(row: Dict[str, Any]) -> bool:
+    return bool(
+        safe_int(row.get("profile_maps"), 0) >= MIN_PROFILE_MAPS
+        and safe_float(row.get("base_kpr"), None) is not None
+        and safe_float(row.get("projection"), None) is not None
+        and not bool(row.get("line_only_fallback"))
+    )
+
+
+def _line_only_fallback_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Display the real market line without manufacturing a player projection."""
+    line = safe_float(row.get("line"), None)
+    if line is None:
+        return {**row, "status": "PASS", "status_label": "🚫 PASS — REAL LINE MISSING"}
+    movement = line_movement(str(row.get("player") or ""), row.get("market", "Maps 1-2 Kills"), row.get("start_time", ""), float(line))
+    flags = list(dict.fromkeys(list(row.get("flags") or []) + [
+        "LINE-ONLY MARKET WATCH",
+        "NO VERIFIED PLAYER PROFILE",
+        "NO MODEL PROJECTION OR CONFIDENCE ASSIGNED",
+        "NOT ELIGIBLE FOR OFFICIAL / PLAYABLE / BEST-WIN",
+    ]))
+    return {
+        **row,
+        "projection": None,
+        "projection_before_learning": None,
+        "median": None,
+        "edge": None,
+        "abs_edge": None,
+        "lean": "PASS",
+        "probability": None,
+        "raw_probability": None,
+        "over_probability": None,
+        "under_probability": None,
+        "push_probability": None,
+        "expected_rounds": None,
+        "adjusted_kpr": None,
+        "base_kpr": None,
+        "profile_maps": 0,
+        "profile_rounds": 0,
+        "profile_source": "REAL MARKET LINE — PROFILE PENDING",
+        "profile_warnings": ["Verified historical player profile has not been recovered yet"],
+        "role": "Unknown",
+        "likely_maps": ["Unconfirmed", "Unconfirmed"],
+        "map_confidence": 0.0,
+        "current_roster_maps": 0,
+        "roster_stability": 0.0,
+        "data_score": min(safe_int(row.get("data_score"), 0) or 0, 20),
+        "status": "PASS",
+        "status_label": "⏳ DATA BUILDING — REAL LINE ONLY",
+        "opening_line": movement.get("opening_line"),
+        "line_move": movement.get("move"),
+        "line_observations": movement.get("observations"),
+        "core_kpr_verified": False,
+        "player_source_fresh": False,
+        "line_only_fallback": True,
+        "assisted_official": False,
+        "official_mode": "NONE",
+        "confidence_grade": None,
+        "best_win_tier": "PASS",
+        "pick_action": "WAIT FOR VERIFIED PROFILE",
+        "flags": flags,
+        "risk_notes": flags[:10],
+        "error": "Verified player data required before projection/confidence",
+    }
+
+
+def _promote_assisted_official_rows(board: List[Dict[str, Any]], enabled: bool = True, max_rows: int = ASSISTED_OFFICIAL_MAX_ROWS) -> Dict[str, Any]:
+    """V5.2: never promote market-prior/zero-profile rows to Official."""
+    strict_count = sum(1 for row in board if row.get("status") == "OFFICIAL" and _autofeed_verified_profile_row(row))
+    for row in board:
+        if not _autofeed_verified_profile_row(row):
+            row["assisted_official"] = False
+            if row.get("status") == "OFFICIAL" and safe_int(row.get("profile_maps"), 0) <= 0:
+                row["status"] = "PASS"
+                row["status_label"] = "⏳ DATA BUILDING — VERIFIED PROFILE REQUIRED"
+                row["probability"] = None
+                row["raw_probability"] = None
+                row["projection"] = None
+                row["edge"] = None
+                row["data_score"] = min(safe_int(row.get("data_score"), 0) or 0, 20)
+    return {
+        "enabled": False,
+        "promoted": 0,
+        "strict_official": strict_count,
+        "message": "Assisted market-prior promotion disabled. Official status requires verified player data.",
+    }
+
+
+def _autofeed_reconcile_identity(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Prefer matchup + verified player-team evidence over stale market team labels."""
+    out = dict(row)
+    player = str(out.get("player") or "").strip()
+    matchup = str(out.get("matchup") or out.get("evidence") or "").strip()
+    a, b = _teams_from_matchup(matchup)
+    db = lookup_database_player(player) if player else {}
+    profile_team = str((db or {}).get("team") or "").strip()
+    current_team = str(out.get("team") or "").strip()
+    current_opp = str(out.get("opponent") or "").strip()
+    chosen_team, chosen_opp, source, warning = current_team, current_opp, "market", ""
+    if a and b:
+        if profile_team and _team_name_matches(profile_team, a):
+            chosen_team, chosen_opp, source = a, b, "verified-profile + matchup"
+        elif profile_team and _team_name_matches(profile_team, b):
+            chosen_team, chosen_opp, source = b, a, "verified-profile + matchup"
+        elif current_team and _team_name_matches(current_team, a):
+            chosen_team, chosen_opp, source = a, b, "market-team + matchup"
+        elif current_team and _team_name_matches(current_team, b):
+            chosen_team, chosen_opp, source = b, a, "market-team + matchup"
+        elif current_opp and _team_name_matches(current_opp, a):
+            chosen_team, chosen_opp, source = b, a, "market-opponent + matchup"
+        elif current_opp and _team_name_matches(current_opp, b):
+            chosen_team, chosen_opp, source = a, b, "market-opponent + matchup"
+        else:
+            warning = "PLAYER TEAM NOT RECONCILED TO MATCHUP"
+            chosen_team = current_team if current_team and (_team_name_matches(current_team, a) or _team_name_matches(current_team, b)) else ""
+            chosen_opp = current_opp if current_opp and (_team_name_matches(current_opp, a) or _team_name_matches(current_opp, b)) else ""
+    elif profile_team and not chosen_team:
+        chosen_team, source = profile_team, "verified-profile"
+    out["team"] = chosen_team
+    out["opponent"] = chosen_opp
+    out["identity_reconciled"] = bool(chosen_team and chosen_opp)
+    out["identity_reconcile_source"] = source
+    if warning:
+        out["flags"] = list(dict.fromkeys(list(out.get("flags") or []) + [warning]))
+    return out
+
+
+def _autofeed_persist_context(row: Dict[str, Any]) -> None:
+    """Persist verified player/team/match/map plus roster/veto context automatically."""
+    if not isinstance(row, dict):
+        return
+    if safe_int(row.get("profile_maps"), 0) > 0:
+        try:
+            save_projection_entities(row)
+        except Exception:
+            pass
+    match_key = str((row.get("identity_ids") or {}).get("match_id") or row.get("match_url") or "").strip()
+    team = str(row.get("team") or "").strip()
+    opponent = str(row.get("opponent") or "").strip()
+    if not match_key:
+        return
+    roster_record = {
+        "match_id": match_key, "match_url": row.get("match_url"), "team": team, "opponent": opponent,
+        "player": row.get("player"), "confirmed_lineup_names": list(row.get("confirmed_lineup_names") or []),
+        "current_roster_names": list(row.get("current_roster_names") or []), "lineup_verified": bool(row.get("lineup_verified")),
+        "current_roster_verified": bool(row.get("current_roster_verified")), "roster_overlap": row.get("roster_overlap"),
+        "roster_stability": row.get("roster_stability"), "start_time": row.get("start_time"),
+        "source_freshness": row.get("source_freshness") or {},
+    }
+    if team or roster_record["confirmed_lineup_names"] or roster_record["current_roster_names"]:
+        upsert_database_record(ROSTER_DATABASE_FILE, f"{match_key}|{normalize_team(team)}", roster_record)
+    veto_record = {
+        "match_id": match_key, "match_url": row.get("match_url"), "team": team, "opponent": opponent,
+        "veto_state": row.get("veto_state"), "likely_maps": row.get("likely_maps"), "map_confidence": row.get("map_confidence"),
+        "map_scenarios": row.get("map_scenarios") or [], "start_time": row.get("start_time"), "event": row.get("event"),
+    }
+    if row.get("veto_state") or row.get("likely_maps"):
+        upsert_database_record(VETO_DATABASE_FILE, match_key, veto_record)
+
+
+def auto_freeze_verified_pregame(board: Sequence[Dict[str, Any]]) -> Dict[str, int]:
+    """Automatically freeze every verified projected row before its match for later grading."""
+    eligible: List[Dict[str, Any]] = []
+    now = datetime.now(timezone.utc)
+    for row in list(board or []):
+        if not _autofeed_verified_profile_row(row) or row.get("lean") not in {"OVER", "UNDER"}:
+            continue
+        if row.get("status") not in {"OFFICIAL", "PLAYABLE", "TRACK"}:
+            continue
+        start = _parse_iso_datetime(row.get("start_time"))
+        if start and start < now - timedelta(minutes=5):
+            continue
+        eligible.append(dict(row))
+    if not eligible:
+        return {"added": 0, "skipped": 0, "eligible": 0}
+    out = save_official_snapshots(eligible, include_playable=True, include_track=True)
+    return {**out, "eligible": len(eligible)}
+
+
+_autofeed_base_build_full_board = build_full_board
+
+def build_full_board(props: List[Dict[str, Any]], deep_enabled: bool = True) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    reconciled = [_autofeed_reconcile_identity(p) for p in list(props or [])]
+    board, status = _autofeed_base_build_full_board(reconciled, deep_enabled)
+    verified = blocked = persisted = 0
+    for idx, raw in enumerate(list(board)):
+        row = _autofeed_reconcile_identity(raw)
+        if safe_int(row.get("profile_maps"), 0) <= 0:
+            if safe_float(row.get("projection"), None) is not None or row.get("status") == "OFFICIAL":
+                blocked += 1
+            row = _line_only_fallback_row(row)
+        else:
+            verified += 1
+            row["assisted_official"] = False
+            _autofeed_persist_context(row)
+            persisted += 1
+        board[idx] = row
+    status = dict(status or {})
+    status["autofeed_v52"] = {
+        "enabled": True, "input_props": len(props or []), "board_rows": len(board),
+        "verified_profiles": verified, "zero_profile_rows_blocked": blocked,
+        "verified_rows_persisted": persisted, "assisted_market_prior_disabled": True,
+        "auto_database_persistence": True,
+    }
+    status["assisted_official"] = _promote_assisted_official_rows(board, enabled=False)
+    return board, status
+
+
+_autofeed_base_simple_board = build_simple_line_only_board
+
+def build_simple_line_only_board(props: Sequence[Dict[str, Any]], max_rows: int = 500) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    rows = [_line_only_fallback_row(_autofeed_reconcile_identity(dict(prop))) for prop in list(props or [])[:max(1, int(max_rows or 500))]
+            if prop.get("player") and safe_float(prop.get("line"), None) is not None]
+    return rows, {
+        "mode": "simple_market_watch_only", "lines_loaded": len(props or []), "rows_built": len(rows),
+        "autofeed_v52": {"verified_projection_mode": False, "warning": "Market-watch mode never assigns projection/confidence or Official status."},
+        "assisted_official": {"enabled": False, "promoted": 0},
+    }
+
+# === END ONEWAYPICKZ CS2 AUTOFEED ACCURACY PATCH V5.2 ===
+
+
+
+# === ONEWAYPICKZ CS2 AUTOFEED RECOVERY PATCH V5.3 ===
+# Provider recovery + identity persistence only. Protected projection math is unchanged.
+AUTOFEED_RECOVERY_VERSION = "5.3"
+
+if "_v50_record_from_profile" in globals():
+    _autofeed_v53_record_base = _v50_record_from_profile
+
+    def _v50_record_from_profile(profile: PlayerStats, meta: Dict[str, Any]) -> Dict[str, Any]:
+        rec = dict(_autofeed_v53_record_base(profile, meta) or {})
+        team = str(getattr(profile, "team", "") or (meta or {}).get("team") or "").strip()
+        if team:
+            rec["team"] = team
+        rec["provider_team_verified"] = bool(team)
+        rec["autofeed_record_version"] = "5.3"
+        return rec
+
+
+def _autofeed_v53_alias_team(player: str) -> str:
+    try:
+        alias = _alias_record(player) or {}
+    except Exception:
+        alias = {}
+    return str(alias.get("team") or "").strip()
+
+
+def _autofeed_v53_db_team(player: str) -> str:
+    try:
+        rec = lookup_database_player(player) or {}
+    except Exception:
+        rec = {}
+    return str(rec.get("team") or "").strip()
+
+
+def _autofeed_v53_save_mapping(player: str, profile: Any, meta: Dict[str, Any]) -> None:
+    if not player or profile is None:
+        return
+    team = str(getattr(profile, "team", "") or (meta or {}).get("team") or "").strip()
+    player_id = str(getattr(profile, "player_id", "") or "").strip()
+    href = str(getattr(profile, "href", "") or (meta or {}).get("profile_url") or "").strip()
+    slug = str((meta or {}).get("bo3_slug") or "").strip()
+    if not slug and href and "/players/" in href:
+        slug = href.split("/players/", 1)[1].split("?", 1)[0].split("/", 1)[0].strip()
+    try:
+        aliases = load_json(PLAYER_ALIAS_FILE, {})
+        aliases = aliases if isinstance(aliases, dict) else {}
+        key = normalize_name(player)
+        old = aliases.get(key) if isinstance(aliases.get(key), dict) else {}
+        aliases[key] = {
+            **old,
+            "alias": str(player).strip(),
+            "bo3_slug": slug or old.get("bo3_slug"),
+            "player_id": player_id or old.get("player_id"),
+            "team": team or old.get("team", ""),
+            "profile_url": href or old.get("profile_url", ""),
+            "source": "automatic verified BO3 profile",
+            "saved_at": now_iso(),
+        }
+        save_json(PLAYER_ALIAS_FILE, aliases, force=True)
+    except Exception:
+        pass
+
+
+def _autofeed_direct_profile_recovery(players: Sequence[str], max_new: Optional[int] = None) -> Dict[str, Any]:
+    unique = list(dict.fromkeys(str(x or "").strip() for x in players if str(x or "").strip()))
+    if not unique:
+        return {"ok": True, "requested": 0, "attempted": 0, "loaded": 0, "remaining": 0}
+
+    required = [
+        "_v50_load_saved_profiles",
+        "_v50_build_bo3_index",
+        "_v50_profile_available",
+        "_v50_fetch_direct_profile",
+        "_v50_store_runtime_profile",
+    ]
+    if not all(name in globals() and callable(globals()[name]) for name in required):
+        return {"ok": False, "requested": len(unique), "warning": "direct BO3 recovery helpers unavailable"}
+
+    try:
+        loaded_saved = _v50_load_saved_profiles(unique)
+    except Exception:
+        loaded_saved = 0
+
+    candidates = []
+    for player in unique:
+        try:
+            has_profile = bool(_v50_profile_available(player))
+        except Exception:
+            has_profile = False
+        team = _autofeed_v53_db_team(player) or _autofeed_v53_alias_team(player)
+        if (not has_profile) or (not team):
+            candidates.append(player)
+
+    batch_default = int(float(os.getenv("CS2_AUTOFEED_DIRECT_PROFILE_BATCH", "24") or 24))
+    batch = max(4, min(60, int(max_new if max_new is not None else batch_default)))
+    selected = candidates[:batch]
+    successes = 0
+    team_backfills = 0
+    failures: List[Dict[str, Any]] = []
+
+    if not selected:
+        covered = sum(bool(_v50_profile_available(p)) for p in unique)
+        return {
+            "ok": True,
+            "requested": len(unique),
+            "loaded_from_saved_cache": loaded_saved,
+            "attempted": 0,
+            "loaded": 0,
+            "team_backfills": 0,
+            "verified_profiles": covered,
+            "remaining": max(0, len(unique) - covered),
+            "message": "Direct BO3 recovery already satisfied for the current cached board.",
+        }
+
+    try:
+        circuit_open = bool(_source_circuit_open("bo3"))
+    except Exception:
+        circuit_open = False
+    if circuit_open:
+        return {
+            "ok": False,
+            "requested": len(unique),
+            "attempted": 0,
+            "loaded": 0,
+            "provider_circuit_open": True,
+            "warning": "BO3 direct provider circuit is open; next collector cycle will retry after cooldown.",
+        }
+
+    try:
+        index, index_status = _v50_build_bo3_index(force=False)
+    except Exception as exc:
+        index, index_status = {}, {"ok": False, "warning": str(exc)}
+
+    workers = max(1, min(4, int(float(os.getenv("CS2_AUTOFEED_DIRECT_WORKERS", "3") or 3))))
+    with ThreadPoolExecutor(max_workers=min(workers, len(selected))) as executor:
+        futures = [executor.submit(_v50_fetch_direct_profile, player, index) for player in selected]
+        for future in as_completed(futures):
+            try:
+                player, profile, meta = future.result()
+            except Exception as exc:
+                failures.append({"player": "", "warning": str(exc)})
+                continue
+            if profile is None or int(getattr(profile, "maps", 0) or 0) < MIN_PROFILE_MAPS:
+                failures.append({"player": player, "warning": str((meta or {}).get("warning") or "profile unavailable")})
+                continue
+            before_team = _autofeed_v53_db_team(player)
+            try:
+                _v50_store_runtime_profile(profile, meta or {})
+                _autofeed_v53_save_mapping(player, profile, meta or {})
+                successes += 1
+                if not before_team and str(getattr(profile, "team", "") or "").strip():
+                    team_backfills += 1
+            except Exception as exc:
+                failures.append({"player": player, "warning": str(exc)})
+
+    covered = 0
+    for player in unique:
+        try:
+            covered += int(bool(_v50_profile_available(player)))
+        except Exception:
+            pass
+    remaining = max(0, len(unique) - covered)
+    return {
+        "ok": successes > 0 or covered > 0,
+        "provider": "direct BO3 progressive autofeed",
+        "requested": len(unique),
+        "loaded_from_saved_cache": loaded_saved,
+        "attempted": len(selected),
+        "loaded": successes,
+        "team_backfills": team_backfills,
+        "verified_profiles": covered,
+        "remaining": remaining,
+        "batch_limit": batch,
+        "index": index_status,
+        "failures_sample": failures[:12],
+        "message": f"Direct BO3 autofeed: {covered}/{len(unique)} profiles cached; {successes} refreshed this cycle; {team_backfills} team mappings backfilled.",
+    }
+
+
+if "_autofeed_reconcile_identity" in globals():
+    _autofeed_v53_identity_base = _autofeed_reconcile_identity
+
+    def _autofeed_reconcile_identity(row: Dict[str, Any]) -> Dict[str, Any]:
+        out = dict(_autofeed_v53_identity_base(row) or {})
+        player = str(out.get("player") or "").strip()
+        matchup = str(out.get("matchup") or out.get("evidence") or "").strip()
+        a, b = _teams_from_matchup(matchup)
+        verified_team = _autofeed_v53_db_team(player) or _autofeed_v53_alias_team(player)
+        if a and b and verified_team:
+            if _team_name_matches(verified_team, a):
+                out["team"], out["opponent"] = a, b
+                out["identity_reconciled"] = True
+                out["identity_reconcile_source"] = "verified provider team + matchup"
+                out["provider_team_verified"] = True
+            elif _team_name_matches(verified_team, b):
+                out["team"], out["opponent"] = b, a
+                out["identity_reconciled"] = True
+                out["identity_reconcile_source"] = "verified provider team + matchup"
+                out["provider_team_verified"] = True
+            else:
+                out["identity_reconciled"] = False
+                out["provider_team_verified"] = False
+                out["flags"] = list(dict.fromkeys(list(out.get("flags") or []) + [
+                    "PROFILE TEAM DOES NOT MATCH CURRENT MATCHUP"
+                ]))
+        elif a and b and str(out.get("identity_reconcile_source") or "").startswith("market"):
+            out["identity_reconciled"] = False
+            out["provider_team_verified"] = False
+            out["flags"] = list(dict.fromkeys(list(out.get("flags") or []) + [
+                "PLAYER SIDE UNVERIFIED — WAITING FOR PROVIDER TEAM"
+            ]))
+        return out
+
+
+try:
+    APP_VERSION = "CS2 v5.3 — AUTOFEED DIRECT RECOVERY + VERIFIED TEAM MAPPING"
+except Exception:
+    pass
+
+# === END ONEWAYPICKZ CS2 AUTOFEED RECOVERY PATCH V5.3 ===
+
+
+
+# === ONEWAYPICKZ CS2 GITHUB DATA CACHE PATCH V5.4 ===
+# GitHub cache bootstrap/persistence only. Protected projection math is unchanged.
+AUTOFEED_CACHE_VERSION = "5.4"
+V54_DEFAULT_BRIDGE_REPO = os.getenv("CS2_DEFAULT_BRIDGE_REPO", "hernandezjh235-sudo/cS2").strip() or "hernandezjh235-sudo/cS2"
+V54_CACHE_SYNC_STATUS_FILE = os.path.join(STORAGE_DIR, ".github_cache_sync.json")
+if not str(globals().get("V48_BRIDGE_REPO") or "").strip():
+    V48_BRIDGE_REPO = V54_DEFAULT_BRIDGE_REPO
+
+
+def _v54_newer_record(remote: Dict[str, Any], local: Dict[str, Any]) -> Dict[str, Any]:
+    remote = dict(remote or {})
+    local = dict(local or {})
+    exact = {"real_kills_div_rounds", "hltv_reported_kpr", "bo3_reported_kpr", "demo_full_round_kpr"}
+    local_exact = str(local.get("kpr_source") or "") in exact
+    remote_exact = str(remote.get("kpr_source") or "") in exact
+    local_maps = safe_int(local.get("profile_maps") or local.get("maps"), 0) or 0
+    remote_maps = safe_int(remote.get("profile_maps") or remote.get("maps"), 0) or 0
+    if local_exact and not remote_exact and local_maps >= remote_maps:
+        out = dict(remote)
+        out.update(local)
+        return out
+    out = dict(local)
+    for key, value in remote.items():
+        if value not in (None, "", [], {}):
+            out[key] = value
+    return out
+
+
+def _v54_seed_databases_from_bridge(payload: Dict[str, Any]) -> Dict[str, int]:
+    if not isinstance(payload, dict):
+        return {"profiles": 0, "teams": 0, "matches": 0, "rosters": 0, "maps": 0, "vetoes": 0, "aliases": 0}
+    counts = {"profiles": 0, "teams": 0, "matches": 0, "rosters": 0, "maps": 0, "vetoes": 0, "aliases": 0}
+
+    profiles = payload.get("profiles") if isinstance(payload.get("profiles"), dict) else {}
+    player_db = load_json(PLAYER_DATABASE_FILE, {})
+    player_db = player_db if isinstance(player_db, dict) else {}
+    aliases = load_json(PLAYER_ALIAS_FILE, {})
+    aliases = aliases if isinstance(aliases, dict) else {}
+    for raw_key, rec in profiles.items():
+        if not isinstance(rec, dict):
+            continue
+        player = str(rec.get("player") or rec.get("nickname") or raw_key or "").strip()
+        key = normalize_name(player)
+        if not key:
+            continue
+        old = player_db.get(key) if isinstance(player_db.get(key), dict) else {}
+        row = _v54_newer_record(rec, old)
+        row["player"] = player
+        row["profile_maps"] = safe_int(row.get("profile_maps") or row.get("maps"), 0) or 0
+        row["updated_at"] = row.get("updated_at") or payload.get("generated_at") or now_iso()
+        row["github_cache_seeded"] = True
+        player_db[key] = row
+        counts["profiles"] += 1
+        team = str(row.get("team") or "").strip()
+        slug = str(row.get("slug") or "").strip()
+        pid = str(((row.get("identity_ids") or {}).get("player_id")) or row.get("player_id") or "").strip()
+        old_alias = aliases.get(key) if isinstance(aliases.get(key), dict) else {}
+        aliases[key] = {
+            **old_alias,
+            "alias": player,
+            "bo3_slug": slug or old_alias.get("bo3_slug", ""),
+            "player_id": pid or old_alias.get("player_id", ""),
+            "team": team or old_alias.get("team", ""),
+            "source": "GitHub verified provider cache",
+            "saved_at": now_iso(),
+        }
+        counts["aliases"] += 1
+        try:
+            sqlite_store_entity_snapshot("player", key, row, source="GitHub provider cache", as_of=row.get("updated_at"))
+        except Exception:
+            pass
+    if profiles:
+        save_json(PLAYER_DATABASE_FILE, player_db, force=True)
+        save_json(PLAYER_ALIAS_FILE, aliases, force=True)
+
+    teams = payload.get("teams") if isinstance(payload.get("teams"), dict) else {}
+    team_db = load_json(TEAM_DATABASE_FILE, {})
+    team_db = team_db if isinstance(team_db, dict) else {}
+    roster_db = load_json(ROSTER_DATABASE_FILE, {})
+    roster_db = roster_db if isinstance(roster_db, dict) else {}
+    for raw_key, rec in teams.items():
+        if not isinstance(rec, dict):
+            continue
+        team = str(rec.get("team") or raw_key or "").strip()
+        key = normalize_team(team)
+        if not key:
+            continue
+        old = team_db.get(key) if isinstance(team_db.get(key), dict) else {}
+        row = {**old, **rec, "team": team, "github_cache_seeded": True}
+        team_db[key] = row
+        counts["teams"] += 1
+        candidates = list(row.get("current_roster") or row.get("roster_candidates") or [])
+        if candidates:
+            roster_db[f"cache|{key}"] = {
+                "team": team,
+                "roster_candidates": candidates,
+                "current_roster_names": list(row.get("current_roster") or []),
+                "lineup_verified": bool(row.get("current_roster")),
+                "current_roster_verified": bool(row.get("current_roster")),
+                "source": "GitHub provider cache",
+                "updated_at": row.get("updated_at") or payload.get("generated_at") or now_iso(),
+            }
+            counts["rosters"] += 1
+        try:
+            sqlite_store_entity_snapshot("team", key, row, source="GitHub provider cache", as_of=row.get("updated_at"))
+        except Exception:
+            pass
+    if teams:
+        save_json(TEAM_DATABASE_FILE, team_db, force=True)
+        save_json(ROSTER_DATABASE_FILE, roster_db, force=True)
+
+    matches = payload.get("matches") if isinstance(payload.get("matches"), list) else []
+    match_db = load_json(MATCH_DATABASE_FILE, {})
+    match_db = match_db if isinstance(match_db, dict) else {}
+    map_db = load_json(MAP_DATABASE_FILE, {})
+    map_db = map_db if isinstance(map_db, dict) else {}
+    veto_db = load_json(VETO_DATABASE_FILE, {})
+    veto_db = veto_db if isinstance(veto_db, dict) else {}
+    for idx, rec in enumerate(matches):
+        if not isinstance(rec, dict):
+            continue
+        mid = str(rec.get("match_id") or rec.get("provider_match_id") or rec.get("match_url") or f"cache-match-{idx}").strip()
+        if not mid:
+            continue
+        old = match_db.get(mid) if isinstance(match_db.get(mid), dict) else {}
+        row = {**old, **rec, "github_cache_seeded": True}
+        match_db[mid] = row
+        counts["matches"] += 1
+        confirmed_maps = [str(x).strip() for x in (row.get("confirmed_maps") or []) if str(x).strip()]
+        for map_name in confirmed_maps:
+            mkey = f"{mid}|{normalize_name(map_name)}"
+            map_db[mkey] = {
+                "match_id": mid, "map_name": map_name, "confirmed": True,
+                "source": "GitHub provider cache", "updated_at": row.get("updated_at") or now_iso(),
+            }
+            counts["maps"] += 1
+        veto_actions = list(row.get("veto_actions") or [])
+        if veto_actions:
+            veto_db[mid] = {
+                "match_id": mid, "veto_actions": veto_actions, "confirmed_maps": confirmed_maps,
+                "source": "GitHub provider cache", "updated_at": row.get("updated_at") or now_iso(),
+            }
+            counts["vetoes"] += 1
+        try:
+            sqlite_store_entity_snapshot("match", mid, row, source="GitHub provider cache", as_of=row.get("updated_at") or row.get("start_time"))
+        except Exception:
+            pass
+    if matches:
+        save_json(MATCH_DATABASE_FILE, match_db, force=True)
+        save_json(MAP_DATABASE_FILE, map_db, force=True)
+        save_json(VETO_DATABASE_FILE, veto_db, force=True)
+    return counts
+
+
+_v54_load_provider_bridge_base = load_provider_bridge
+
+def load_provider_bridge(force: bool = False) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    payload, status = _v54_load_provider_bridge_base(force=force)
+    status = dict(status or {})
+    if _v48_valid_bridge(payload):
+        try:
+            status["database_seed"] = _v54_seed_databases_from_bridge(payload)
+        except Exception as exc:
+            status["database_seed_warning"] = str(exc)
+    status["default_repo"] = V48_BRIDGE_REPO or V54_DEFAULT_BRIDGE_REPO
+    status["branch"] = V48_BRIDGE_BRANCH
+    return payload, status
+
+
+_v54_prefetch_provider_base = v48_prefetch_provider_data
+
+def v48_prefetch_provider_data(players: Sequence[str], force: bool = False) -> Dict[str, Any]:
+    bridge, bridge_status = load_provider_bridge(force=False)
+    out = dict(_v54_prefetch_provider_base(players, force=force) or {})
+    out["github_data_cache"] = bridge_status
+    out["github_cache_profiles"] = len((bridge or {}).get("profiles") or {}) if isinstance(bridge, dict) else 0
+    return out
+
+
+try:
+    APP_VERSION = "CS2 v5.4 — VERIFIED GITHUB DATA CACHE + AUTOFEED"
+except Exception:
+    pass
+# === END ONEWAYPICKZ CS2 GITHUB DATA CACHE PATCH V5.4 ===
+
+
+
+# === ONEWAYPICKZ CS2 COMPLETE DATA PIPELINE V5.5 ===
+# Identity/readiness/grading/persistence only. Projection math is unchanged.
+AUTOFEED_READINESS_VERSION = "5.5"
+V55_CURSOR_FILE = os.path.join(STORAGE_DIR, "cs2_profile_recovery_cursor.json")
+V55_READINESS_FILE = os.path.join(STORAGE_DIR, "cs2_data_readiness.json")
+V55_GRADING_HEALTH_FILE = os.path.join(STORAGE_DIR, "cs2_grading_health.json")
+V55_MATCH_CACHE = {}
+
+
+def _v55_matchup(row):
+    try: return _teams_from_matchup(str(row.get("matchup") or row.get("evidence") or row.get("event") or ""))
+    except Exception: return "", ""
+
+
+def _v55_db_team(player):
+    key = normalize_name(player)
+    try:
+        aliases = load_json(PLAYER_ALIAS_FILE,{})
+        if isinstance(aliases,dict) and isinstance(aliases.get(key),dict) and aliases[key].get("team"):
+            return str(aliases[key]["team"])
+    except Exception: pass
+    try: return str((lookup_database_player(player) or {}).get("team") or "")
+    except Exception: return ""
+
+
+def _v55_team_from_groups(player, groups):
+    found=[]
+    for g in list(groups or []):
+        if not isinstance(g,dict): continue
+        team=str(g.get("team") or g.get("name") or "").strip()
+        score=max([name_similarity(player,str(x or "")) for x in list(g.get("players") or g.get("roster") or [])] or [0])
+        if team and score>=.84: found.append((score,team))
+    found.sort(reverse=True)
+    return found[0][1] if found and (len(found)==1 or found[0][0]-found[1][0]>=.03) else ""
+
+
+def _v55_save_team(player, team, opponent, source="verified current roster"):
+    if not player or not team: return
+    key=normalize_name(player); now=now_iso()
+    try:
+        aliases=load_json(PLAYER_ALIAS_FILE,{}) or {}; old=aliases.get(key) if isinstance(aliases.get(key),dict) else {}
+        aliases[key]={**old,"alias":player,"team":team,"source":source,"saved_at":now}; save_json(PLAYER_ALIAS_FILE,aliases,force=True)
+    except Exception: pass
+    try:
+        db=load_json(PLAYER_DATABASE_FILE,{}) or {}; old=db.get(key) if isinstance(db.get(key),dict) else {}
+        if old:
+            db[key]={**old,"team":team,"provider_team_verified":True,"identity_verified_at":now,"identity_verified_source":source}
+            save_json(PLAYER_DATABASE_FILE,db,force=True)
+    except Exception: pass
+    try:
+        tdb=load_json(TEAM_DATABASE_FILE,{}) or {}; tk=normalize_team(team); old=tdb.get(tk) if isinstance(tdb.get(tk),dict) else {}
+        roster=list(old.get("current_roster") or [])
+        if max([name_similarity(player,x) for x in roster] or [0])<.84: roster=(roster+[player])[-8:]
+        tdb[tk]={**old,"team":team,"current_roster":roster,"updated_at":now,"identity_source":source}; save_json(TEAM_DATABASE_FILE,tdb,force=True)
+    except Exception: pass
+
+
+def _v55_context(a,b,player):
+    key="|".join(sorted([normalize_team(a),normalize_team(b)]))
+    if key in V55_MATCH_CACHE: return V55_MATCH_CACHE[key]
+    try:
+        url,disc=discover_hltv_match(a,b,player)
+        ctx,st=fetch_match_context(url) if url else ({},{"ok":False})
+        ctx=dict(ctx or {}); ctx.setdefault("match_url",url); V55_MATCH_CACHE[key]=(ctx,dict(st or {})); return V55_MATCH_CACHE[key]
+    except Exception as exc:
+        V55_MATCH_CACHE[key]=({}, {"ok":False,"warning":str(exc)}); return V55_MATCH_CACHE[key]
+
+
+def _v55_resolve_prop(prop):
+    out=dict(prop or {}); player=str(out.get("player") or ""); a,b=_v55_matchup(out)
+    if not player or not a or not b: out["v55_preprojection_identity_verified"]=False; return out
+    team=_v55_db_team(player)
+    if team and (_team_name_matches(team,a) or _team_name_matches(team,b)):
+        t,o=(a,b) if _team_name_matches(team,a) else (b,a)
+        out.update({"team":t,"opponent":o,"provider_team_verified":True,"v55_preprojection_identity_verified":True,"identity_reconciled":True,"identity_reconcile_source":"persistent verified team"}); return out
+    ctx,_=_v55_context(a,b,player); team=_v55_team_from_groups(player,ctx.get("lineup_groups") or [])
+    if team and (_team_name_matches(team,a) or _team_name_matches(team,b)):
+        t,o=(a,b) if _team_name_matches(team,a) else (b,a)
+        out.update({"team":t,"opponent":o,"match_url":ctx.get("match_url") or out.get("match_url"),"provider_team_verified":True,"v55_preprojection_identity_verified":True,"identity_reconciled":True,"identity_reconcile_source":"current provider roster"}); _v55_save_team(player,t,o); return out
+    out["provider_team_verified"]=False; out["v55_preprojection_identity_verified"]=False
+    out["flags"]=list(dict.fromkeys(list(out.get("flags") or [])+["CURRENT PLAYER TEAM/OPPONENT UNVERIFIED"])); return out
+
+
+def _v55_ready(row):
+    fresh=row.get("source_freshness") if isinstance(row.get("source_freshness"),dict) else {}
+    base={
+      "real_line":safe_float(row.get("line"),None) is not None,
+      "market_scope":bool(row.get("market_scope_verified")),
+      "profile":(safe_int(row.get("profile_maps"),0) or 0)>=MIN_PROFILE_MAPS and safe_float(row.get("base_kpr"),None) is not None,
+      "core_kpr":bool(row.get("core_kpr_verified")),
+      "identity_before_model":bool(row.get("v55_preprojection_identity_verified")),
+      "team":bool(row.get("provider_team_verified") and row.get("team")),
+      "opponent":bool(row.get("opponent")),
+      "real_match":bool(str(row.get("match_url") or "") and not str(row.get("match_url") or "").startswith(("mirror://","bridge://"))),
+      "format":str(row.get("match_format") or "").upper() not in {"","UNKNOWN","BO1"},
+    }
+    official={**base,
+      "roster":bool(row.get("current_roster_verified") or (safe_int(row.get("current_roster_maps"),0) or 0)>=MIN_CURRENT_ROSTER_MAPS),
+      "team_maps":(safe_int(row.get("team_recent_maps"),0) or 0)>0,
+      "opponent_maps":(safe_int(row.get("opponent_mapstats_samples"),0) or 0)>0,
+      "player_fresh":bool(row.get("player_source_fresh")),
+      "line_fresh":safe_float(fresh.get("line_age_seconds"),999999)<=300,
+      "match_fresh":safe_float(fresh.get("match_age_seconds"),999999)<=600,
+      "calibration":bool(row.get("calibration_ready")),
+    }
+    return {"projection_ready":all(base.values()),"official_ready":all(official.values()),"missing_projection":[k for k,v in base.items() if not v],"missing_official":[k for k,v in official.items() if not v],"checks":base,"official_checks":official,"readiness_score":round(100*sum(bool(v) for v in official.values())/len(official),1)}
+
+
+_v55_board_base=build_full_board
+def build_full_board(props,deep_enabled=True):
+    prepared=[_v55_resolve_prop(x) for x in list(props or [])]
+    board,status=_v55_board_base(prepared,deep_enabled); pc=oc=ic=0; missing=Counter()
+    for row in board:
+        player=str(row.get("player") or ""); a,b=_v55_matchup(row); groups=row.get("confirmed_lineup_groups") or []
+        rt=_v55_team_from_groups(player,groups) or _v55_db_team(player)
+        if a and b and rt and (_team_name_matches(rt,a) or _team_name_matches(rt,b)):
+            t,o=(a,b) if _team_name_matches(rt,a) else (b,a); row["team"],row["opponent"],row["provider_team_verified"]=t,o,True; _v55_save_team(player,t,o); ic+=1
+        ready=_v55_ready(row); row["data_readiness"]=ready; row["projection_data_ready"]=ready["projection_ready"]; row["official_data_ready"]=ready["official_ready"]; row["data_readiness_score"]=ready["readiness_score"]
+        if ready["projection_ready"]: pc+=1
+        else:
+            missing.update(ready["missing_projection"])
+            if row.get("projection") is not None: row["status"],row["status_label"],row["pick_action"]="PASS","⏳ DATA BUILDING — REQUIRED DATA MISSING","WAIT FOR VERIFIED DATA"
+        if ready["official_ready"]: oc+=1
+        elif row.get("status") in {"OFFICIAL","PLAYABLE"}: row["status"],row["status_label"]="TRACK","⚠️ TRACK — FULL DATA NOT READY"
+    health={"version":"5.5","updated_at":now_iso(),"board_rows":len(board),"projection_ready_rows":pc,"official_ready_rows":oc,"verified_identity_rows":ic,"missing_projection_requirements":dict(missing)}
+    try: save_json(V55_READINESS_FILE,health,force=True)
+    except Exception: pass
+    status=dict(status or {}); status["v55_data_readiness"]=health; return board,status
+
+
+if "_autofeed_direct_profile_recovery" in globals():
+    _v55_recovery_base=_autofeed_direct_profile_recovery
+    def _autofeed_direct_profile_recovery(players,max_new=None):
+        unique=list(dict.fromkeys(str(x or "").strip() for x in players if str(x or "").strip()))
+        if not unique: return _v55_recovery_base(unique,max_new=max_new)
+        state=load_json(V55_CURSOR_FILE,{}) or {}; cur=(safe_int(state.get("cursor"),0) or 0)%len(unique); rotated=unique[cur:]+unique[:cur]
+        out=dict(_v55_recovery_base(rotated,max_new=max_new) or {}); adv=max(1,safe_int(out.get("attempted"),0) or 0); state={"cursor":(cur+adv)%len(unique),"updated_at":now_iso(),"unique_players":len(unique)}; save_json(V55_CURSOR_FILE,state,force=True); out["recovery_cursor"]=state; return out
+
+
+if "_v54_seed_databases_from_bridge" in globals():
+    _v55_seed_base=_v54_seed_databases_from_bridge
+    def _v54_seed_databases_from_bridge(payload):
+        out=dict(_v55_seed_base(payload) or {}); links=0
+        for m in list((payload or {}).get("matches") or []):
+            teams=[str((x or {}).get("name") or "") for x in list(m.get("teams") or []) if isinstance(x,dict)]
+            for g in list(m.get("lineup_groups") or []):
+                if not isinstance(g,dict): continue
+                team=str(g.get("team") or g.get("name") or ""); opp=next((x for x in teams if x and not _team_name_matches(x,team)),"")
+                for p in list(g.get("players") or g.get("roster") or []): _v55_save_team(str(p),team,opp,"GitHub cached roster"); links+=1
+        out["identity_links"]=links; return out
+
+
+if "save_official_snapshots" in globals():
+    _v55_snap_base=save_official_snapshots
+    def save_official_snapshots(board,include_playable=False,include_track=False):
+        good=[x for x in list(board or []) if x.get("projection_data_ready") is not False and safe_float(x.get("projection"),None) is not None]
+        return _v55_snap_base(good,include_playable,include_track)
+
+
+def auto_freeze_verified_pregame(board):
+    now=datetime.now(timezone.utc); good=[]
+    for row in list(board or []):
+        if row.get("projection_data_ready") is not True or row.get("lean") not in {"OVER","UNDER"} or row.get("status") not in {"OFFICIAL","PLAYABLE","TRACK"}: continue
+        start=_parse_iso_datetime(row.get("start_time"))
+        if start and start<now-timedelta(minutes=5): continue
+        good.append(dict(row))
+    if not good: return {"added":0,"skipped":0,"eligible":0}
+    out=_v55_snap_base(good,True,True) if "_v55_snap_base" in globals() else save_official_snapshots(good,True,True); return {**out,"eligible":len(good)}
+
+
+_v55_grade_base=fetch_actual_maps12_kills
+def _v55_bo3_url(url):
+    raw=str(url or "")
+    if raw.startswith("bo3://"):
+        r=raw.split("bo3://",1)[1].strip("/"); parts=r.split("/",1); return "https://bo3.gg/matches/"+(parts[1] if len(parts)>1 else parts[0])
+    return raw.rstrip("/") if raw.startswith("https://bo3.gg/matches/") else ""
+
+def _v55_bo3_maps(page):
+    text=strip_tags(page or ""); hits=[]
+    for name in KNOWN_MAPS:
+        v="Dust II" if name=="Dust2" else name
+        m=re.search(rf"\b{re.escape(v)}\b",text,re.I)
+        if m and re.search(r"\b\d{1,2}\s*[-:]\s*\d{1,2}\b",text[m.end():m.end()+180]): hits.append((m.start(),name))
+    return [x[1] for x in sorted(hits)][:3]
+
+def _v55_bo3_kills(page,player):
+    best=(0,None,"")
+    for tr in re.findall(r"<tr\b[^>]*>(.*?)</tr>",page or "",re.I|re.S):
+        a=re.search(r'href=["\'](?:https?://bo3\.gg)?/players/([^"\'/?#]+)[^"\']*["\'][^>]*>(.*?)</a>',tr,re.I|re.S)
+        if not a: continue
+        slug=a.group(1); name=strip_tags(a.group(2)).replace("\n"," ").strip() or slug.replace("-"," "); score=max(name_similarity(player,name),name_similarity(player,slug.replace("-"," ")))
+        if score<.84: continue
+        text=strip_tags(tr).replace("\n"," "); pos=text.lower().find(name.lower()); tail=text[pos+len(name):] if pos>=0 else text; nums=[safe_int(x,None) for x in re.findall(r"(?<![\d.])\b\d{1,2}\b(?![\d.])",tail)]; nums=[x for x in nums if x is not None]
+        if nums and score>best[0]: best=(score,int(nums[0]),name)
+    return best[1],{"matched":best[1] is not None,"score":round(best[0],3),"name":best[2]}
+
+def _v55_grade_bo3(url,player):
+    base=_v55_bo3_url(url)
+    if not base: return None,{"ok":False,"message":"not BO3 URL"}
+    page,st=http_get_text(base,"BO3 grade match",ttl=240,timeout=24,allow_stale=False)
+    if not page: return None,{"ok":False,"message":"BO3 match unavailable","status":st}
+    low=strip_tags(page).lower(); void=[x for x in ["walkover","forfeit","technical win","cancelled","postponed"] if x in low]
+    if void: return None,{"ok":False,"void_reason":", ".join(void),"message":"void/manual review"}
+    maps=_v55_bo3_maps(page)
+    if len(maps)<2: return None,{"ok":False,"message":"two maps not completed","maps":maps}
+    slugs={"Dust2":"dust-ii"}; total=0; details=[]; conf=1.0
+    for m in maps[:2]:
+        u=f"{base}/{slugs.get(m,normalize_name(m).replace(' ','-'))}"; mp,ms=http_get_text(u,"BO3 grade map",ttl=240,timeout=24,allow_stale=False); k,meta=_v55_bo3_kills(mp or "",player); details.append({"map":m,"url":u,"kills":k,"meta":meta,"status":ms})
+        if k is None: return None,{"ok":False,"message":"player missing on BO3 map","details":details}
+        total+=k; conf=min(conf,safe_float(meta.get("score"),0) or 0)
+    return (total,{"ok":conf>=.84,"confidence":conf,"details":details,"map_results":maps[:2],"total_kills":total,"grade_provider":"BO3.gg"}) if conf>=.84 else (None,{"ok":False,"confidence":conf,"details":details,"message":"identity confidence below .84"})
+
+def fetch_actual_maps12_kills(match_url,player,player_id=""):
+    if str(match_url or "").startswith(("bo3://","https://bo3.gg/matches/")):
+        actual,meta=_v55_grade_bo3(match_url,player)
+        if actual is not None or meta.get("void_reason"): return actual,meta
+    return _v55_grade_base(match_url,player,player_id)
+
+
+if "grade_pending_automatically" in globals():
+    _v55_grade_pending_base=grade_pending_automatically
+    def grade_pending_automatically():
+        out=dict(_v55_grade_pending_base() or {}); health={"updated_at":now_iso(),"graded_now":safe_int(out.get("graded"),0) or 0,"pending":safe_int(out.get("pending"),0) or 0,"errors":safe_int(out.get("errors"),0) or 0,"result_rows":len(load_json(RESULT_LOG,[]) or []),"saved_snapshots":len(load_json(PICK_LOG,[]) or [])}
+        try: save_json(V55_GRADING_HEALTH_FILE,health,force=True)
+        except Exception: pass
+        out["v55_grading_health"]=health; return out
+
+try: APP_VERSION="CS2 v5.5 — COMPLETE VERIFIED DATA PIPELINE"
+except Exception: pass
+# === END ONEWAYPICKZ CS2 COMPLETE DATA PIPELINE V5.5 ===
+
+
+
+# === ONEWAYPICKZ V5.5.1 PRE-MODEL IDENTITY CARRY ===
+# Carries the identity decision made before projection through wrappers that
+# rebuild the returned row. No projection calculation is changed.
+V551_PREMODEL_IDENTITY={}
+
+def _v551_identity_key(row):
+    return (normalize_name(row.get("player") or ""), safe_float(row.get("line"),None), str(row.get("stat_type") or row.get("market") or ""))
+
+if "_v55_resolve_prop" in globals():
+    _v551_resolve_base=_v55_resolve_prop
+    def _v55_resolve_prop(prop):
+        out=_v551_resolve_base(prop)
+        V551_PREMODEL_IDENTITY[_v551_identity_key(out)]=bool(out.get("v55_preprojection_identity_verified"))
+        return out
+
+if "_v55_ready" in globals():
+    _v551_ready_base=_v55_ready
+    def _v55_ready(row):
+        if V551_PREMODEL_IDENTITY.get(_v551_identity_key(row)):
+            row["v55_preprojection_identity_verified"]=True
+        return _v551_ready_base(row)
+
+try: APP_VERSION="CS2 v5.5.1 — COMPLETE VERIFIED DATA PIPELINE"
+except Exception: pass
+# === END ONEWAYPICKZ V5.5.1 PRE-MODEL IDENTITY CARRY ===
+
+
+
+# === ONEWAYPICKZ CS2 PRODUCTION DATA PIPELINE V5.6 ===
+# Restores real BO3 match discovery after later wrappers, hardens provider
+# failures, persists current identity context, and exposes operational health.
+# Projection math is intentionally unchanged.
+PRODUCTION_DATA_VERSION = "5.6"
+V56_OPERATIONAL_FILE = os.path.join(STORAGE_DIR, "cs2_operational_status.json")
+
+
+def _v56_extract_profile_team(page, matchup_teams=None):
+    if not page:
+        return ""
+    matchup_teams = [str(x or "").strip() for x in (matchup_teams or []) if str(x or "").strip()]
+    # Current-team links normally appear before Transfers History on BO3 player pages.
+    head = page
+    stop = re.search(r"Transfers History", head, re.I)
+    if stop:
+        head = head[:stop.start()]
+    candidates = []
+    for slug, anchor in re.findall(r'href=["\'](?:https?://bo3\.gg)?/teams/([^"\'/?#]+)[^"\']*["\'][^>]*>(.*?)</a>', head, re.I | re.S):
+        name = strip_tags(anchor).replace("\n", " ").strip()
+        if not name:
+            name = slug.replace("-", " ").strip()
+        if name and normalize_team(name) not in {normalize_team(x) for x in candidates}:
+            candidates.append(name)
+    if matchup_teams:
+        scored = []
+        for cand in candidates:
+            score = max([name_similarity(cand, t) for t in matchup_teams] or [0])
+            if score >= .82:
+                scored.append((score, cand))
+        if scored:
+            return max(scored, key=lambda x: x[0])[1]
+    return candidates[0] if candidates else ""
+
+
+# BO3 HTML contains a reliable team link more often than the page title does.
+if "_bo3_parse_player_html" in globals():
+    _v56_parse_player_base = _bo3_parse_player_html
+    def _bo3_parse_player_html(page, player, slug, url):
+        profile, meta = _v56_parse_player_base(page, player, slug, url)
+        if profile is not None and not str(profile.team or "").strip():
+            team = _v56_extract_profile_team(page)
+            if team:
+                profile.team = team
+                meta = dict(meta or {})
+                meta["profile_team_source"] = "BO3 current-team link"
+        return profile, meta
+
+
+# The base API fallback contains provider-version-specific payload paths. Never
+# allow one malformed fallback response to crash a full collector cycle.
+if "_bo3_profile_from_api" in globals():
+    _v56_profile_api_base = _bo3_profile_from_api
+    def _bo3_profile_from_api(player, alias=None):
+        try:
+            return _v56_profile_api_base(player, alias)
+        except Exception as exc:
+            return None, {"ok": False, "provider": "BO3", "warning": f"BO3 API fallback isolated: {type(exc).__name__}: {exc}"}
+
+
+# v4.7 already has real BO3 fixture discovery. A later bridge wrapper could hide
+# it, leaving only synthetic bridge:// matches. Restore BO3 as the first choice.
+if "discover_hltv_match" in globals():
+    _v56_discover_base = discover_hltv_match
+    def discover_hltv_match(team, opponent, player=""):
+        if callable(globals().get("discover_bo3_match")):
+            try:
+                url, meta = discover_bo3_match(team, opponent, player)
+                if url:
+                    return url, {**dict(meta or {}), "v56_real_match": True}
+            except Exception:
+                pass
+        # Optional PandaScore only when already configured/available.
+        if callable(globals().get("fetch_pandascore_upcoming")):
+            try:
+                rows, st = fetch_pandascore_upcoming()
+                best = (0.0, None)
+                for raw in rows or []:
+                    names = [str(((x.get("opponent") or {}).get("name")) or "") for x in (raw.get("opponents") or [])]
+                    score = max([name_similarity(team, n) for n in names] or [0]) * .58 + max([name_similarity(opponent, n) for n in names] or [0]) * .38
+                    if score > best[0]:
+                        best = (score, raw)
+                if best[1] is not None and best[0] >= .70:
+                    raw = best[1]
+                    mid = str(raw.get("id") or "")
+                    slug = str(raw.get("slug") or mid)
+                    return f"pandascore://{mid}/{slug}", {**dict(st or {}), "ok": True, "method": "PandaScore fixture fallback", "v56_real_match": True}
+            except Exception:
+                pass
+        return _v56_discover_base(team, opponent, player)
+
+
+# Make the identity resolver carry real match/roster/format context forward so
+# the projection engine and readiness checks see the same verified matchup.
+if "_v55_resolve_prop" in globals():
+    _v56_resolve_base = _v55_resolve_prop
+    def _v55_resolve_prop(prop):
+        out = _v56_resolve_base(prop)
+        player = str(out.get("player") or "")
+        a, b = _v55_matchup(out) if callable(globals().get("_v55_matchup")) else ("", "")
+        if player and a and b and not bool(out.get("v55_preprojection_identity_verified")):
+            try:
+                url, meta = discover_hltv_match(a, b, player)
+                ctx, cst = fetch_match_context(url) if url else ({}, {})
+                ctx = dict(ctx or {})
+                groups = list(ctx.get("lineup_groups") or [])
+                team = _v55_team_from_groups(player, groups) if callable(globals().get("_v55_team_from_groups")) else ""
+                if team and (_team_name_matches(team, a) or _team_name_matches(team, b)):
+                    t, o = (a, b) if _team_name_matches(team, a) else (b, a)
+                    out.update({
+                        "team": t,
+                        "opponent": o,
+                        "match_url": url,
+                        "match_format": ctx.get("format") or out.get("match_format") or "BO3",
+                        "event": ctx.get("event") or out.get("event"),
+                        "provider_team_verified": True,
+                        "v55_preprojection_identity_verified": True,
+                        "identity_reconciled": True,
+                        "identity_reconcile_source": "v5.6 real BO3/PandaScore roster",
+                        "confirmed_lineup_groups": groups,
+                        "confirmed_lineup_names": list(ctx.get("lineup_names") or []),
+                    })
+                    if callable(globals().get("_v55_save_team")):
+                        _v55_save_team(player, t, o, "v5.6 real provider roster")
+            except Exception as exc:
+                flags = list(out.get("flags") or [])
+                flags.append(f"V5.6 IDENTITY RECOVERY PENDING: {type(exc).__name__}")
+                out["flags"] = list(dict.fromkeys(flags))
+        return out
+
+
+if "_v55_ready" in globals():
+    _v56_ready_base = _v55_ready
+    def _v55_ready(row):
+        # Preserve the strict gate, but accept the canonical format field if a
+        # provider populated it under `format` rather than `match_format`.
+        if not row.get("match_format") and row.get("format"):
+            row["match_format"] = row.get("format")
+        result = _v56_ready_base(row)
+        result["production_version"] = "5.6"
+        return result
+
+
+def _v56_write_operational_status(board, status=None):
+    rows = list(board or [])
+    profiles = sum((safe_int(r.get("profile_maps"), 0) or 0) >= MIN_PROFILE_MAPS for r in rows)
+    identities = sum(bool(r.get("provider_team_verified") and r.get("team") and r.get("opponent")) for r in rows)
+    real_matches = sum(bool(str(r.get("match_url") or "").startswith(("bo3://", "pandascore://", "https://www.hltv.org/"))) for r in rows)
+    projection_ready = sum(bool(r.get("projection_data_ready")) for r in rows)
+    official_ready = sum(bool(r.get("official_data_ready")) for r in rows)
+    db = database_status() if callable(globals().get("database_status")) else {}
+    payload = {
+        "version": "5.6",
+        "updated_at": now_iso(),
+        "board_rows": len(rows),
+        "verified_profile_rows": profiles,
+        "verified_identity_rows": identities,
+        "real_match_rows": real_matches,
+        "projection_ready_rows": projection_ready,
+        "official_ready_rows": official_ready,
+        "database_status": db,
+        "pipeline_ready": bool(len(rows) > 0 and profiles > 0 and identities > 0 and real_matches > 0),
+        "calibration_status": "LIVE LEARNING" if official_ready else "BUILDING FROM VERIFIED FROZEN ROWS",
+    }
+    try:
+        save_json(V56_OPERATIONAL_FILE, payload, force=True)
+    except Exception:
+        pass
+    return payload
+
+
+if "build_full_board" in globals():
+    _v56_board_base = build_full_board
+    def build_full_board(props, deep_enabled=True):
+        board, status = _v56_board_base(props, deep_enabled)
+        op = _v56_write_operational_status(board, status)
+        status = dict(status or {})
+        status["v56_operational_status"] = op
+        return board, status
+
+try:
+    APP_VERSION = "CS2 v5.6 — PRODUCTION VERIFIED DATA PIPELINE"
+except Exception:
+    pass
+# === END ONEWAYPICKZ CS2 PRODUCTION DATA PIPELINE V5.6 ===
+
+
+
+# === ONEWAYPICKZ V5.6.2 REAL IDENTITY CARRY ===
+# v5.6 can resolve a real roster after the v5.5.1 carry wrapper has already run.
+# Re-store that final decision so later board wrappers cannot drop it.
+if "_v55_resolve_prop" in globals():
+    _v562_resolve_base=_v55_resolve_prop
+    def _v55_resolve_prop(prop):
+        out=_v562_resolve_base(prop)
+        if bool(out.get("v55_preprojection_identity_verified")) and "V551_PREMODEL_IDENTITY" in globals() and callable(globals().get("_v551_identity_key")):
+            V551_PREMODEL_IDENTITY[_v551_identity_key(out)]=True
+        return out
+
+if "_v55_ready" in globals():
+    _v562_ready_base=_v55_ready
+    def _v55_ready(row):
+        if "V551_PREMODEL_IDENTITY" in globals() and callable(globals().get("_v551_identity_key")) and V551_PREMODEL_IDENTITY.get(_v551_identity_key(row)):
+            row["v55_preprojection_identity_verified"]=True
+        return _v562_ready_base(row)
+
+try: APP_VERSION="CS2 v5.6.2 — PRODUCTION VERIFIED DATA PIPELINE"
+except Exception: pass
+# === END ONEWAYPICKZ V5.6.2 REAL IDENTITY CARRY ===
+
+
+
+# === ONEWAYPICKZ V5.7 VERIFIED MATCH + LINEUP CONTEXT ===
+# Identity/match/roster persistence only. Protected projection math is unchanged.
+AUTOFEED_CONTEXT_VERSION = "5.7"
+V57_CONTEXT_CACHE = {}
+V57_CONTEXT_HEALTH_FILE = os.path.join(STORAGE_DIR, "cs2_context_health.json")
+
+
+def _v57_player_id(row):
+    ids = row.get("identity_ids") if isinstance(row.get("identity_ids"), dict) else {}
+    pid = str(ids.get("player_id") or "").strip()
+    if pid:
+        return pid
+    player = str(row.get("player") or "").strip()
+    try:
+        rec = lookup_database_player(player) or {}
+        pid = str((rec.get("identity_ids") or {}).get("player_id") or rec.get("player_id") or "").strip()
+        if pid:
+            return pid
+    except Exception:
+        pass
+    try:
+        alias = _alias_record(player) or {}
+        pid = str(alias.get("hltv_player_id") or alias.get("player_id") or "").strip()
+        if pid:
+            return pid
+    except Exception:
+        pass
+    try:
+        aliases = load_json(PLAYER_ALIAS_FILE, {}) or {}
+        rec = aliases.get(normalize_name(player)) if isinstance(aliases, dict) else {}
+        if isinstance(rec, dict):
+            pid = str(rec.get("hltv_player_id") or rec.get("player_id") or "").strip()
+            if pid:
+                return pid
+    except Exception:
+        pass
+    try:
+        profiles = (V48_RUNTIME.get("profiles") or {}) if isinstance(V48_RUNTIME, dict) else {}
+        rec = profiles.get(normalize_name(player)) if isinstance(profiles, dict) else {}
+        if isinstance(rec, dict):
+            pid = str(rec.get("player_id") or (rec.get("identity_ids") or {}).get("player_id") or "").strip()
+            if pid:
+                return pid
+    except Exception:
+        pass
+    return ""
+
+
+def _v57_matchup(row):
+    try:
+        return _teams_from_matchup(str(row.get("matchup") or row.get("evidence") or row.get("event") or ""))
+    except Exception:
+        return "", ""
+
+
+def _v57_real_context(row):
+    player = str(row.get("player") or "").strip()
+    a, b = _v57_matchup(row)
+    if not player or not a or not b:
+        return "", {}, {"ok": False, "warning": "player/matchup missing"}
+    key = "|".join(sorted([normalize_team(a), normalize_team(b)]))
+    if key in V57_CONTEXT_CACHE:
+        return V57_CONTEXT_CACHE[key]
+
+    url = ""
+    meta = {}
+    if callable(globals().get("discover_bo3_match")):
+        try:
+            url, meta = discover_bo3_match(a, b, player)
+        except Exception:
+            url, meta = "", {}
+    if not url and callable(globals().get("discover_hltv_match")):
+        try:
+            candidate, cmeta = discover_hltv_match(a, b, player)
+            if candidate and not str(candidate).startswith(("mirror://", "bridge://")):
+                url, meta = candidate, cmeta or {}
+        except Exception:
+            pass
+    if not url:
+        out = ("", {}, {"ok": False, "warning": "real provider match not recovered"})
+        V57_CONTEXT_CACHE[key] = out
+        return out
+    try:
+        ctx, status = fetch_match_context(url)
+    except Exception as exc:
+        ctx, status = {}, {"ok": False, "warning": f"match context failed: {type(exc).__name__}: {exc}"}
+    ctx = dict(ctx or {})
+    status = dict(status or {})
+    ctx.setdefault("match_url", url)
+    if meta:
+        status.setdefault("discovery", meta)
+    out = (url, ctx, status)
+    V57_CONTEXT_CACHE[key] = out
+    return out
+
+
+def _v57_team_record(ctx, team):
+    best = (0.0, {})
+    for rec in list((ctx or {}).get("teams") or []):
+        if not isinstance(rec, dict):
+            continue
+        score = name_similarity(team, str(rec.get("name") or ""))
+        if score > best[0]:
+            best = (score, rec)
+    return dict(best[1] or {}) if best[0] >= .80 else {}
+
+
+def _v57_group_for_player(player, team, groups):
+    best = (0.0, {})
+    for group in list(groups or []):
+        if not isinstance(group, dict):
+            continue
+        roster = [str(x or "").strip() for x in list(group.get("players") or group.get("roster") or []) if str(x or "").strip()]
+        if not roster:
+            continue
+        player_score = max([name_similarity(player, x) for x in roster] or [0.0])
+        team_score = name_similarity(team, str(group.get("team") or group.get("name") or "")) if team else 0.0
+        score = player_score * .72 + team_score * .28
+        if player_score >= .84 and score > best[0]:
+            best = (score, {**group, "players": roster})
+    return dict(best[1] or {})
+
+
+def _v57_enrich_row(row):
+    if not isinstance(row, dict):
+        return row
+    player = str(row.get("player") or "").strip()
+    if not player or (safe_int(row.get("profile_maps"), 0) or 0) < MIN_PROFILE_MAPS:
+        return row
+
+    url, ctx, status = _v57_real_context(row)
+    if not url or not ctx:
+        row["v57_match_context_verified"] = False
+        return row
+
+    a, b = _v57_matchup(row)
+    groups = list(ctx.get("lineup_groups") or [])
+    if not groups:
+        for team_rec in list(ctx.get("teams") or [])[:2]:
+            if not isinstance(team_rec, dict):
+                continue
+            roster = list(team_rec.get("players") or team_rec.get("roster") or [])
+            if roster:
+                groups.append({"team": team_rec.get("name"), "team_id": team_rec.get("team_id"), "players": roster})
+
+    known_team = str(row.get("team") or "").strip()
+    group = _v57_group_for_player(player, known_team, groups)
+    resolved_team = str(group.get("team") or group.get("name") or "").strip()
+    if resolved_team and a and b:
+        if _team_name_matches(resolved_team, a):
+            team, opponent = a, b
+        elif _team_name_matches(resolved_team, b):
+            team, opponent = b, a
+        else:
+            team, opponent = known_team, str(row.get("opponent") or "")
+    else:
+        team, opponent = known_team, str(row.get("opponent") or "")
+
+    team_rec = _v57_team_record(ctx, team)
+    opp_rec = _v57_team_record(ctx, opponent)
+    player_id = _v57_player_id(row)
+    match_id = str(ctx.get("provider_match_id") or status.get("match_id") or "").strip()
+    if not match_id and callable(globals().get("_match_id_from_url")):
+        try:
+            match_id = str(_match_id_from_url(url) or "").strip()
+        except Exception:
+            pass
+
+    roster = [str(x or "").strip() for x in list(group.get("players") or []) if str(x or "").strip()]
+    player_in_roster = bool(roster and max([name_similarity(player, x) for x in roster] or [0.0]) >= .84)
+    five_player = len(roster) == 5
+    exact_lineup = bool(status.get("exact_lineup"))
+
+    ids = dict(row.get("identity_ids") or {})
+    ids.update({
+        "player_id": player_id or ids.get("player_id") or "",
+        "match_id": match_id or ids.get("match_id") or "",
+        "team_id": str(team_rec.get("team_id") or ids.get("team_id") or ""),
+        "opponent_id": str(opp_rec.get("team_id") or ids.get("opponent_id") or ""),
+    })
+
+    row.update({
+        "match_url": url,
+        "match_format": ctx.get("format") or row.get("match_format") or "BO3",
+        "event": ctx.get("event") or row.get("event"),
+        "team": team,
+        "opponent": opponent,
+        "provider_team_verified": bool(team and opponent and group),
+        "v55_preprojection_identity_verified": bool(team and opponent and group),
+        "identity_reconciled": bool(team and opponent and group),
+        "identity_reconcile_source": "v5.7 real provider match roster",
+        "identity_ids": ids,
+        "confirmed_lineup_groups": groups,
+        "confirmed_lineup_names": list(ctx.get("lineup_names") or []),
+        "lineup_source": ctx.get("lineup_source") or row.get("lineup_source") or "real provider roster",
+        "current_roster_names": roster or list(row.get("current_roster_names") or []),
+        "current_roster_verified": bool(five_player and player_in_roster),
+        "lineup_verified": bool((exact_lineup or five_player) and player_in_roster),
+        "player_in_lineup": bool(player_in_roster),
+        "roster_overlap": 5 if five_player and player_in_roster else row.get("roster_overlap"),
+        "provider_match_id": match_id,
+        "v57_match_context_verified": bool(match_id and player_id and player_in_roster),
+    })
+
+    fresh = dict(row.get("source_freshness") or {})
+    if status.get("age_seconds") is not None:
+        fresh["match_age_seconds"] = status.get("age_seconds")
+    row["source_freshness"] = fresh
+    row["identity_official_ready"] = bool(
+        ids.get("player_id") and ids.get("match_id") and team and opponent and five_player and player_in_roster
+    )
+
+    try:
+        if callable(globals().get("_v55_save_team")) and team and opponent:
+            _v55_save_team(player, team, opponent, "v5.7 verified provider roster")
+    except Exception:
+        pass
+    try:
+        if callable(globals().get("_autofeed_persist_context")):
+            _autofeed_persist_context(row)
+    except Exception:
+        pass
+    try:
+        if callable(globals().get("save_projection_entities")):
+            save_projection_entities(row)
+    except Exception:
+        pass
+    return row
+
+
+if "build_full_board" in globals():
+    _v57_board_base = build_full_board
+    def build_full_board(props, deep_enabled=True):
+        board, status = _v57_board_base(props, deep_enabled)
+        exact_ids = five = in_lineup = real_match = projection_ready = official_ready = 0
+        for idx, original in enumerate(list(board or [])):
+            row = _v57_enrich_row(dict(original or {}))
+            if callable(globals().get("_v55_ready")):
+                try:
+                    ready = _v55_ready(row)
+                    row["data_readiness"] = ready
+                    row["projection_data_ready"] = bool(ready.get("projection_ready"))
+                    row["official_data_ready"] = bool(ready.get("official_ready"))
+                    row["data_readiness_score"] = ready.get("readiness_score")
+                except Exception:
+                    pass
+            ids = row.get("identity_ids") if isinstance(row.get("identity_ids"), dict) else {}
+            exact_ids += int(bool(ids.get("match_id") and ids.get("player_id")))
+            lineup = _select_team_lineup(row) if callable(globals().get("_select_team_lineup")) else []
+            five += int(len(lineup) == 5)
+            in_lineup += int(bool(lineup and any(normalize_name(x) == normalize_name(row.get("player")) for x in lineup)))
+            real_match += int(bool(str(row.get("match_url") or "").startswith(("bo3://", "pandascore://", "https://www.hltv.org/"))))
+            projection_ready += int(bool(row.get("projection_data_ready")))
+            official_ready += int(bool(row.get("official_data_ready")))
+            board[idx] = row
+
+        health = {
+            "version": "5.7",
+            "updated_at": now_iso(),
+            "board_rows": len(board or []),
+            "exact_match_player_ids": exact_ids,
+            "five_player_lineups": five,
+            "players_in_lineup": in_lineup,
+            "real_match_rows": real_match,
+            "projection_ready_rows": projection_ready,
+            "official_ready_rows": official_ready,
+        }
+        try:
+            save_json(V57_CONTEXT_HEALTH_FILE, health, force=True)
+        except Exception:
+            pass
+        status = dict(status or {})
+        status["v57_context_health"] = health
+        return board, status
+
+try:
+    APP_VERSION = "CS2 v5.7 — VERIFIED MATCH / LINEUP / AUDIT PIPELINE"
+except Exception:
+    pass
+# === END ONEWAYPICKZ V5.7 VERIFIED MATCH + LINEUP CONTEXT ===
+
+
 # ============================================================
 # SESSION BOARD LOAD
 # ============================================================
@@ -11765,18 +13158,19 @@ def load_real_props(use_underdog: bool, use_prizepicks: bool, show_prizepicks_ro
 
 with st.sidebar:
     st.markdown("## 🎯 CS2 Controls")
+    _audit_sidebar_slot = st.empty()
     st.caption(APP_VERSION)
     use_underdog = st.checkbox("Pull Underdog CS2", value=True)
     use_prizepicks = st.checkbox("Use PrizePicks for free market consensus", value=False)
     show_prizepicks_rows = st.checkbox("Also display PrizePicks rows", value=False)
-    simple_line_only_mode = st.checkbox("Simple all-lines mode", value=True)
+    simple_line_only_mode = st.checkbox("Simple all-lines mode", value=False)
     mobile_lite_mode = st.checkbox("Mobile lite / stop browser reloads", value=True)
     mobile_preview_rows = st.slider("Mobile rows/cards shown", 5, 50, 15, 5)
-    fast_refresh_enabled = st.checkbox("Fast refresh / prevent hangs", value=True)
-    max_props_per_refresh = st.slider("Max props per refresh", 10, 250, 250, 10)
+    fast_refresh_enabled = st.checkbox("Fast refresh / prevent hangs", value=False)
+    max_props_per_refresh = st.slider("Max props per refresh", 10, 500, 500, 10)
     line_only_fallback_enabled = st.checkbox("Show line-only fallback rows", value=LINE_ONLY_FALLBACK_DEFAULT)
     st.session_state["cs2_line_only_fallback_enabled"] = bool(line_only_fallback_enabled)
-    assisted_official_enabled = st.checkbox("Assisted Official when profiles missing", value=ASSISTED_OFFICIAL_DEFAULT)
+    assisted_official_enabled = st.checkbox("Assisted Official when profiles missing", value=False, disabled=True, help="Disabled: Official status now requires verified player data.")
     st.session_state["cs2_assisted_official_enabled"] = bool(assisted_official_enabled)
     hide_line_only_passes = st.checkbox("Hide line-only PASS rows", value=True)
     deep_data_enabled = st.checkbox("Deep map/veto/roster data", value=DEEP_DATA_ENABLED_DEFAULT)
@@ -11849,6 +13243,7 @@ if refresh_clicked or not st.session_state.get("cs2_board"):
         board_status["all_real_props_loaded"] = len(props)
         st.session_state["cs2_board"] = board
         save_asof_projection_history(board, source_status)
+        board_status["auto_freeze"] = auto_freeze_verified_pregame(board)
         st.session_state["cs2_board_status"] = board_status
         st.session_state["cs2_line_source_status"] = source_status
         st.session_state["cs2_last_refresh_iso"] = now_iso()
@@ -12053,6 +13448,13 @@ def app_data_health_report() -> Dict[str, Any]:
     except Exception:
         core_size_mb = 0.0
     storage_ok = os.path.isdir(STORAGE_DIR) and os.access(STORAGE_DIR, os.W_OK)
+    github_cache_state = load_json(os.path.join(STORAGE_DIR, ".github_cache_sync.json"), {})
+    github_cache_state = github_cache_state if isinstance(github_cache_state, dict) else {}
+    heartbeat_path = os.path.join(STORAGE_DIR, ".autofeed_collector.heartbeat")
+    try:
+        collector_heartbeat_age = max(0.0, time.time() - os.path.getmtime(heartbeat_path)) if os.path.exists(heartbeat_path) else None
+    except Exception:
+        collector_heartbeat_age = None
     return {
         "storage_dir": STORAGE_DIR,
         "storage_writable": storage_ok,
@@ -12077,6 +13479,10 @@ def app_data_health_report() -> Dict[str, Any]:
         "sqlite_demo_events": _sqlite_table_count("demo_events"),
         "github_backup_configured": bool(get_secret("GITHUB_TOKEN") and get_secret("GITHUB_REPO")),
         "github_auto_backup": str(get_secret("GITHUB_AUTO_BACKUP", "")).lower() in {"1", "true", "yes"},
+        "github_data_cache_ready": bool(github_cache_state.get("ok")),
+        "github_data_cache_repo": str(github_cache_state.get("repo") or os.getenv("CS2_BRIDGE_REPO", "hernandezjh235-sudo/cS2")),
+        "github_data_cache_generated_at": github_cache_state.get("cache_generated_at"),
+        "collector_heartbeat_age_seconds": collector_heartbeat_age,
     }
 
 
@@ -12164,13 +13570,14 @@ def build_full_live_audit_zip() -> bytes:
     return bio.getvalue()
 
 
-with st.sidebar:
+_audit_sidebar_target = _audit_sidebar_slot.container() if "_audit_sidebar_slot" in globals() else st.sidebar
+with _audit_sidebar_target:
     st.markdown("---")
     with st.expander("🧪 FULL LIVE AUDIT DOWNLOAD", expanded=True):
         _audit_download_enabled = st.toggle(
             "Enable audit download",
-            value=False,
-            key="cs2_enable_full_live_audit_download",
+            value=True,
+            key="cs2_enable_full_live_audit_download_v57",
             help="Creates a read-only snapshot of the current CS2 app state. It does not change projections or grading.",
         )
         st.caption(
@@ -12476,8 +13883,9 @@ with tab_audit:
     h5.metric("Grading Audits", health.get("sqlite_graded_audits",0))
 
     storage_label = "CONNECTED" if health.get("storage_writable") else "NOT WRITABLE"
-    backup_label = "READY" if health.get("github_backup_configured") else "NOT CONFIGURED"
-    st.info(f"Storage: {health.get('storage_dir')} · {storage_label} · Core DB: {health.get('core_db_size_mb',0):.2f} MB · GitHub backup: {backup_label}")
+    cache_label = "CONNECTED" if health.get("github_data_cache_ready") else "SYNCING"
+    backup_label = "WRITE-BACK READY" if health.get("github_backup_configured") else "PUBLIC CACHE MODE"
+    st.info(f"Storage: {health.get('storage_dir')} · {storage_label} · Core DB: {health.get('core_db_size_mb',0):.2f} MB · GitHub data cache: {cache_label} · {backup_label}")
 
     st.markdown('<div class="section-title-pro">Data Health</div>', unsafe_allow_html=True)
     health_rows = [
@@ -12557,8 +13965,9 @@ with tab_audit:
     q1,q2,q3,q4 = st.columns(4)
     q1.metric("Core DB", "✅" if health.get("core_db_exists") else "❌")
     q2.metric("Writable Volume", "✅" if health.get("storage_writable") else "❌")
-    q3.metric("GitHub Backup", "✅" if health.get("github_backup_configured") else "⚠️")
-    q4.metric("Auto Backup", "✅" if health.get("github_auto_backup") else "OFF")
+    q3.metric("GitHub Data Cache", "✅" if health.get("github_data_cache_ready") else "⏳")
+    hb = health.get("collector_heartbeat_age_seconds")
+    q4.metric("Auto Collector", "✅" if hb is not None and hb < 900 else "⏳")
     st.caption("The audit records what the app knew before the match, then attaches verified grading evidence afterward. No postgame data is allowed to rewrite the frozen pregame snapshot.")
 
 
@@ -12707,7 +14116,7 @@ with tab_data:
     r3.metric("Graded Results", readiness["graded_results"])
     r4.metric("Strong Candidates", readiness.get("strong_candidates", 0))
     st.dataframe(pd.DataFrame(readiness["checks"]).head(_preview_limit), use_container_width=True, hide_index=True)
-    st.caption("Fill the false rows first. The projection model can run without them, but best-win confidence improves most from graded results, mappings, odds, persistent storage, and demo/current-roster data.")
+    st.caption("Automatic GitHub + Railway collection fills these checks over time. Manual uploads are optional recovery tools only; verified profiles, mappings, lines, grading, and persistent history are collected automatically.")
 
     st.markdown('<div class="section-title-pro">One-File Recovery Bundle Import</div>', unsafe_allow_html=True)
     st.caption("Upload one ZIP containing the recovery CSVs, or one Excel workbook with sheets named mapping, profile overrides, historical results, odds, and current board.")
@@ -13139,7 +14548,7 @@ with tab_debug:
         {"Variable": "JINA_API_KEY", "Required": "Recommended", "Purpose": "Improves reliability for HLTV/BO3 Reader profile recovery"},
         {"Variable": "CS2_JINA_MIRROR_ENABLED", "Required": "Automatic", "Purpose": "true; self-contained batch player-stat mirror"},
         {"Variable": "CS2_MIRROR_FRESH_SECONDS", "Required": "No", "Purpose": "Defaults to 21600 (6 hours)"},
-        {"Variable": "CS2_BRIDGE_REPO", "Required": "Optional", "Purpose": "Only for an optional GitHub data-cache branch"},
+        {"Variable": "CS2_BRIDGE_REPO", "Required": "Automatic", "Purpose": "Defaults to hernandezjh235-sudo/cS2; public data-cache branch is loaded automatically"},
         {"Variable": "CS2_BRIDGE_BRANCH", "Required": "No", "Purpose": "Defaults to data-cache"},
         {"Variable": "CS2_BO3_LAST_RESORT", "Required": "No", "Purpose": "Defaults false; avoids per-player 403/429 request storms"},
         {"Variable": "GITHUB_TOKEN", "Required": "For private bridge repo", "Purpose": "Reads private data-cache and supports optional backup"},
