@@ -1,4 +1,4 @@
-\# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 ONEWAYPICKZ CS2 MAPS 1-2 KILL PROJECTION ENGINE
 Single-file Streamlit/Railway application.
