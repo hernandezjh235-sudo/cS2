@@ -22,6 +22,7 @@ export CS2_BRIDGE_BRANCH="${CS2_BRIDGE_BRANCH:-data-cache}"
 export CS2_EMBEDDED_COLLECTOR="${CS2_EMBEDDED_COLLECTOR:-true}"
 export CS2_WEB_FAST_REFRESH="${CS2_WEB_FAST_REFRESH:-true}"
 export CS2_WEB_ALLOW_PROVIDER_NETWORK="${CS2_WEB_ALLOW_PROVIDER_NETWORK:-false}"
+export CS2_COLLECTOR_INTERVAL_SECONDS="${CS2_COLLECTOR_INTERVAL_SECONDS:-180}"
 
 mkdir -p "${DATA_DIR}" 2>/dev/null || true
 
@@ -33,16 +34,19 @@ python -m py_compile "${WEB_APP_PATH}"
 
 # Web refreshes are cache-first. The collector owns slow provider work so the
 # browser does not hang while profiles, identities, maps and rosters fill.
+# IMPORTANT: the GitHub data-cache branch is only a cold-start bootstrap.
+# Once Railway's persistent volume has real data, never poll an older remote
+# snapshot back into the live volume. The Railway volume + collector are the
+# freshness authority until GitHub successfully publishes a newer cache.
 if [[ "${CS2_EMBEDDED_COLLECTOR}" =~ ^(1|true|TRUE|True|yes|YES|Yes|on|ON|On)$ ]]; then
   (
     sleep 2
-    python github_cache_sync_v582.py pull --data-dir "${DATA_DIR}" --repo "${CS2_BRIDGE_REPO}" --branch "${CS2_BRIDGE_BRANCH}" || true
-    sleep 2
+    if [[ ! -s "${DATA_DIR}/cs2_provider_cache.json" && ! -s "${DATA_DIR}/player_database.json" ]]; then
+      python github_cache_sync_v582.py pull --data-dir "${DATA_DIR}" --repo "${CS2_BRIDGE_REPO}" --branch "${CS2_BRIDGE_BRANCH}" || true
+    fi
     while true; do
       python collector_v55.py || true
-      sleep 285
-      python github_cache_sync_v582.py pull --data-dir "${DATA_DIR}" --repo "${CS2_BRIDGE_REPO}" --branch "${CS2_BRIDGE_BRANCH}" || true
-      sleep 15
+      sleep "${CS2_COLLECTOR_INTERVAL_SECONDS}"
     done
   ) &
 fi
