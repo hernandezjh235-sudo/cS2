@@ -1,0 +1,80 @@
+name: CS2 Data Cache
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cs2-data-cache
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout main code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore prior public cache
+        env:
+          CS2_DATA_DIR: /tmp/cs2_engine
+          CS2_BRIDGE_REPO: ${{ github.repository }}
+          CS2_BRIDGE_BRANCH: data-cache
+        run: |
+          mkdir -p /tmp/cs2_engine
+          python github_cache_sync.py pull --data-dir /tmp/cs2_engine --repo "${GITHUB_REPOSITORY}" --branch data-cache || true
+
+      - name: Collect verified CS2 data
+        env:
+          CS2_DATA_DIR: /tmp/cs2_engine
+          CS2_BRIDGE_REPO: ${{ github.repository }}
+          CS2_BRIDGE_BRANCH: data-cache
+          CS2_ASSISTED_OFFICIAL: "false"
+          CS2_AUTO_HARVEST_HISTORY: "true"
+          CS2_COLLECT_PROJECTIONS: "true"
+          CS2_AUTO_GRADE: "true"
+          CS2_DEEP_DATA: "true"
+          CS2_BO3_PROFILES_PER_REFRESH: "180"
+          CS2_AUTOFEED_DIRECT_PROFILE_BATCH: "60"
+          CS2_AUTOFEED_DIRECT_WORKERS: "4"
+          JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
+        run: |
+          python collector.py || true
+          test -f /tmp/cs2_engine/.autofeed_collector_status.json && cat /tmp/cs2_engine/.autofeed_collector_status.json || true
+
+      - name: Build portable data cache
+        run: |
+          rm -rf /tmp/cs2_cache_publish
+          python github_cache_sync.py package --data-dir /tmp/cs2_engine --output-dir /tmp/cs2_cache_publish
+          ls -lh /tmp/cs2_cache_publish
+
+      - name: Publish single-snapshot data-cache branch
+        shell: bash
+        run: |
+          git config user.name "onewaypickz-data-bot"
+          git config user.email "actions@users.noreply.github.com"
+          rm -rf /tmp/cs2-data-cache-worktree
+          git worktree add --detach /tmp/cs2-data-cache-worktree HEAD
+          cd /tmp/cs2-data-cache-worktree
+          git checkout --orphan data-cache-publish
+          git rm -rf . || true
+          cp -a /tmp/cs2_cache_publish/. .
+          git add -A
+          git commit -m "Refresh CS2 data cache $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          git push origin HEAD:data-cache --force
