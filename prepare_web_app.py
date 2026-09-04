@@ -14,6 +14,7 @@ PATCHES = [
     ROOT / "autofeed_patch.py",
     ROOT / "autofeed_recovery_v53.py",
     ROOT / "autofeed_cache_v54.py",
+    ROOT / "autofeed_readiness_v55.py",
 ]
 
 
@@ -57,6 +58,7 @@ def main() -> int:
         compile(TARGET_APP.read_text(encoding="utf-8"), str(TARGET_APP), "exec")
         status["ok"] = True
         status["runtime_app"] = str(TARGET_APP)
+        status["runtime_version"] = "5.5"
         _write_status(status)
         print(str(TARGET_APP))
         return 0
