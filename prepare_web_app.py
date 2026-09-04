@@ -67,7 +67,9 @@ def main() -> int:
         compile(TARGET_APP.read_text(encoding="utf-8"), str(TARGET_APP), "exec")
         status["ok"] = True
         status["runtime_app"] = str(TARGET_APP)
-        status["runtime_version"] = "5.8.4"
+        # Keep the collector/cache contract at 5.8.3 while v5.8.4 is a web-only
+        # visibility layer. This avoids weakening or changing the verified model.
+        status["runtime_version"] = "5.8.3"
         status["web_latency_layer"] = "5.8.4"
         _write_status(status)
         print(str(TARGET_APP))
