@@ -1,0 +1,72 @@
+name: Build CS2 Single App
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app.py"
+      - "prepare_web_app.py"
+      - "autofeed_*.py"
+      - ".github/workflows/build-single-app.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cs2-single-app
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build standalone patched app
+        env:
+          CS2_DATA_DIR: /tmp/cs2_engine
+          CS2_WEB_RUNTIME_APP: /tmp/OneWayPickz_CS2_v57_app.py
+        run: |
+          mkdir -p /tmp/cs2_engine
+          RUNTIME="$(python prepare_web_app.py | tail -n 1)"
+          test "$RUNTIME" = "/tmp/OneWayPickz_CS2_v57_app.py"
+          python -m py_compile "$RUNTIME"
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/OneWayPickz_CS2_v57_app.py')
+          text=p.read_text(encoding='utf-8')
+          required=[
+              '# === ONEWAYPICKZ CS2 AUTOFEED ACCURACY PATCH V5.2 ===',
+              '# === ONEWAYPICKZ CS2 AUTOFEED RECOVERY PATCH V5.3 ===',
+              '# === ONEWAYPICKZ CS2 COMPLETE DATA PIPELINE V5.5 ===',
+              '# === ONEWAYPICKZ CS2 PRODUCTION DATA PIPELINE V5.6 ===',
+              '# === ONEWAYPICKZ V5.6.2 REAL IDENTITY CARRY ===',
+              '# === ONEWAYPICKZ V5.7 VERIFIED MATCH + LINEUP CONTEXT ===',
+              '🧪 FULL LIVE AUDIT DOWNLOAD',
+              'cs2_enable_full_live_audit_download_v57',
+              '_audit_sidebar_slot = st.empty()',
+          ]
+          missing=[x for x in required if x not in text]
+          if missing:
+              raise SystemExit(f'standalone app missing required integrations: {missing}')
+          if 'value=True,\n            key="cs2_enable_full_live_audit_download_v57"' not in text:
+              raise SystemExit('audit download toggle is not enabled by default')
+          print({'standalone_bytes':p.stat().st_size,'required_integrations':len(required),'audit_top_sidebar':True})
+          PY
+          cp "$RUNTIME" ./OneWayPickz_CS2_v57_READY_app.py
+
+      - name: Upload single app file
+        uses: actions/upload-artifact@v4
+        with:
+          name: OneWayPickz-CS2-v57-READY-app
+          path: OneWayPickz_CS2_v57_READY_app.py
+          if-no-files-found: error
+          retention-days: 30
