@@ -50,16 +50,16 @@ jobs:
         run: |
           mkdir -p /tmp/cs2_engine
           RUNTIME="$(python prepare_web_app.py | tail -n 1)"
-          python -m py_compile "$RUNTIME" collector_v55.py github_cache_sync_v582.py autofeed_production_v56.py autofeed_identity_v562.py autofeed_context_v57.py autofeed_liveboard_v58.py autofeed_webfast_v581.py autofeed_liveboard_v582.py
+          python -m py_compile "$RUNTIME" collector_v55.py github_cache_sync_v582.py autofeed_production_v56.py autofeed_identity_v562.py autofeed_context_v57.py autofeed_liveboard_v58.py autofeed_webfast_v581.py autofeed_liveboard_v582.py autofeed_liveboard_v583.py
           python - <<'PY'
           import json
           from pathlib import Path
           p=Path('/tmp/cs2_engine/.web_runtime_status.json')
           if not p.exists(): raise SystemExit('web runtime status missing')
           s=json.loads(p.read_text())
-          if not s.get('ok') or s.get('runtime_version')!='5.8.2': raise SystemExit(f'v5.8.2 runtime not ready: {s}')
+          if not s.get('ok') or s.get('runtime_version')!='5.8.3': raise SystemExit(f'v5.8.3 runtime not ready: {s}')
           patches={x.get('file'):x for x in s.get('patches') or []}
-          for required in ['autofeed_context_v57.py','autofeed_liveboard_v58.py','autofeed_webfast_v581.py','autofeed_liveboard_v582.py']:
+          for required in ['autofeed_context_v57.py','autofeed_liveboard_v58.py','autofeed_webfast_v581.py','autofeed_liveboard_v582.py','autofeed_liveboard_v583.py']:
               if not patches.get(required,{}).get('ok'):
                   raise SystemExit(f'required runtime patch missing {required}: {s}')
           print('runtime validation:',s)
@@ -87,11 +87,11 @@ jobs:
               'graded':len(load('cs2_graded_results.json',[])),
               'line_history':len(load('cs2_line_history.json',[])),
           }
-          (root/'.v582_before.json').write_text(json.dumps(before))
+          (root/'.v583_before.json').write_text(json.dumps(before))
           print('prior cache:',before)
           PY
 
-      - name: Collect complete verified CS2 data
+      - name: Collect complete current CS2 lines and verified data
         env:
           CS2_DATA_DIR: /tmp/cs2_engine
           CS2_BRIDGE_REPO: ${{ github.repository }}
@@ -108,21 +108,31 @@ jobs:
           CS2_HLTV_BATCH_WORKERS: "4"
           JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
         run: |
+          set +e
           python collector_v55.py
-          cat /tmp/cs2_engine/.autofeed_collector_status.json
+          COLLECT_RC=$?
+          set -e
+          export COLLECT_RC
+          echo "collector exit code: ${COLLECT_RC}"
+          if [[ -f /tmp/cs2_engine/.autofeed_collector_status.json ]]; then
+            cat /tmp/cs2_engine/.autofeed_collector_status.json
+          else
+            echo "collector status file missing"
+          fi
           python - <<'PY'
-          import json
+          import json, os
           from pathlib import Path
           root=Path('/tmp/cs2_engine')
           def load(name, default):
               try: return json.loads((root/name).read_text())
               except Exception: return default
           status_path=root/'.autofeed_collector_status.json'
-          if not status_path.exists(): raise SystemExit('collector status file missing')
+          if not status_path.exists(): raise SystemExit(f'collector status file missing; rc={os.getenv("COLLECT_RC")}')
           s=json.loads(status_path.read_text())
           if not s.get('ok'): raise SystemExit(f"collector failed: {s.get('error') or s}")
           if int(s.get('underdog_rows') or 0)<=0: raise SystemExit('collector returned no real Underdog rows')
-          before=json.loads((root/'.v582_before.json').read_text())
+
+          before=json.loads((root/'.v583_before.json').read_text())
           provider=load('cs2_provider_cache.json',{})
           source_status=provider.get('source_status') or {} if isinstance(provider,dict) else {}
           after={
@@ -138,28 +148,47 @@ jobs:
           for key in ['profiles','graded','line_history']:
               if after[key] < before[key]: raise SystemExit(f'regression blocked: {key} {before[key]} -> {after[key]}')
           if after['profiles']>0 and after['teams']<=0:
-              raise SystemExit(f'identity pipeline failed: {after["profiles"]} profiles but zero teams')
+              raise SystemExit(f'identity persistence failed: {after["profiles"]} profiles but zero teams')
+
           context=load('cs2_context_health.json',{})
-          if not isinstance(context,dict) or context.get('version')!='5.7' or context.get('runtime_layer')!='5.8.2':
-              raise SystemExit(f'v5.8.2 context report missing: {context}')
+          if not isinstance(context,dict) or context.get('version')!='5.7' or context.get('runtime_layer')!='5.8.3':
+              raise SystemExit(f'v5.8.3 context report missing: {context}')
           if int(context.get('board_rows') or 0)<=0:
-              raise SystemExit(f'v5.8.2 context has no board rows: {context}')
-          if after['profiles']>0:
-              required_positive=['exact_match_player_ids','real_match_rows','five_player_lineups','players_in_lineup','projection_ready_rows']
-              bad=[k for k in required_positive if int(context.get(k) or 0)<=0]
-              if bad:
-                  raise SystemExit(f'v5.8.2 verified-context pipeline incomplete {bad}: {context}')
+              raise SystemExit(f'v5.8.3 context has no board rows: {context}')
+
+          # These are Official-readiness diagnostics, not cache-publication gates.
+          # A player missing exact IDs/lineup stays DATA BUILDING/PASS in the app,
+          # but fresh real Underdog lines must still be published for visibility.
+          required_positive=['exact_match_player_ids','real_match_rows','five_player_lineups','players_in_lineup','projection_ready_rows']
+          missing_context=[k for k in required_positive if int(context.get(k) or 0)<=0]
+          print('verified-context readiness:', {'missing':missing_context,'context':context})
+
           live=load('cs2_live_line_catalog.json',{})
-          if not isinstance(live,dict) or live.get('version')!='5.8.2':
-              raise SystemExit(f'v5.8.2 live-line catalog missing/wrong: {live}')
+          if not isinstance(live,dict) or live.get('version') not in {'5.8.2','5.8.3'}:
+              raise SystemExit(f'live-line catalog missing/wrong: {live}')
           if int(live.get('all_cs2_lines') or 0)<=0:
-              raise SystemExit(f'v5.8.2 live-line catalog empty: {live}')
+              raise SystemExit(f'live-line catalog empty: {live}')
           if int(live.get('model_supported_lines') or 0)<=0:
-              raise SystemExit(f'v5.8.2 found no Maps 1-2 kill lines: {live}')
-          print('collector validation:', {'before':before,'after':after,'context':context,'live_line_catalog':{k:v for k,v in live.items() if k!='rows'}})
+              raise SystemExit(f'found no Maps 1-2 kill lines: {live}')
+
+          board_status=s.get('board_status') or {}
+          completeness=board_status.get('v583_line_completeness') or {}
+          if not completeness:
+              raise SystemExit(f'v5.8.3 line-completeness report missing: {board_status}')
+          supported_input=int(completeness.get('supported_input_rows') or 0)
+          supported_visible=int(completeness.get('supported_rows_visible') or 0)
+          if supported_input<=0:
+              raise SystemExit(f'v5.8.3 saw no supported Maps 1-2 inputs: {completeness}')
+          if supported_visible < supported_input:
+              raise SystemExit(f'v5.8.3 dropped supported lines: {completeness}')
+          print('collector validation:', {
+              'before':before,'after':after,'context':context,
+              'line_completeness':completeness,
+              'live_line_catalog':{k:v for k,v in live.items() if k!='rows'}
+          })
           PY
 
-      - name: Build portable v5.8.2 data cache
+      - name: Build portable v5.8.3 runtime data cache
         run: |
           rm -rf /tmp/cs2_cache_publish
           python github_cache_sync_v582.py package --data-dir /tmp/cs2_engine --output-dir /tmp/cs2_cache_publish
@@ -173,10 +202,10 @@ jobs:
           required={'cs2_provider_cache.json','player_database.json','team_database.json','match_database.json','map_database.json','roster_database.json','veto_database.json','cs2_line_history.json','cs2_core_v42.sqlite3','cs2_data_readiness.json','cs2_grading_health.json','cs2_operational_status.json','cs2_context_health.json','cs2_live_line_catalog.json'}
           missing=required-names
           if missing: raise SystemExit(f'refusing cache missing required data: {sorted(missing)}')
-          if m.get('repo_cache_version')!='5.8.2': raise SystemExit(f'wrong cache version: {m.get("repo_cache_version")}')
+          if m.get('repo_cache_version')!='5.8.2': raise SystemExit(f'wrong cache-format version: {m.get("repo_cache_version")}')
           for standalone in ['cs2_provider_cache.json','cs2_data_readiness.json','cs2_grading_health.json','cs2_operational_status.json','cs2_context_health.json','cs2_live_line_catalog.json']:
               if not (root/standalone).exists(): raise SystemExit(f'missing standalone status file: {standalone}')
-          print('cache validation:', {'files':len(files),'archive_size':m.get('archive_size'),'required_ok':True})
+          print('cache validation:', {'runtime':'5.8.3','cache_format':m.get('repo_cache_version'),'files':len(files),'archive_size':m.get('archive_size'),'required_ok':True})
           PY
           ls -lh /tmp/cs2_cache_publish
 
@@ -192,5 +221,5 @@ jobs:
           git rm -rf . || true
           cp -a /tmp/cs2_cache_publish/. .
           git add -A
-          git commit -m "Refresh CS2 v5.8.2 verified live data $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          git commit -m "Refresh CS2 v5.8.3 live data $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           git push origin HEAD:data-cache --force
