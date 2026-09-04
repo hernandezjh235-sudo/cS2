@@ -4,8 +4,7 @@ set -euo pipefail
 APP_PORT="${PORT:-8501}"
 DATA_DIR="${CS2_DATA_DIR:-/data/cs2_engine}"
 
-# Shared Railway-volume defaults. These control data acquisition / gating only;
-# they do not alter the protected projection math.
+# Full-data settings. These control collection/gating only; projection math is untouched.
 export CS2_DATA_DIR="${DATA_DIR}"
 export CS2_ASSISTED_OFFICIAL="${CS2_ASSISTED_OFFICIAL:-false}"
 export CS2_AUTO_HARVEST_HISTORY="${CS2_AUTO_HARVEST_HISTORY:-true}"
@@ -13,31 +12,22 @@ export CS2_COLLECT_PROJECTIONS="${CS2_COLLECT_PROJECTIONS:-true}"
 export CS2_AUTO_GRADE="${CS2_AUTO_GRADE:-true}"
 export CS2_DEEP_DATA="${CS2_DEEP_DATA:-true}"
 export CS2_BO3_PROFILES_PER_REFRESH="${CS2_BO3_PROFILES_PER_REFRESH:-180}"
-# Full-gas direct recovery within the v5.3 provider-safe caps.
 export CS2_AUTOFEED_DIRECT_PROFILE_BATCH="${CS2_AUTOFEED_DIRECT_PROFILE_BATCH:-60}"
 export CS2_AUTOFEED_DIRECT_WORKERS="${CS2_AUTOFEED_DIRECT_WORKERS:-4}"
 export CS2_EMBEDDED_COLLECTOR="${CS2_EMBEDDED_COLLECTOR:-true}"
 
-# Railway volumes are normally mounted at /data. Local runs may not have it.
 mkdir -p "${DATA_DIR}" 2>/dev/null || true
 
-# Apply idempotent data/identity/persistence patches before launch.
-if [[ -f "autofeed_patch.py" ]]; then
-  python autofeed_patch.py app.py
-fi
-if [[ -f "autofeed_recovery_v53.py" ]]; then
-  python autofeed_recovery_v53.py app.py
-fi
+# Web health must not depend on a data-provider patch or recovery request.
+# The committed app is syntax-checked and Streamlit starts immediately.
+python -m py_compile app.py collector.py
 
-# Fail early with a clear deployment log if the source is invalid.
-python -m py_compile app.py collector.py autofeed_patch.py autofeed_recovery_v53.py
-
-# Self-feeding mode: the web service also runs the collector every 10 minutes.
-# Keeping the cadence at 10 minutes avoids worsening upstream 429 throttling;
-# each cycle now uses the maximum v5.3 direct recovery batch/workers instead.
-if [[ "${CS2_EMBEDDED_COLLECTOR,,}" =~ ^(1|true|yes|on)$ ]]; then
+# Full-gas data collection runs independently after the web server has had time
+# to become healthy. collector.py patches an isolated temporary copy of app.py,
+# never the live Streamlit source file.
+if [[ "${CS2_EMBEDDED_COLLECTOR}" =~ ^(1|true|TRUE|True|yes|YES|Yes|on|ON|On)$ ]]; then
   (
-    sleep 20
+    sleep 60
     while true; do
       python collector.py || true
       sleep 600
@@ -49,4 +39,5 @@ exec python -m streamlit run app.py \
   --server.address=0.0.0.0 \
   --server.port="${APP_PORT}" \
   --server.headless=true \
+  --server.fileWatcherType=none \
   --browser.gatherUsageStats=false
