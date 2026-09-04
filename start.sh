@@ -13,7 +13,7 @@ export CS2_COLLECT_PROJECTIONS="${CS2_COLLECT_PROJECTIONS:-true}"
 export CS2_AUTO_GRADE="${CS2_AUTO_GRADE:-true}"
 export CS2_DEEP_DATA="${CS2_DEEP_DATA:-true}"
 export CS2_BO3_PROFILES_PER_REFRESH="${CS2_BO3_PROFILES_PER_REFRESH:-180}"
-export CS2_AUTOFEED_DIRECT_PROFILE_BATCH="${CS2_AUTOFEED_DIRECT_PROFILE_BATCH:-60}"
+export CS2_AUTOFEED_DIRECT_PROFILE_BATCH="${CS2_AUTOFEED_DIRECT_PROFILE_BATCH:-120}"
 export CS2_AUTOFEED_DIRECT_WORKERS="${CS2_AUTOFEED_DIRECT_WORKERS:-4}"
 export CS2_HLTV_BATCH_PAGES="${CS2_HLTV_BATCH_PAGES:-12}"
 export CS2_HLTV_BATCH_WORKERS="${CS2_HLTV_BATCH_WORKERS:-4}"
@@ -21,6 +21,8 @@ export CS2_BRIDGE_REPO="${CS2_BRIDGE_REPO:-hernandezjh235-sudo/cS2}"
 export CS2_BRIDGE_BRANCH="${CS2_BRIDGE_BRANCH:-data-cache}"
 export CS2_EMBEDDED_COLLECTOR="${CS2_EMBEDDED_COLLECTOR:-true}"
 export CS2_WEB_FAST_REFRESH="${CS2_WEB_FAST_REFRESH:-true}"
+# Browser refreshes stay cache-first/fast. The background collector explicitly
+# overrides this to true for verified provider recovery.
 export CS2_WEB_ALLOW_PROVIDER_NETWORK="${CS2_WEB_ALLOW_PROVIDER_NETWORK:-false}"
 export CS2_COLLECTOR_INTERVAL_SECONDS="${CS2_COLLECTOR_INTERVAL_SECONDS:-180}"
 
@@ -45,6 +47,8 @@ if [[ "${CS2_EMBEDDED_COLLECTOR}" =~ ^(1|true|TRUE|True|yes|YES|Yes|on|ON|On)$ ]
       python github_cache_sync_v582.py pull --data-dir "${DATA_DIR}" --repo "${CS2_BRIDGE_REPO}" --branch "${CS2_BRIDGE_BRANCH}" || true
     fi
     while true; do
+      CS2_WEB_ALLOW_PROVIDER_NETWORK=true \
+      CS2_AUTOFEED_DIRECT_PROFILE_BATCH="${CS2_AUTOFEED_DIRECT_PROFILE_BATCH}" \
       python collector_v55.py || true
       sleep "${CS2_COLLECTOR_INTERVAL_SECONDS}"
     done
