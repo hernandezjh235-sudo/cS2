@@ -14,7 +14,7 @@ on:
       - "railway.collector.toml"
       - ".github/workflows/cs2-data-cache.yml"
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -22,7 +22,7 @@ permissions:
 
 concurrency:
   group: cs2-data-cache
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   collect:
