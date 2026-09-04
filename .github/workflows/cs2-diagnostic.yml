@@ -1,0 +1,91 @@
+name: CS2 Pipeline Diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cs2-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cs2-pipeline-diagnostic
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Restore cache
+        env:
+          CS2_DATA_DIR: /tmp/cs2_engine
+        run: |
+          mkdir -p /tmp/cs2_engine
+          python github_cache_sync_v582.py pull --data-dir /tmp/cs2_engine --repo "${GITHUB_REPOSITORY}" --branch data-cache || true
+      - name: Run collector without hiding diagnostics
+        continue-on-error: true
+        env:
+          CS2_DATA_DIR: /tmp/cs2_engine
+          CS2_BRIDGE_REPO: ${{ github.repository }}
+          CS2_BRIDGE_BRANCH: data-cache
+          CS2_ASSISTED_OFFICIAL: "false"
+          CS2_AUTO_HARVEST_HISTORY: "true"
+          CS2_COLLECT_PROJECTIONS: "true"
+          CS2_AUTO_GRADE: "true"
+          CS2_DEEP_DATA: "true"
+          CS2_WEB_ALLOW_PROVIDER_NETWORK: "true"
+          CS2_BO3_PROFILES_PER_REFRESH: "180"
+          CS2_AUTOFEED_DIRECT_PROFILE_BATCH: "120"
+          CS2_PROFILE_RECOVERY_PASSES: "3"
+          CS2_AUTOFEED_DIRECT_WORKERS: "4"
+          CS2_HLTV_BATCH_PAGES: "12"
+          CS2_HLTV_BATCH_WORKERS: "4"
+          JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
+        run: |
+          python collector_v55.py || true
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('/tmp/cs2_engine')
+          names=['.autofeed_collector_status.json','cs2_context_health.json','cs2_data_readiness.json','cs2_operational_status.json','cs2_grading_health.json','cs2_live_line_catalog.json','cs2_provider_cache.json','cs2_official_snapshots.json','cs2_graded_results.json']
+          summary={}
+          for name in names:
+              p=root/name
+              if not p.exists():
+                  summary[name]={'missing':True}; continue
+              try:
+                  obj=json.loads(p.read_text())
+                  if name=='cs2_live_line_catalog.json' and isinstance(obj,dict):
+                      obj={k:v for k,v in obj.items() if k!='rows'}
+                  if name=='cs2_provider_cache.json' and isinstance(obj,dict):
+                      obj={'schema_version':obj.get('schema_version'),'generated_at':obj.get('generated_at'),'profiles':len(obj.get('profiles') or {}),'teams':len(obj.get('teams') or {}),'matches':len(obj.get('matches') or []),'source_status':obj.get('source_status')}
+                  if isinstance(obj,list): obj={'rows':len(obj)}
+                  summary[name]=obj
+              except Exception as e:
+                  summary[name]={'error':str(e),'bytes':p.stat().st_size}
+          (root/'v589_diagnostic_summary.json').write_text(json.dumps(summary,indent=2,default=str))
+          print(json.dumps(summary,indent=2,default=str))
+          PY
+      - name: Upload v5.8.9 diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cs2-v589-diagnostics
+          path: |
+            /tmp/cs2_engine/v589_diagnostic_summary.json
+            /tmp/cs2_engine/.autofeed_collector_status.json
+            /tmp/cs2_engine/cs2_context_health.json
+            /tmp/cs2_engine/cs2_data_readiness.json
+            /tmp/cs2_engine/cs2_operational_status.json
+            /tmp/cs2_engine/cs2_grading_health.json
+          if-no-files-found: warn
+          retention-days: 3
