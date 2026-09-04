@@ -11908,14 +11908,188 @@ if not board:
         st.caption(f"Underdog pull status: ok={ud_status.get('ok')} · rows={ud_status.get('rows', 0)} · provider endpoint attempts={len(ud_status.get('statuses') or [])}")
 
 # ============================================================
+# APP AUDIT + DATA HEALTH (additive only; projection math untouched)
+# ============================================================
+
+def _safe_len_json(path: str) -> int:
+    try:
+        data = load_json(path, [])
+        if isinstance(data, (list, dict)):
+            return len(data)
+    except Exception:
+        pass
+    return 0
+
+
+def _sqlite_table_count(table_name: str) -> int:
+    allowed = {
+        "projections", "demo_events", "demo_rounds", "roster_events", "model_parameters",
+        "entity_snapshots", "market_ticks", "grading_audit", "model_fit_history", "team_map_observations"
+    }
+    if table_name not in allowed:
+        return 0
+    try:
+        with _sqlite_connect() as conn:
+            row = conn.execute(f"SELECT COUNT(*) AS n FROM {table_name}").fetchone()
+            return int(row["n"] if row is not None else 0)
+    except Exception:
+        return 0
+
+
+def _sqlite_grading_audit_rows() -> List[Dict[str, Any]]:
+    try:
+        with _sqlite_connect() as conn:
+            rows = conn.execute("""SELECT snapshot_id,match_id,player_key,map1_id,map2_id,map1_name,map2_name,
+                                         map1_kills,map2_kills,total_kills,void_reason,confidence,payload_json,created_at
+                                  FROM grading_audit ORDER BY created_at DESC""").fetchall()
+        out = []
+        for row in rows:
+            rec = dict(row)
+            try:
+                rec["payload"] = json.loads(rec.pop("payload_json") or "{}")
+            except Exception:
+                rec["payload"] = {}
+            out.append(rec)
+        return out
+    except Exception:
+        return []
+
+
+def build_app_audit_dataframe() -> pd.DataFrame:
+    """One row per frozen pregame snapshot with final grading evidence when available."""
+    picks = load_json(PICK_LOG, [])
+    results = load_json(RESULT_LOG, [])
+    picks = picks if isinstance(picks, list) else []
+    results = results if isinstance(results, list) else []
+    result_by_id = {str(x.get("snapshot_id") or ""): x for x in results if isinstance(x, dict)}
+    audit_by_id = {str(x.get("snapshot_id") or ""): x for x in _sqlite_grading_audit_rows() if x.get("snapshot_id")}
+
+    # Include every saved snapshot plus any graded result that survived without its original JSON row.
+    base_rows = []
+    seen = set()
+    for row in picks + results:
+        if not isinstance(row, dict):
+            continue
+        sid = str(row.get("snapshot_id") or snapshot_key(row))
+        if sid in seen:
+            continue
+        seen.add(sid)
+        pre = dict(row)
+        final = result_by_id.get(sid, {})
+        merged = dict(pre)
+        merged.update(final)
+        sql_audit = audit_by_id.get(sid, {})
+        grade_meta = merged.get("grade_meta") if isinstance(merged.get("grade_meta"), dict) else {}
+
+        projection = safe_float(merged.get("projection_before_learning"), None)
+        if projection is None:
+            projection = safe_float(merged.get("projection"), None)
+        actual = safe_float(merged.get("actual_kills"), None)
+        line = safe_float(merged.get("line"), None)
+        lean = str(merged.get("lean") or "").upper()
+        proj_error = (actual - projection) if actual is not None and projection is not None else None
+        line_margin_raw = (actual - line) if actual is not None and line is not None else None
+        # Positive line margin means the actual moved in the selected direction.
+        selected_margin = None
+        if line_margin_raw is not None:
+            selected_margin = line_margin_raw if lean == "OVER" else -line_margin_raw if lean == "UNDER" else None
+
+        base_rows.append({
+            "snapshot_id": sid,
+            "saved_at": merged.get("saved_at") or merged.get("created_at"),
+            "graded_at": merged.get("graded_at"),
+            "player": merged.get("player"),
+            "team": merged.get("team"),
+            "opponent": merged.get("opponent"),
+            "matchup": merged.get("matchup"),
+            "match_url": merged.get("match_url"),
+            "line": line,
+            "projection": projection,
+            "lean": lean,
+            "probability": safe_float(merged.get("probability"), None),
+            "raw_probability": safe_float(merged.get("raw_probability"), None),
+            "edge": safe_float(merged.get("edge"), None),
+            "status": merged.get("status"),
+            "status_label": merged.get("status_label"),
+            "official_mode": merged.get("official_mode"),
+            "assisted_official": bool(merged.get("assisted_official")),
+            "data_score": safe_float(merged.get("data_score"), None),
+            "profile_maps": safe_int(merged.get("profile_maps"), None),
+            "expected_rounds": safe_float(merged.get("expected_rounds"), None),
+            "adjusted_kpr": safe_float(merged.get("adjusted_kpr"), None),
+            "likely_maps": merged.get("likely_maps"),
+            "veto_state": merged.get("veto_state"),
+            "event_tier": merged.get("event_tier"),
+            "role": merged.get("role"),
+            "actual_kills": actual,
+            "graded_result": merged.get("graded_result"),
+            "projection_error": proj_error,
+            "selected_line_margin": selected_margin,
+            "grade_source": merged.get("grade_source"),
+            "team_total_kills": merged.get("team_total_kills") or grade_meta.get("team_total_kills"),
+            "observed_player_share": merged.get("observed_player_share") or grade_meta.get("observed_player_share"),
+            "map1_name": sql_audit.get("map1_name") or grade_meta.get("map1_name"),
+            "map1_kills": sql_audit.get("map1_kills"),
+            "map2_name": sql_audit.get("map2_name") or grade_meta.get("map2_name"),
+            "map2_kills": sql_audit.get("map2_kills"),
+            "audit_total_kills": sql_audit.get("total_kills"),
+            "grading_confidence": safe_float(sql_audit.get("confidence"), None),
+            "void_reason": sql_audit.get("void_reason") or grade_meta.get("void_reason"),
+            "learning_eligible": str(merged.get("graded_result") or "") in {"WIN", "LOSS", "PUSH"} and actual is not None,
+        })
+    return pd.DataFrame(base_rows)
+
+
+def app_data_health_report() -> Dict[str, Any]:
+    picks = load_json(PICK_LOG, [])
+    results = load_json(RESULT_LOG, [])
+    picks = picks if isinstance(picks, list) else []
+    results = results if isinstance(results, list) else []
+    graded_ids = {str(x.get("snapshot_id") or "") for x in results if isinstance(x, dict) and x.get("graded_result") in {"WIN","LOSS","PUSH"}}
+    pending = sum(1 for x in picks if isinstance(x, dict) and str(x.get("snapshot_id") or "") not in graded_ids)
+    core_exists = os.path.exists(CORE_DB_FILE)
+    try:
+        core_size_mb = round(os.path.getsize(CORE_DB_FILE) / (1024 * 1024), 2) if core_exists else 0.0
+    except Exception:
+        core_size_mb = 0.0
+    storage_ok = os.path.isdir(STORAGE_DIR) and os.access(STORAGE_DIR, os.W_OK)
+    return {
+        "storage_dir": STORAGE_DIR,
+        "storage_writable": storage_ok,
+        "core_db_exists": core_exists,
+        "core_db_size_mb": core_size_mb,
+        "saved_snapshots": len(picks),
+        "graded_results": len(results),
+        "pending_saved_grades": pending,
+        "learning_profiles": _safe_len_json(LEARNING_FILE),
+        "line_history": _safe_len_json(LINE_HISTORY_FILE),
+        "player_database": _safe_len_json(PLAYER_DATABASE_FILE),
+        "team_database": _safe_len_json(TEAM_DATABASE_FILE),
+        "match_database": _safe_len_json(MATCH_DATABASE_FILE),
+        "map_database": _safe_len_json(MAP_DATABASE_FILE),
+        "roster_database": _safe_len_json(ROSTER_DATABASE_FILE),
+        "veto_database": _safe_len_json(VETO_DATABASE_FILE),
+        "sqlite_projections": _sqlite_table_count("projections"),
+        "sqlite_graded_audits": _sqlite_table_count("grading_audit"),
+        "sqlite_market_ticks": _sqlite_table_count("market_ticks"),
+        "sqlite_entity_snapshots": _sqlite_table_count("entity_snapshots"),
+        "sqlite_team_map_observations": _sqlite_table_count("team_map_observations"),
+        "sqlite_demo_events": _sqlite_table_count("demo_events"),
+        "github_backup_configured": bool(get_secret("GITHUB_TOKEN") and get_secret("GITHUB_REPO")),
+        "github_auto_backup": str(get_secret("GITHUB_AUTO_BACKUP", "")).lower() in {"1", "true", "yes"},
+    }
+
+
+# ============================================================
 # MAIN TABS
 # ============================================================
 
-tab_live, tab_official, tab_saved, tab_grade, tab_calibration, tab_special, tab_data, tab_debug = st.tabs([
+tab_live, tab_official, tab_saved, tab_grade, tab_audit, tab_calibration, tab_special, tab_data, tab_debug = st.tabs([
     "🎯 Live Projections",
     "🔥 Official Board",
     "📌 Saved Board",
     "✅ Grading + Learning",
+    "🧾 App Audit",
     "📊 Calibration",
     "🧪 Specialized Markets",
     "🧰 Data Manager",
@@ -12172,6 +12346,105 @@ with tab_grade:
         st.download_button("Download graded history", rdf.to_csv(index=False).encode(), "cs2_graded_history.csv", "text/csv", use_container_width=True)
     else:
         st.info("Learning begins after saved pre-match projections are graded.")
+
+with tab_audit:
+    st.markdown('<div class="section-title-pro">CS2 App Audit — Pregame → Result → Learning</div>', unsafe_allow_html=True)
+    st.caption("Audit is additive only. It reads frozen pregame snapshots and grading evidence; it does not alter the projection formula.")
+
+    health = app_data_health_report()
+    h1,h2,h3,h4,h5 = st.columns(5)
+    h1.metric("Saved Pregame", health.get("saved_snapshots",0))
+    h2.metric("Graded Results", health.get("graded_results",0))
+    h3.metric("Pending Grades", health.get("pending_saved_grades",0))
+    h4.metric("SQLite Projections", health.get("sqlite_projections",0))
+    h5.metric("Grading Audits", health.get("sqlite_graded_audits",0))
+
+    storage_label = "CONNECTED" if health.get("storage_writable") else "NOT WRITABLE"
+    backup_label = "READY" if health.get("github_backup_configured") else "NOT CONFIGURED"
+    st.info(f"Storage: {health.get('storage_dir')} · {storage_label} · Core DB: {health.get('core_db_size_mb',0):.2f} MB · GitHub backup: {backup_label}")
+
+    st.markdown('<div class="section-title-pro">Data Health</div>', unsafe_allow_html=True)
+    health_rows = [
+        {"Dataset":"Player database","Rows":health.get("player_database",0),"Status":"✅" if health.get("player_database",0) else "⚠️"},
+        {"Dataset":"Team database","Rows":health.get("team_database",0),"Status":"✅" if health.get("team_database",0) else "⚠️"},
+        {"Dataset":"Match database","Rows":health.get("match_database",0),"Status":"✅" if health.get("match_database",0) else "⚠️"},
+        {"Dataset":"Map database","Rows":health.get("map_database",0),"Status":"✅" if health.get("map_database",0) else "⚠️"},
+        {"Dataset":"Roster database","Rows":health.get("roster_database",0),"Status":"✅" if health.get("roster_database",0) else "⚠️"},
+        {"Dataset":"Veto database","Rows":health.get("veto_database",0),"Status":"✅" if health.get("veto_database",0) else "⚠️"},
+        {"Dataset":"Line history","Rows":health.get("line_history",0),"Status":"✅" if health.get("line_history",0) else "⚠️"},
+        {"Dataset":"Market ticks (SQLite)","Rows":health.get("sqlite_market_ticks",0),"Status":"✅" if health.get("sqlite_market_ticks",0) else "⚠️"},
+        {"Dataset":"Entity snapshots (SQLite)","Rows":health.get("sqlite_entity_snapshots",0),"Status":"✅" if health.get("sqlite_entity_snapshots",0) else "⚠️"},
+        {"Dataset":"Team-map observations","Rows":health.get("sqlite_team_map_observations",0),"Status":"✅" if health.get("sqlite_team_map_observations",0) else "⚠️"},
+        {"Dataset":"Demo events","Rows":health.get("sqlite_demo_events",0),"Status":"✅" if health.get("sqlite_demo_events",0) else "—"},
+    ]
+    st.dataframe(pd.DataFrame(health_rows), use_container_width=True, hide_index=True)
+
+    audit_df = build_app_audit_dataframe()
+    st.markdown('<div class="section-title-pro">Full Pregame Audit Ledger</div>', unsafe_allow_html=True)
+    if audit_df.empty:
+        st.info("No frozen pregame snapshots yet. Save the board before matches; this audit will fill automatically after grading.")
+    else:
+        graded_df = audit_df[audit_df["graded_result"].isin(["WIN","LOSS","PUSH"])].copy() if "graded_result" in audit_df.columns else pd.DataFrame()
+        wins = int((graded_df["graded_result"] == "WIN").sum()) if not graded_df.empty else 0
+        losses = int((graded_df["graded_result"] == "LOSS").sum()) if not graded_df.empty else 0
+        pushes = int((graded_df["graded_result"] == "PUSH").sum()) if not graded_df.empty else 0
+        a1,a2,a3,a4,a5 = st.columns(5)
+        a1.metric("Audit Rows", len(audit_df))
+        a2.metric("Record", f"{wins}-{losses}-{pushes}")
+        a3.metric("Win Rate", f"{wins/max(wins+losses,1)*100:.1f}%")
+        if not graded_df.empty and "projection_error" in graded_df.columns:
+            pe = pd.to_numeric(graded_df["projection_error"], errors="coerce")
+            a4.metric("Projection MAE", f"{pe.abs().mean():.2f}" if pe.notna().any() else "—")
+            a5.metric("Projection Bias", f"{pe.mean():+.2f}" if pe.notna().any() else "—")
+        else:
+            a4.metric("Projection MAE", "—")
+            a5.metric("Projection Bias", "—")
+
+        display_cols = [c for c in [
+            "saved_at","player","team","opponent","line","projection","lean","probability","edge",
+            "status_label","official_mode","assisted_official","data_score","profile_maps","expected_rounds",
+            "adjusted_kpr","likely_maps","actual_kills","graded_result","projection_error","selected_line_margin",
+            "map1_name","map1_kills","map2_name","map2_kills","grading_confidence","void_reason","grade_source"
+        ] if c in audit_df.columns]
+        order_col = "saved_at" if "saved_at" in audit_df.columns else display_cols[0]
+        st.dataframe(audit_df[display_cols].sort_values(order_col, ascending=False).head(_preview_limit), use_container_width=True, hide_index=True)
+        st.download_button(
+            "⬇️ DOWNLOAD FULL APP AUDIT CSV",
+            audit_df.to_csv(index=False).encode("utf-8"),
+            f"cs2_app_audit_{local_now().date().isoformat()}.csv",
+            "text/csv",
+            use_container_width=True,
+            type="primary",
+        )
+
+        if not graded_df.empty:
+            st.markdown('<div class="section-title-pro">What Is Winning / Losing</div>', unsafe_allow_html=True)
+            breakdown_frames = []
+            for group_col in ["official_mode","status","lean","assisted_official","event_tier","veto_state"]:
+                if group_col not in graded_df.columns:
+                    continue
+                for key, grp in graded_df.groupby(group_col, dropna=False):
+                    w = int((grp["graded_result"]=="WIN").sum())
+                    l = int((grp["graded_result"]=="LOSS").sum())
+                    psh = int((grp["graded_result"]=="PUSH").sum())
+                    breakdown_frames.append({"Category":group_col,"Group":str(key),"Graded":len(grp),"Record":f"{w}-{l}-{psh}","Win Rate %":round(w/max(w+l,1)*100,1)})
+            if breakdown_frames:
+                st.dataframe(pd.DataFrame(breakdown_frames).sort_values(["Category","Graded"], ascending=[True,False]), use_container_width=True, hide_index=True)
+
+            st.markdown('<div class="section-title-pro">Largest Projection Misses</div>', unsafe_allow_html=True)
+            miss = graded_df.copy()
+            miss["abs_projection_error"] = pd.to_numeric(miss.get("projection_error"), errors="coerce").abs()
+            miss_cols = [c for c in ["player","team","opponent","line","projection","lean","actual_kills","graded_result","projection_error","expected_rounds","adjusted_kpr","data_score","profile_maps","likely_maps"] if c in miss.columns]
+            st.dataframe(miss.sort_values("abs_projection_error", ascending=False)[miss_cols].head(25), use_container_width=True, hide_index=True)
+
+    st.markdown('<div class="section-title-pro">Audit Integrity</div>', unsafe_allow_html=True)
+    q1,q2,q3,q4 = st.columns(4)
+    q1.metric("Core DB", "✅" if health.get("core_db_exists") else "❌")
+    q2.metric("Writable Volume", "✅" if health.get("storage_writable") else "❌")
+    q3.metric("GitHub Backup", "✅" if health.get("github_backup_configured") else "⚠️")
+    q4.metric("Auto Backup", "✅" if health.get("github_auto_backup") else "OFF")
+    st.caption("The audit records what the app knew before the match, then attaches verified grading evidence afterward. No postgame data is allowed to rewrite the frozen pregame snapshot.")
+
 
 with tab_calibration:
     st.markdown('<div class="section-title-pro">Probability Calibration + Walk-Forward Backtest</div>', unsafe_allow_html=True)
@@ -12768,6 +13041,7 @@ with tab_debug:
         PLAYER_DATABASE_FILE, TEAM_DATABASE_FILE, MATCH_DATABASE_FILE, MAP_DATABASE_FILE,
         VETO_DATABASE_FILE, ROSTER_DATABASE_FILE, CALIBRATION_FILE, PATCH_ERAS_FILE,
         DEMO_DATABASE_FILE, BOOK_ODDS_HISTORY_FILE, SLIP_HISTORY_FILE, HISTORICAL_ASOF_FILE,
+        CORE_DB_FILE,
     ]
     clearable_log_files = [
         PICK_LOG, RESULT_LOG, LEARNING_FILE, LINE_HISTORY_FILE, MANUAL_ODDS_FILE,
