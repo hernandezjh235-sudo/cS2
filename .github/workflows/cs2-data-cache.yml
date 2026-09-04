@@ -49,17 +49,19 @@ jobs:
         run: |
           mkdir -p /tmp/cs2_engine
           RUNTIME="$(python prepare_web_app.py | tail -n 1)"
-          python -m py_compile "$RUNTIME" collector_v55.py github_cache_sync_v55.py autofeed_production_v56.py autofeed_identity_v562.py autofeed_context_v57.py
+          python -m py_compile "$RUNTIME" collector_v55.py github_cache_sync_v55.py autofeed_production_v56.py autofeed_identity_v562.py autofeed_context_v57.py autofeed_liveboard_v58.py
           python - <<'PY'
           import json
           from pathlib import Path
           p=Path('/tmp/cs2_engine/.web_runtime_status.json')
           if not p.exists(): raise SystemExit('web runtime status missing')
           s=json.loads(p.read_text())
-          if not s.get('ok') or s.get('runtime_version')!='5.7': raise SystemExit(f'v5.7 runtime not ready: {s}')
+          if not s.get('ok') or s.get('runtime_version')!='5.8': raise SystemExit(f'v5.8 runtime not ready: {s}')
           patches={x.get('file'):x for x in s.get('patches') or []}
           if not patches.get('autofeed_context_v57.py',{}).get('ok'):
               raise SystemExit(f'v5.7 context patch missing: {s}')
+          if not patches.get('autofeed_liveboard_v58.py',{}).get('ok'):
+              raise SystemExit(f'v5.8 live-line patch missing: {s}')
           print('runtime validation:',s)
           PY
 
@@ -147,7 +149,10 @@ jobs:
               bad=[k for k in required_positive if int(context.get(k) or 0)<=0]
               if bad:
                   raise SystemExit(f'v5.7 verified-context pipeline incomplete {bad}: {context}')
-          print('collector validation:', {'before':before,'after':after,'context':context})
+          live=load('cs2_live_line_catalog.json',{})
+          if live and live.get('version')!='5.8':
+              raise SystemExit(f'v5.8 live-line catalog has wrong version: {live.get("version")}')
+          print('collector validation:', {'before':before,'after':after,'context':context,'live_line_catalog':{k:v for k,v in live.items() if k!='rows'}})
           PY
 
       - name: Build portable v5.7 data cache
