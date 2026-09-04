@@ -18,6 +18,7 @@ PATCHES = [
     ROOT / "autofeed_identity_v551.py",
     ROOT / "autofeed_production_v56.py",
     ROOT / "autofeed_identity_v562.py",
+    ROOT / "autofeed_context_v57.py",
 ]
 
 
@@ -61,7 +62,7 @@ def main() -> int:
         compile(TARGET_APP.read_text(encoding="utf-8"), str(TARGET_APP), "exec")
         status["ok"] = True
         status["runtime_app"] = str(TARGET_APP)
-        status["runtime_version"] = "5.6.2"
+        status["runtime_version"] = "5.7"
         _write_status(status)
         print(str(TARGET_APP))
         return 0
