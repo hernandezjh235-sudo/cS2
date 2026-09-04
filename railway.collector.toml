@@ -2,6 +2,6 @@
 builder = "railpack"
 
 [deploy]
-startCommand = "python autofeed_patch.py app.py && python autofeed_recovery_v53.py app.py && python collector.py"
+startCommand = "CS2_BO3_PROFILES_PER_REFRESH=180 CS2_AUTOFEED_DIRECT_PROFILE_BATCH=60 CS2_AUTOFEED_DIRECT_WORKERS=4 python autofeed_patch.py app.py && python autofeed_recovery_v53.py app.py && CS2_BO3_PROFILES_PER_REFRESH=180 CS2_AUTOFEED_DIRECT_PROFILE_BATCH=60 CS2_AUTOFEED_DIRECT_WORKERS=4 python collector.py"
 cronSchedule = "*/10 * * * *"
 restartPolicyType = "NEVER"
