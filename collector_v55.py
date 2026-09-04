@@ -1,8 +1,9 @@
-"""OneWayPickz CS2 v5.8 collector entrypoint.
+"""OneWayPickz CS2 v5.8.2 collector entrypoint.
 
 Keeps protected projection math untouched while adding verified profile recovery,
 real match/player IDs, five-player roster context, durable identity persistence,
-complete live-line coverage, and verified pregame grading support.
+complete live-line coverage, primary-source context fastpath, and verified
+pregame grading support.
 """
 from __future__ import annotations
 
@@ -18,6 +19,7 @@ for patch in [
     ROOT / "autofeed_identity_v562.py",
     ROOT / "autofeed_context_v57.py",
     ROOT / "autofeed_liveboard_v58.py",
+    ROOT / "autofeed_liveboard_v582.py",
 ]:
     if patch not in base.PATCH_PATHS:
         base.PATCH_PATHS.append(patch)
@@ -38,6 +40,10 @@ def _bridge_match_from_row(ns: dict, row: dict):
     rec["data_readiness_score"] = row.get("data_readiness_score")
     rec["source_freshness"] = row.get("source_freshness") or {}
     rec["identity_ids"] = dict(row.get("identity_ids") or {})
+    rec["source_identity_ids"] = dict(row.get("source_identity_ids") or {})
+    rec["source_lineup_groups"] = list(row.get("source_lineup_groups") or [])
+    rec["source_roster_names"] = list(row.get("source_roster_names") or [])
+    rec["source_match_verified"] = bool(row.get("source_match_verified"))
     rec["current_roster_names"] = list(row.get("current_roster_names") or [])
     rec["current_roster_verified"] = bool(row.get("current_roster_verified"))
     rec["player_in_lineup"] = bool(row.get("player_in_lineup"))
@@ -75,7 +81,7 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
             merged["team"] = team
             merged["provider_team_verified"] = bool(dbrec.get("provider_team_verified", True))
             merged["identity_verified_at"] = dbrec.get("identity_verified_at")
-            merged["identity_verified_source"] = dbrec.get("identity_verified_source") or "v5.8 collector"
+            merged["identity_verified_source"] = dbrec.get("identity_verified_source") or "v5.8.2 collector"
             if dbrec.get("player_id") and not merged.get("player_id"):
                 merged["player_id"] = dbrec.get("player_id")
             profiles[key] = merged
@@ -92,18 +98,20 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
         except Exception:
             pass
 
-    bridge["schema_version"] = max(9, int(bridge.get("schema_version") or 0))
+    bridge["schema_version"] = max(10, int(bridge.get("schema_version") or 0))
     bridge["profiles"] = profiles
     bridge["teams"] = teams
     status = dict(bridge.get("source_status") or {})
     status.update({
-        "autofeed_version": "5.8",
+        "autofeed_version": "5.8.2",
         "verified_profile_count": len(profiles),
         "team_count": len(teams),
         "match_count": len(bridge.get("matches") or []),
         "verified_team_profiles": sum(bool((x or {}).get("team")) for x in profiles.values()),
         "exact_id_rows": sum(bool(((x or {}).get("identity_ids") or {}).get("match_id") and ((x or {}).get("identity_ids") or {}).get("player_id")) for x in board),
         "five_player_lineup_rows": sum(len(list((x or {}).get("current_roster_names") or [])) == 5 for x in board),
+        "source_exact_match_rows": sum(bool((x or {}).get("source_match_verified")) for x in board),
+        "source_five_player_rows": sum(bool((x or {}).get("source_five_player_lineup")) for x in board),
     })
     bridge["source_status"] = status
 
@@ -112,10 +120,10 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
     seed = ns.get("_v54_seed_databases_from_bridge")
     if callable(seed):
         try:
-            bridge["source_status"]["database_seed_v58"] = seed(bridge)
+            bridge["source_status"]["database_seed_v582"] = seed(bridge)
             ns["save_json"](str(path), bridge, force=True)
         except Exception as exc:
-            bridge["source_status"]["database_seed_v58_warning"] = str(exc)
+            bridge["source_status"]["database_seed_v582_warning"] = str(exc)
     return bridge
 
 
