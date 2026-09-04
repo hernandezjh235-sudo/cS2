@@ -4,7 +4,8 @@ set -euo pipefail
 APP_PORT="${PORT:-8501}"
 DATA_DIR="${CS2_DATA_DIR:-/data/cs2_engine}"
 
-# Full-data settings. These control collection/gating only; projection math is untouched.
+# Full verified-data settings. These change data acquisition/gating only.
+export PYTHONUNBUFFERED=1
 export CS2_DATA_DIR="${DATA_DIR}"
 export CS2_ASSISTED_OFFICIAL="${CS2_ASSISTED_OFFICIAL:-false}"
 export CS2_AUTO_HARVEST_HISTORY="${CS2_AUTO_HARVEST_HISTORY:-true}"
@@ -14,28 +15,37 @@ export CS2_DEEP_DATA="${CS2_DEEP_DATA:-true}"
 export CS2_BO3_PROFILES_PER_REFRESH="${CS2_BO3_PROFILES_PER_REFRESH:-180}"
 export CS2_AUTOFEED_DIRECT_PROFILE_BATCH="${CS2_AUTOFEED_DIRECT_PROFILE_BATCH:-60}"
 export CS2_AUTOFEED_DIRECT_WORKERS="${CS2_AUTOFEED_DIRECT_WORKERS:-4}"
+export CS2_BRIDGE_REPO="${CS2_BRIDGE_REPO:-hernandezjh235-sudo/cS2}"
+export CS2_BRIDGE_BRANCH="${CS2_BRIDGE_BRANCH:-data-cache}"
 export CS2_EMBEDDED_COLLECTOR="${CS2_EMBEDDED_COLLECTOR:-true}"
 
 mkdir -p "${DATA_DIR}" 2>/dev/null || true
 
-# Web health depends only on the committed Streamlit app.
-# Recovery/provider code is intentionally NOT part of web startup validation.
-python -m py_compile app.py
+# Build a verified-data runtime copy. It never mutates committed app.py.
+# If an overlay ever fails, prepare_web_app.py falls back to the known-good base
+# app so Railway health is not held hostage by the data layer.
+WEB_APP_PATH="$(python prepare_web_app.py | tail -n 1)"
+python -m py_compile "${WEB_APP_PATH}"
 
-# Full-gas collection is independent and delayed until Streamlit is already healthy.
-# collector.py patches an isolated /tmp copy of app.py and writes only persistent
-# data to CS2_DATA_DIR; it never mutates the live Streamlit source.
+# Data pipeline is deliberately independent from web health.
+# 1) restore/merge the public GitHub data-cache branch,
+# 2) deepen it locally with the Railway collector,
+# 3) repeat every 10 minutes.
 if [[ "${CS2_EMBEDDED_COLLECTOR}" =~ ^(1|true|TRUE|True|yes|YES|Yes|on|ON|On)$ ]]; then
   (
-    sleep 60
+    sleep 8
+    python github_cache_sync.py pull --data-dir "${DATA_DIR}" --repo "${CS2_BRIDGE_REPO}" --branch "${CS2_BRIDGE_BRANCH}" || true
+    sleep 7
     while true; do
       python collector.py || true
-      sleep 600
+      sleep 585
+      python github_cache_sync.py pull --data-dir "${DATA_DIR}" --repo "${CS2_BRIDGE_REPO}" --branch "${CS2_BRIDGE_BRANCH}" || true
+      sleep 15
     done
   ) &
 fi
 
-exec python -m streamlit run app.py \
+exec python -m streamlit run "${WEB_APP_PATH}" \
   --server.address=0.0.0.0 \
   --server.port="${APP_PORT}" \
   --server.headless=true \
