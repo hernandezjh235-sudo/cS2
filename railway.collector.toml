@@ -2,6 +2,6 @@
 builder = "railpack"
 
 [deploy]
-startCommand = "python collector.py"
+startCommand = "python autofeed_patch.py app.py && python collector.py"
 cronSchedule = "*/10 * * * *"
 restartPolicyType = "NEVER"
