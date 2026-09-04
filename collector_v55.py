@@ -1,9 +1,9 @@
-"""OneWayPickz CS2 v5.8.6 collector entrypoint.
+"""OneWayPickz CS2 v5.8.7 collector entrypoint.
 
 Keeps protected projection math untouched while adding verified profile recovery,
 real match/player IDs, five-player roster context, durable identity persistence,
 strict CS2-only source classification, complete live-line visibility, pre-model
-context handoff, deep provider recovery, pregame freeze, grading, and learning.
+context handoff, full provider/deep-data recovery, pregame freeze, grading, and learning.
 """
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ for patch in [
     ROOT / "autofeed_liveboard_v584.py",
     ROOT / "autofeed_premodel_v585.py",
     ROOT / "autofeed_verified_v586.py",
+    ROOT / "autofeed_completion_v587.py",
 ]:
     if patch not in base.PATCH_PATHS:
         base.PATCH_PATHS.append(patch)
@@ -55,6 +56,8 @@ def _bridge_match_from_row(ns: dict, row: dict):
     rec["lineup_verified"] = bool(row.get("lineup_verified"))
     rec["v585_premodel_context"] = bool(row.get("v585_premodel_context"))
     rec["v586_premodel_context"] = bool(row.get("v586_premodel_context"))
+    rec["v587_provider_context"] = bool(row.get("v587_provider_context"))
+    rec["provider_match_url"] = str(row.get("provider_match_url") or "")
     rec["provider_match_id"] = str(row.get("provider_match_id") or (row.get("identity_ids") or {}).get("match_id") or rec.get("provider_match_id") or "")
     return rec
 
@@ -88,7 +91,7 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
             merged["team"] = team
             merged["provider_team_verified"] = bool(dbrec.get("provider_team_verified", True))
             merged["identity_verified_at"] = dbrec.get("identity_verified_at")
-            merged["identity_verified_source"] = dbrec.get("identity_verified_source") or "v5.8.6 collector"
+            merged["identity_verified_source"] = dbrec.get("identity_verified_source") or "v5.8.7 collector"
             if dbrec.get("player_id") and not merged.get("player_id"):
                 merged["player_id"] = dbrec.get("player_id")
             profiles[key] = merged
@@ -105,12 +108,12 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
         except Exception:
             pass
 
-    bridge["schema_version"] = max(11, int(bridge.get("schema_version") or 0))
+    bridge["schema_version"] = max(12, int(bridge.get("schema_version") or 0))
     bridge["profiles"] = profiles
     bridge["teams"] = teams
     status = dict(bridge.get("source_status") or {})
     status.update({
-        "autofeed_version": "5.8.6",
+        "autofeed_version": "5.8.7",
         "verified_profile_count": len(profiles),
         "team_count": len(teams),
         "match_count": len(bridge.get("matches") or []),
@@ -120,6 +123,9 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
         "source_exact_match_rows": sum(bool((x or {}).get("source_match_verified")) for x in board),
         "source_five_player_rows": sum(bool((x or {}).get("source_five_player_lineup")) for x in board),
         "premodel_context_rows": sum(bool((x or {}).get("v586_premodel_context") or (x or {}).get("v585_premodel_context")) for x in board),
+        "provider_context_rows": sum(bool((x or {}).get("v587_provider_context")) for x in board),
+        "real_provider_match_rows": sum(str((x or {}).get("match_url") or "").startswith(("bo3://", "pandascore://", "https://bo3.gg/", "https://www.hltv.org/")) for x in board),
+        "deep_team_map_rows": sum((int((x or {}).get("team_recent_maps") or 0) > 0 and int((x or {}).get("opponent_mapstats_samples") or 0) > 0) for x in board),
         "projection_ready_rows": sum(bool((x or {}).get("projection_data_ready")) for x in board),
         "official_ready_rows": sum(bool((x or {}).get("official_data_ready")) for x in board),
         "non_cs2_rows_visible": sum(not bool(ns.get("_v586_is_cs2", lambda _: True)(x)) for x in board),
@@ -129,8 +135,10 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
         readiness = ns["load_json"](ns.get("V55_READINESS_FILE"), {}) if ns.get("V55_READINESS_FILE") else {}
         if isinstance(context, dict):
             status["context_health_version"] = context.get("version")
-            status["real_provider_match_rows"] = int(context.get("real_provider_match_rows") or 0)
+            status["real_provider_match_rows"] = int(context.get("real_provider_match_rows") or status.get("real_provider_match_rows") or 0)
             status["real_source_match_rows"] = int(context.get("real_source_match_rows") or 0)
+            status["verified_profile_rows"] = int(context.get("verified_profile_rows") or 0)
+            status["core_kpr_rows"] = int(context.get("core_kpr_rows") or 0)
         if isinstance(readiness, dict):
             status["readiness_version"] = readiness.get("version")
             status["missing_projection_requirements"] = dict(readiness.get("missing_projection_requirements") or {})
@@ -143,10 +151,10 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
     seed = ns.get("_v54_seed_databases_from_bridge")
     if callable(seed):
         try:
-            bridge["source_status"]["database_seed_v586"] = seed(bridge)
+            bridge["source_status"]["database_seed_v587"] = seed(bridge)
             ns["save_json"](str(path), bridge, force=True)
         except Exception as exc:
-            bridge["source_status"]["database_seed_v586_warning"] = str(exc)
+            bridge["source_status"]["database_seed_v587_warning"] = str(exc)
     return bridge
 
 
