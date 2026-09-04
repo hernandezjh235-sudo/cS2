@@ -1,8 +1,8 @@
-"""Railway cron collector for OneWayPickz CS2 v5.2 autofeed.
+"""Railway cron collector for OneWayPickz CS2 v5.3 autofeed.
 
 Runs every 10 minutes and keeps the shared Railway volume populated without
-manual CSV/demo uploads: real lines, market ticks, verified profiles, full-board
-projections, persistent entities, pregame freezes, and completed grading.
+manual CSV/demo uploads: real lines, market ticks, verified profiles, player/team
+mappings, full-board projections, persistent entities, pregame freezes, and grading.
 """
 from __future__ import annotations
 
@@ -14,7 +14,10 @@ import types
 from pathlib import Path
 
 APP_PATH = Path(__file__).with_name("app.py")
-PATCH_PATH = Path(__file__).with_name("autofeed_patch.py")
+PATCH_PATHS = [
+    Path(__file__).with_name("autofeed_patch.py"),
+    Path(__file__).with_name("autofeed_recovery_v53.py"),
+]
 MARKER = "# ============================================================\n# SESSION BOARD LOAD"
 
 
@@ -23,13 +26,14 @@ def truthy(name: str, default: str = "false") -> bool:
 
 
 def ensure_runtime_patch() -> None:
-    if not PATCH_PATH.exists():
-        return
-    spec = importlib.util.spec_from_file_location("cs2_autofeed_patch", PATCH_PATH)
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)
-    module.patch_app(APP_PATH)
+    for idx, patch_path in enumerate(PATCH_PATHS):
+        if not patch_path.exists():
+            continue
+        spec = importlib.util.spec_from_file_location(f"cs2_autofeed_patch_{idx}", patch_path)
+        module = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(module)
+        module.patch_app(APP_PATH)
 
 
 def load_engine() -> dict:
@@ -52,6 +56,8 @@ def main() -> int:
     os.environ.setdefault("CS2_AUTO_GRADE", "true")
     os.environ.setdefault("CS2_DEEP_DATA", "true")
     os.environ.setdefault("CS2_BO3_PROFILES_PER_REFRESH", "180")
+    os.environ.setdefault("CS2_AUTOFEED_DIRECT_PROFILE_BATCH", "24")
+    os.environ.setdefault("CS2_AUTOFEED_DIRECT_WORKERS", "3")
 
     ns = load_engine()
     ud_rows, ud_meta = ns["fetch_underdog_cs2_board"]()
@@ -70,6 +76,7 @@ def main() -> int:
     board = []
     board_status = {}
     profile_recovery = {}
+    direct_profile_recovery = {}
     freeze_status = {"added": 0, "skipped": 0, "eligible": 0}
     grade_status = {"graded": 0, "pending": 0, "errors": 0}
     maintenance = {}
@@ -78,6 +85,7 @@ def main() -> int:
     if props:
         players = list(dict.fromkeys(str(x.get("player") or "").strip() for x in props if str(x.get("player") or "").strip()))
 
+        # Existing v5.1 batch/cache path stays enabled.
         prefetch = ns.get("v48_prefetch_provider_data")
         if callable(prefetch):
             try:
@@ -85,13 +93,26 @@ def main() -> int:
             except Exception as exc:
                 profile_recovery = {"ok": False, "warning": str(exc), "requested": len(players)}
 
+        # V5.3 adds a controlled direct-BO3 progressive fallback. This is most
+        # useful when the Jina aggregate source returns HTTP 429. It also
+        # re-fetches cached profiles missing provider-team metadata so player
+        # side mappings can be corrected automatically.
+        direct_recovery = ns.get("_autofeed_direct_profile_recovery")
+        if callable(direct_recovery):
+            try:
+                direct_profile_recovery = direct_recovery(players) or {}
+            except Exception as exc:
+                direct_profile_recovery = {"ok": False, "warning": str(exc), "requested": len(players)}
+
         # Build every real Underdog row. Source TTLs/caches prevent needless
         # repeated network requests while the databases continue to deepen.
         board, board_status = ns["build_full_board"](props, truthy("CS2_DEEP_DATA", "true"))
+        board_status = dict(board_status or {})
+        board_status["autofeed_direct_profile_recovery_v53"] = direct_profile_recovery
 
         ns["save_asof_projection_history"](
             board,
-            {"Underdog": ud_meta, "PrizePicks": pp_meta, "collector": True, "autofeed": "v5.2"},
+            {"Underdog": ud_meta, "PrizePicks": pp_meta, "collector": True, "autofeed": "v5.3"},
         )
 
         auto_freeze = ns.get("auto_freeze_verified_pregame")
@@ -110,7 +131,7 @@ def main() -> int:
 
         ns["save_model_fit"](
             "collector:deep_history",
-            {"sample": len(board), "fit_type": "collector_autofeed_v52", "completed_at": ns["now_iso"]()},
+            {"sample": len(board), "fit_type": "collector_autofeed_v53", "completed_at": ns["now_iso"]()},
         )
 
     if truthy("CS2_AUTO_GRADE", "true"):
@@ -125,19 +146,22 @@ def main() -> int:
     model_health = ns["model_health_report"](board, {"Underdog": ud_meta, "PrizePicks": pp_meta})
     verified = sum((ns["safe_int"](row.get("profile_maps"), 0) or 0) > 0 for row in board)
     projected = sum(row.get("projection") is not None for row in board)
+    verified_team_rows = sum(bool(row.get("provider_team_verified")) for row in board)
 
     summary = {
         "ok": bool(ud_rows),
-        "autofeed_version": "5.2",
+        "autofeed_version": "5.3",
         "underdog_rows": len(ud_rows),
         "prizepicks_rows": len(pp_rows),
         "market_ticks_added": ticks,
         "line_history_updated": True,
         "unique_players": len({str(x.get('player') or '') for x in props}),
         "verified_profile_rows": verified,
+        "verified_team_rows": verified_team_rows,
         "projection_rows_saved": projected,
         "full_board_rows": len(board),
         "profile_recovery": profile_recovery,
+        "direct_profile_recovery": direct_profile_recovery,
         "auto_freeze": freeze_status,
         "auto_grade": grade_status,
         "database_status": db_status,
