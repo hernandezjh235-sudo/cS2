@@ -1,9 +1,9 @@
-"""OneWayPickz CS2 v5.8.3 collector entrypoint.
+"""OneWayPickz CS2 v5.8.5 collector entrypoint.
 
 Keeps protected projection math untouched while adding verified profile recovery,
 real match/player IDs, five-player roster context, durable identity persistence,
-complete live-line coverage, primary-source context fastpath, and verified
-pregame grading support.
+complete live-line coverage, primary-source context fastpath, pre-model context
+handoff, and verified pregame grading support.
 """
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ for patch in [
     ROOT / "autofeed_liveboard_v58.py",
     ROOT / "autofeed_liveboard_v582.py",
     ROOT / "autofeed_liveboard_v583.py",
+    ROOT / "autofeed_premodel_v585.py",
 ]:
     if patch not in base.PATCH_PATHS:
         base.PATCH_PATHS.append(patch)
@@ -82,7 +83,7 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
             merged["team"] = team
             merged["provider_team_verified"] = bool(dbrec.get("provider_team_verified", True))
             merged["identity_verified_at"] = dbrec.get("identity_verified_at")
-            merged["identity_verified_source"] = dbrec.get("identity_verified_source") or "v5.8.3 collector"
+            merged["identity_verified_source"] = dbrec.get("identity_verified_source") or "v5.8.5 collector"
             if dbrec.get("player_id") and not merged.get("player_id"):
                 merged["player_id"] = dbrec.get("player_id")
             profiles[key] = merged
@@ -104,7 +105,7 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
     bridge["teams"] = teams
     status = dict(bridge.get("source_status") or {})
     status.update({
-        "autofeed_version": "5.8.3",
+        "autofeed_version": "5.8.5",
         "verified_profile_count": len(profiles),
         "team_count": len(teams),
         "match_count": len(bridge.get("matches") or []),
@@ -113,6 +114,8 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
         "five_player_lineup_rows": sum(len(list((x or {}).get("current_roster_names") or [])) == 5 for x in board),
         "source_exact_match_rows": sum(bool((x or {}).get("source_match_verified")) for x in board),
         "source_five_player_rows": sum(bool((x or {}).get("source_five_player_lineup")) for x in board),
+        "premodel_context_rows": sum(bool((x or {}).get("v585_premodel_context")) for x in board),
+        "projection_ready_rows": sum(bool((x or {}).get("projection_data_ready")) for x in board),
     })
     bridge["source_status"] = status
 
@@ -121,10 +124,10 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
     seed = ns.get("_v54_seed_databases_from_bridge")
     if callable(seed):
         try:
-            bridge["source_status"]["database_seed_v583"] = seed(bridge)
+            bridge["source_status"]["database_seed_v585"] = seed(bridge)
             ns["save_json"](str(path), bridge, force=True)
         except Exception as exc:
-            bridge["source_status"]["database_seed_v583_warning"] = str(exc)
+            bridge["source_status"]["database_seed_v585_warning"] = str(exc)
     return bridge
 
 
