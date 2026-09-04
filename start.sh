@@ -20,6 +20,7 @@ export CS2_HLTV_BATCH_WORKERS="${CS2_HLTV_BATCH_WORKERS:-4}"
 export CS2_BRIDGE_REPO="${CS2_BRIDGE_REPO:-hernandezjh235-sudo/cS2}"
 export CS2_BRIDGE_BRANCH="${CS2_BRIDGE_BRANCH:-data-cache}"
 export CS2_EMBEDDED_COLLECTOR="${CS2_EMBEDDED_COLLECTOR:-true}"
+export CS2_WEB_FAST_REFRESH="${CS2_WEB_FAST_REFRESH:-true}"
 
 mkdir -p "${DATA_DIR}" 2>/dev/null || true
 
@@ -29,17 +30,16 @@ mkdir -p "${DATA_DIR}" 2>/dev/null || true
 WEB_APP_PATH="$(python prepare_web_app.py | tail -n 1)"
 python -m py_compile "${WEB_APP_PATH}"
 
-# Data collection is independent from web health. GitHub is the portable cache;
-# Railway /data is the live persistent store. v5.5 merges both directions
-# non-destructively, including SQLite projection/grading/audit rows.
+# Web refreshes are cache-first. The collector owns slow provider work so the
+# browser does not hang while profiles, identities, maps and rosters fill.
 if [[ "${CS2_EMBEDDED_COLLECTOR}" =~ ^(1|true|TRUE|True|yes|YES|Yes|on|ON|On)$ ]]; then
   (
-    sleep 8
+    sleep 2
     python github_cache_sync_v55.py pull --data-dir "${DATA_DIR}" --repo "${CS2_BRIDGE_REPO}" --branch "${CS2_BRIDGE_BRANCH}" || true
-    sleep 7
+    sleep 2
     while true; do
       python collector_v55.py || true
-      sleep 585
+      sleep 285
       python github_cache_sync_v55.py pull --data-dir "${DATA_DIR}" --repo "${CS2_BRIDGE_REPO}" --branch "${CS2_BRIDGE_BRANCH}" || true
       sleep 15
     done
