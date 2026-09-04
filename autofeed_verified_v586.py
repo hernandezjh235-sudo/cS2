@@ -83,7 +83,8 @@ def _v586_restore(row):
         if src.get(f) not in (None,"",[],{}):out[f]=src[f]
     for f in ("team","opponent","matchup","match_format","current_roster_names","confirmed_lineup_groups","current_roster_verified","lineup_verified","player_in_lineup","roster_overlap"):
         if not out.get(f) and src.get(f) not in (None,"",[],{}):out[f]=src[f]
-    if str(out.get("match_url") or "").startswith(("","mirror://","bridge://")) and src.get("match_url"):out["match_url"]=src["match_url"]
+    cur=str(out.get("match_url") or "").strip()
+    if (not cur or cur.startswith(("mirror://","bridge://"))) and src.get("match_url"):out["match_url"]=src["match_url"]
     ids=dict(src.get("identity_ids") or {});ids.update(dict(out.get("identity_ids") or {}));out["identity_ids"]=ids
     fresh=dict(src.get("source_freshness") or {});fresh.update(dict(out.get("source_freshness") or {}));out["source_freshness"]=fresh
     return out
@@ -129,7 +130,13 @@ if "build_full_board" in globals():
         for r in list(props or []):
             if isinstance(r,dict) and _v586_is_cs2(r):
                 r,_=_v586_source(r);prepared.append(r)
-        board,status=_v586_board_base(prepared,deep_enabled);board=[dict(x) for x in list(board or []) if isinstance(x,dict) and _v586_is_cs2(x)];status=dict(status or {})
+        board,status=_v586_board_base(prepared,deep_enabled);status=dict(status or {})
+        restored=[]
+        for x in list(board or []):
+            if not isinstance(x,dict):continue
+            r=_v586_restore(dict(x))
+            if _v586_is_cs2(r):restored.append(r)
+        board=restored
         pc=oc=pre=exact=five=pin=prov=srcm=0;missing=Counter()
         for i,r in enumerate(board):
             r=_v586_restore(r)
@@ -144,6 +151,15 @@ if "build_full_board" in globals():
         health={"version":"5.8.6","runtime_layer":"5.8.6","updated_at":now_iso(),"board_rows":len(board),"exact_match_player_ids":exact,"five_player_lineups":five,"players_in_lineup":pin,"real_provider_match_rows":prov,"real_source_match_rows":srcm,"real_match_rows":prov+srcm,"projection_ready_rows":pc,"official_ready_rows":oc,"premodel_context_rows":pre,"non_cs2_rows_visible":0,"projection_math_changed":False}
         readiness={"version":"5.8.6","updated_at":now_iso(),"board_rows":len(board),"projection_ready_rows":pc,"official_ready_rows":oc,"verified_identity_rows":sum(bool(x.get("v55_preprojection_identity_verified")) for x in board),"missing_projection_requirements":dict(missing),"source_gate":"explicit CS2 only"}
         try:save_json(V57_CONTEXT_HEALTH_FILE,health,force=True);save_json(V55_READINESS_FILE,readiness,force=True)
+        except Exception:pass
+        try:
+            op=load_json(V56_OPERATIONAL_FILE,{}) or {}
+            op.update({"version":"5.8.6","runtime_layer":"5.8.6","updated_at":now_iso(),"board_rows":len(board),
+                       "verified_profile_rows":sum((safe_int(x.get("profile_maps"),0) or 0)>=MIN_PROFILE_MAPS for x in board),
+                       "verified_identity_rows":readiness["verified_identity_rows"],"real_match_rows":prov+srcm,
+                       "projection_ready_rows":pc,"official_ready_rows":oc,"pipeline_ready":bool(pc>0),
+                       "database_status":database_status() if callable(globals().get("database_status")) else op.get("database_status",{})})
+            save_json(V56_OPERATIONAL_FILE,op,force=True)
         except Exception:pass
         status["v57_context_health"]=health;status["v55_data_readiness"]=readiness;status["v586_verified_pipeline"]={"input_rows":len(prepared),"board_rows":len(board),"projection_ready_rows":pc,"official_ready_rows":oc,"premodel_context_rows":pre,"provider_match_rows":prov,"source_match_rows":srcm,"projection_math_changed":False}
         return board,status
