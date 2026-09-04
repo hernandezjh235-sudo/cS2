@@ -68,7 +68,6 @@ def _v585_hydrate_verified_context(row):
     team = str(out.get("team") or "").strip()
     opponent = str(out.get("opponent") or "").strip()
 
-    # Primary-source v5.8.2 exact context is already the best pre-model source.
     if bool(out.get("source_match_verified")) and _v585_real_match_url(out.get("match_url")):
         return out
 
@@ -80,8 +79,6 @@ def _v585_hydrate_verified_context(row):
     if not identity_ok:
         return out
 
-    # If the current row already has a real match + usable format, only ensure
-    # supported-market flags were normalized before the model sees it.
     fmt = str(out.get("match_format") or "").upper().strip()
     if _v585_real_match_url(out.get("match_url")) and fmt not in {"", "UNKNOWN", "BO1"}:
         return out
@@ -97,7 +94,6 @@ def _v585_hydrate_verified_context(row):
     url = str(ctx.get("match_url") or "").strip()
     ctx_fmt = str(ctx.get("format") or ctx.get("match_format") or "").strip()
 
-    # Never manufacture a real-match pass from mirror/bridge context.
     if not _v585_real_match_url(url):
         flags = list(out.get("flags") or [])
         flags.append("V5.8.5 PREMODEL REAL MATCH CONTEXT PENDING")
@@ -107,15 +103,20 @@ def _v585_hydrate_verified_context(row):
     groups = [dict(x) for x in list(ctx.get("lineup_groups") or []) if isinstance(x, dict)]
     group, roster = _v585_group_for_player(player, groups)
     group_team = str(group.get("team") or group.get("name") or "").strip()
-    team_matches = bool(group_team and (_team_name_matches(group_team, team)))
+    team_matches = bool(group_team and _team_name_matches(group_team, team))
     player_in = bool(roster and max([name_similarity(player, x) for x in roster] or [0.0]) >= .84)
     exact_five = bool(len(roster) == 5 and player_in and team_matches)
 
     ids = dict(out.get("identity_ids") or {})
+    derived_match_id = ""
+    if callable(globals().get("_match_id_from_url")):
+        try:
+            derived_match_id = str(_match_id_from_url(url) or "")
+        except Exception:
+            derived_match_id = ""
     match_id = str(
         st.get("match_id") or ctx.get("match_id") or ctx.get("provider_match_id") or
-        (callable(globals().get("_match_id_from_url")) and _match_id_from_url(url)) or
-        ids.get("match_id") or ""
+        derived_match_id or ids.get("match_id") or ""
     ).strip()
     if match_id:
         ids["match_id"] = ids.get("match_id") or match_id
@@ -151,13 +152,10 @@ def _v585_hydrate_verified_context(row):
 if "_v55_resolve_prop" in globals():
     _v585_resolve_base = _v55_resolve_prop
     def _v55_resolve_prop(prop):
-        # Preserve every earlier exact-source/identity decision, then complete
-        # missing real match/format/lineup context before the model executes.
         out = _v585_resolve_base(_v585_normalize_supported_market(prop))
         return _v585_hydrate_verified_context(out)
 
 
-# Stamp diagnostics so the audit can prove that the pre-model handoff is loaded.
 if "build_full_board" in globals():
     _v585_board_base = build_full_board
     def build_full_board(props, deep_enabled=True):
@@ -165,14 +163,33 @@ if "build_full_board" in globals():
         board, status = _v585_board_base(prepared, deep_enabled)
         board = [dict(x) for x in list(board or []) if isinstance(x, dict)]
         status = dict(status or {})
-        status["v585_premodel_context"] = {
+        diag = {
             "rows": len(board),
             "premodel_context_rows": sum(bool(x.get("v585_premodel_context")) for x in board),
             "supported_market_rows": sum(_v585_supported_market(x) for x in board),
             "real_match_rows": sum(_v585_real_match_url(x.get("match_url")) for x in board),
             "projection_ready_rows": sum(bool(x.get("projection_data_ready")) for x in board),
+            "official_ready_rows": sum(bool(x.get("official_data_ready")) for x in board),
             "projection_math_changed": False,
         }
+        status["v585_premodel_context"] = diag
+        try:
+            health_path = globals().get("V57_CONTEXT_HEALTH_FILE")
+            if health_path:
+                health = load_json(health_path, {}) or {}
+                if isinstance(health, dict):
+                    health["runtime_layer"] = "5.8.5"
+                    health["updated_at"] = now_iso()
+                    health["board_rows"] = len(board)
+                    health["premodel_context_rows"] = diag["premodel_context_rows"]
+                    health["supported_rows_visible"] = diag["supported_market_rows"]
+                    health["real_match_rows"] = diag["real_match_rows"]
+                    health["projection_ready_rows"] = diag["projection_ready_rows"]
+                    health["official_ready_rows"] = diag["official_ready_rows"]
+                    save_json(health_path, health, force=True)
+                    status["v57_context_health"] = health
+        except Exception as exc:
+            status["v585_context_stamp_warning"] = f"{type(exc).__name__}: {exc}"
         return board, status
 
 try:
