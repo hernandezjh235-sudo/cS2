@@ -1,6 +1,14 @@
 name: CS2 Data Cache
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "collector.py"
+      - "github_cache_sync.py"
+      - "autofeed_*.py"
+      - "prepare_web_app.py"
+      - ".github/workflows/cs2-data-cache.yml"
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
