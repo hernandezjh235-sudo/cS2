@@ -1,11 +1,12 @@
-"""OneWayPickz CS2 v5.7 collector entrypoint.
+"""OneWayPickz CS2 v5.8 collector entrypoint.
 
 Keeps protected projection math untouched while adding verified profile recovery,
 real match/player IDs, five-player roster context, durable identity persistence,
-and verified pregame grading support.
+complete live-line coverage, and verified pregame grading support.
 """
 from __future__ import annotations
 
+import os
 import collector as base
 from pathlib import Path
 
@@ -16,6 +17,7 @@ for patch in [
     ROOT / "autofeed_production_v56.py",
     ROOT / "autofeed_identity_v562.py",
     ROOT / "autofeed_context_v57.py",
+    ROOT / "autofeed_liveboard_v58.py",
 ]:
     if patch not in base.PATCH_PATHS:
         base.PATCH_PATHS.append(patch)
@@ -73,7 +75,7 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
             merged["team"] = team
             merged["provider_team_verified"] = bool(dbrec.get("provider_team_verified", True))
             merged["identity_verified_at"] = dbrec.get("identity_verified_at")
-            merged["identity_verified_source"] = dbrec.get("identity_verified_source") or "v5.7 collector"
+            merged["identity_verified_source"] = dbrec.get("identity_verified_source") or "v5.8 collector"
             if dbrec.get("player_id") and not merged.get("player_id"):
                 merged["player_id"] = dbrec.get("player_id")
             profiles[key] = merged
@@ -95,7 +97,7 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
     bridge["teams"] = teams
     status = dict(bridge.get("source_status") or {})
     status.update({
-        "autofeed_version": "5.7",
+        "autofeed_version": "5.8",
         "verified_profile_count": len(profiles),
         "team_count": len(teams),
         "match_count": len(bridge.get("matches") or []),
@@ -110,14 +112,25 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
     seed = ns.get("_v54_seed_databases_from_bridge")
     if callable(seed):
         try:
-            bridge["source_status"]["database_seed_v57"] = seed(bridge)
+            bridge["source_status"]["database_seed_v58"] = seed(bridge)
             ns["save_json"](str(path), bridge, force=True)
         except Exception as exc:
-            bridge["source_status"]["database_seed_v57_warning"] = str(exc)
+            bridge["source_status"]["database_seed_v58_warning"] = str(exc)
     return bridge
 
 
 base.export_provider_bridge = export_provider_bridge
 
+
+def _force_fresh_cycle() -> None:
+    """The process lock is authoritative; a stale success heartbeat must not block a new live-line cycle."""
+    data_dir = Path(os.getenv("CS2_DATA_DIR", "/data/cs2_engine"))
+    try:
+        (data_dir / ".autofeed_collector.heartbeat").unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 if __name__ == "__main__":
+    _force_fresh_cycle()
     raise SystemExit(base.run_locked())
