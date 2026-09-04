@@ -1,0 +1,14 @@
+{
+  "version": "5.8.6",
+  "updated_at": "2026-09-04T23:05:10+00:00",
+  "board_rows": 352,
+  "projection_ready_rows": 6,
+  "official_ready_rows": 0,
+  "verified_identity_rows": 142,
+  "missing_projection_requirements": {
+    "format": 49,
+    "profile": 88,
+    "core_kpr": 87
+  },
+  "source_gate": "explicit CS2 only"
+}

@@ -1,0 +1,17 @@
+{
+  "version": "5.8.6",
+  "runtime_layer": "5.8.6",
+  "updated_at": "2026-09-04T23:05:10+00:00",
+  "board_rows": 352,
+  "exact_match_player_ids": 141,
+  "five_player_lineups": 130,
+  "players_in_lineup": 130,
+  "real_provider_match_rows": 0,
+  "real_source_match_rows": 142,
+  "real_match_rows": 142,
+  "projection_ready_rows": 6,
+  "official_ready_rows": 0,
+  "premodel_context_rows": 142,
+  "non_cs2_rows_visible": 0,
+  "projection_math_changed": false
+}

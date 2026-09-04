@@ -1,0 +1,36 @@
+{
+  "version": "5.8.6",
+  "updated_at": "2026-09-04T23:05:10+00:00",
+  "board_rows": 352,
+  "verified_profile_rows": 54,
+  "verified_identity_rows": 142,
+  "real_match_rows": 142,
+  "projection_ready_rows": 6,
+  "official_ready_rows": 0,
+  "database_status": {
+    "schema_version": 8,
+    "players": 68,
+    "players_file": "/tmp/cs2_engine/player_database.json",
+    "teams": 30,
+    "teams_file": "/tmp/cs2_engine/team_database.json",
+    "matches": 96,
+    "matches_file": "/tmp/cs2_engine/match_database.json",
+    "maps": 81,
+    "maps_file": "/tmp/cs2_engine/map_database.json",
+    "vetoes": 32,
+    "vetoes_file": "/tmp/cs2_engine/veto_database.json",
+    "rosters": 62,
+    "rosters_file": "/tmp/cs2_engine/roster_database.json",
+    "meta": {
+      "last_updated": "2026-09-04T23:05:10+00:00",
+      "schema_version": 8
+    },
+    "team_map_observations": 0,
+    "sqlite_projections": 130,
+    "demo_events": 0,
+    "demo_rounds": 0
+  },
+  "pipeline_ready": true,
+  "calibration_status": "BUILDING FROM VERIFIED FROZEN ROWS",
+  "runtime_layer": "5.8.6"
+}
