@@ -1,8 +1,8 @@
-"""OneWayPickz CS2 v5.6.2 collector entrypoint.
+"""OneWayPickz CS2 v5.7 collector entrypoint.
 
-Keeps protected projection math untouched while adding the complete verified-data
-readiness overlays, real BO3 match recovery, durable current-team exports, and
-final pre-model identity carry through all board wrappers.
+Keeps protected projection math untouched while adding verified profile recovery,
+real match/player IDs, five-player roster context, durable identity persistence,
+and verified pregame grading support.
 """
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ for patch in [
     ROOT / "autofeed_identity_v551.py",
     ROOT / "autofeed_production_v56.py",
     ROOT / "autofeed_identity_v562.py",
+    ROOT / "autofeed_context_v57.py",
 ]:
     if patch not in base.PATCH_PATHS:
         base.PATCH_PATHS.append(patch)
@@ -34,6 +35,12 @@ def _bridge_match_from_row(ns: dict, row: dict):
     rec["official_data_ready"] = bool(row.get("official_data_ready"))
     rec["data_readiness_score"] = row.get("data_readiness_score")
     rec["source_freshness"] = row.get("source_freshness") or {}
+    rec["identity_ids"] = dict(row.get("identity_ids") or {})
+    rec["current_roster_names"] = list(row.get("current_roster_names") or [])
+    rec["current_roster_verified"] = bool(row.get("current_roster_verified"))
+    rec["player_in_lineup"] = bool(row.get("player_in_lineup"))
+    rec["lineup_verified"] = bool(row.get("lineup_verified"))
+    rec["provider_match_id"] = str(row.get("provider_match_id") or (row.get("identity_ids") or {}).get("match_id") or rec.get("provider_match_id") or "")
     return rec
 
 
@@ -66,7 +73,9 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
             merged["team"] = team
             merged["provider_team_verified"] = bool(dbrec.get("provider_team_verified", True))
             merged["identity_verified_at"] = dbrec.get("identity_verified_at")
-            merged["identity_verified_source"] = dbrec.get("identity_verified_source") or "v5.6 collector"
+            merged["identity_verified_source"] = dbrec.get("identity_verified_source") or "v5.7 collector"
+            if dbrec.get("player_id") and not merged.get("player_id"):
+                merged["player_id"] = dbrec.get("player_id")
             profiles[key] = merged
 
     if isinstance(team_db, dict):
@@ -81,16 +90,18 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
         except Exception:
             pass
 
-    bridge["schema_version"] = max(8, int(bridge.get("schema_version") or 0))
+    bridge["schema_version"] = max(9, int(bridge.get("schema_version") or 0))
     bridge["profiles"] = profiles
     bridge["teams"] = teams
     status = dict(bridge.get("source_status") or {})
     status.update({
-        "autofeed_version": "5.6.2",
+        "autofeed_version": "5.7",
         "verified_profile_count": len(profiles),
         "team_count": len(teams),
         "match_count": len(bridge.get("matches") or []),
         "verified_team_profiles": sum(bool((x or {}).get("team")) for x in profiles.values()),
+        "exact_id_rows": sum(bool(((x or {}).get("identity_ids") or {}).get("match_id") and ((x or {}).get("identity_ids") or {}).get("player_id")) for x in board),
+        "five_player_lineup_rows": sum(len(list((x or {}).get("current_roster_names") or [])) == 5 for x in board),
     })
     bridge["source_status"] = status
 
@@ -99,10 +110,10 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
     seed = ns.get("_v54_seed_databases_from_bridge")
     if callable(seed):
         try:
-            bridge["source_status"]["database_seed_v56"] = seed(bridge)
+            bridge["source_status"]["database_seed_v57"] = seed(bridge)
             ns["save_json"](str(path), bridge, force=True)
         except Exception as exc:
-            bridge["source_status"]["database_seed_v56_warning"] = str(exc)
+            bridge["source_status"]["database_seed_v57_warning"] = str(exc)
     return bridge
 
 
