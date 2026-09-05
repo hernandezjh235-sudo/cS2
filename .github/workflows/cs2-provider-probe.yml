@@ -1,0 +1,58 @@
+name: CS2 Provider Probe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cs2-provider-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests
+      - name: Probe public provider pages
+        run: |
+          mkdir -p /tmp/provider_probe
+          python - <<'PY'
+          import json, requests, pathlib, re
+          root=pathlib.Path('/tmp/provider_probe')
+          urls={
+            'hltv_direct':'https://www.hltv.org/matches',
+            'hltv_jina':'https://r.jina.ai/http://www.hltv.org/matches',
+            'hltv_v2_direct':'https://www.hltv.org/v2/matches',
+            'hltv_v2_jina':'https://r.jina.ai/http://www.hltv.org/v2/matches',
+            'bo3_direct':'https://bo3.gg/matches',
+            'bo3_jina':'https://r.jina.ai/http://bo3.gg/matches',
+            'spirit_falcons_direct':'https://bo3.gg/matches/spirit-vs-falcons-esports-05-09-2026',
+            'spirit_falcons_jina':'https://r.jina.ai/http://bo3.gg/matches/spirit-vs-falcons-esports-05-09-2026',
+          }
+          sess=requests.Session(); sess.headers.update({'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/137 Safari/537.36','Accept-Language':'en-US,en;q=0.9'})
+          summary={}
+          for name,url in urls.items():
+            try:
+              r=sess.get(url,timeout=25,allow_redirects=True)
+              text=r.text or ''
+              (root/f'{name}.txt').write_text(text[:250000],encoding='utf-8',errors='ignore')
+              links=re.findall(r'https?://[^\s)\]"\']+|href=["\']([^"\']+)["\']',text,re.I)
+              summary[name]={'status':r.status_code,'final_url':r.url,'bytes':len(text.encode()),'chars':len(text),'first500':text[:500],'match_link_mentions':text.lower().count('/matches/'),'falcons':text.lower().count('falcons'),'spirit':text.lower().count('spirit')}
+            except Exception as e:
+              summary[name]={'error':f'{type(e).__name__}: {e}'}
+          (root/'summary.json').write_text(json.dumps(summary,indent=2))
+          print(json.dumps(summary,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cs2-provider-probe
+          path: /tmp/provider_probe
+          retention-days: 3
