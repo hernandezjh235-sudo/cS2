@@ -13,46 +13,55 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - run: pip install requests
-      - name: Probe public provider pages
+      - name: Probe verified public fallbacks
         run: |
           mkdir -p /tmp/provider_probe
           python - <<'PY'
-          import json, requests, pathlib, re
+          import json,requests,pathlib,re
+          from urllib.parse import urljoin
           root=pathlib.Path('/tmp/provider_probe')
           urls={
-            'hltv_direct':'https://www.hltv.org/matches',
-            'hltv_jina':'https://r.jina.ai/http://www.hltv.org/matches',
-            'hltv_v2_direct':'https://www.hltv.org/v2/matches',
-            'hltv_v2_jina':'https://r.jina.ai/http://www.hltv.org/v2/matches',
-            'bo3_direct':'https://bo3.gg/matches',
-            'bo3_jina':'https://r.jina.ai/http://bo3.gg/matches',
-            'spirit_falcons_direct':'https://bo3.gg/matches/spirit-vs-falcons-esports-05-09-2026',
-            'spirit_falcons_jina':'https://r.jina.ai/http://bo3.gg/matches/spirit-vs-falcons-esports-05-09-2026',
+            'match_complete':'https://www.hltv.org/matches/2396950/mouz-vs-vitality-blast-open-porto-2026',
+            'match_old_complete':'https://www.hltv.org/matches/2394983/vitality-vs-mouz-iem-cologne-major-2026',
+            'team_spirit':'https://www.hltv.org/team/7020/spirit',
+            'results_spirit':'https://www.hltv.org/results?team=7020',
+            'results_mouz':'https://www.hltv.org/results?team=4494',
+            'stats_players':'https://www.hltv.org/stats/players?csVersion=CS2',
+            'stats_team_maps':'https://www.hltv.org/stats/teams/maps/7020/spirit?csVersion=CS2',
           }
-          sess=requests.Session(); sess.headers.update({'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/137 Safari/537.36','Accept-Language':'en-US,en;q=0.9'})
+          s=requests.Session(); s.headers.update({'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137 Safari/537.36','Accept-Language':'en-US,en;q=0.9','Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'})
           summary={}
           for name,url in urls.items():
             try:
-              r=sess.get(url,timeout=25,allow_redirects=True)
-              text=r.text or ''
-              (root/f'{name}.txt').write_text(text[:250000],encoding='utf-8',errors='ignore')
-              links=re.findall(r'https?://[^\s)\]"\']+|href=["\']([^"\']+)["\']',text,re.I)
-              summary[name]={'status':r.status_code,'final_url':r.url,'bytes':len(text.encode()),'chars':len(text),'first500':text[:500],'match_link_mentions':text.lower().count('/matches/'),'falcons':text.lower().count('falcons'),'spirit':text.lower().count('spirit')}
-            except Exception as e:
-              summary[name]={'error':f'{type(e).__name__}: {e}'}
+              r=s.get(url,timeout=25,allow_redirects=True); t=r.text or ''
+              (root/f'{name}.html').write_text(t[:900000],encoding='utf-8',errors='ignore')
+              low=t.lower()
+              snippets=[]
+              for needle in ['kills per round','mapstatsid','match over','wins / draws / losses','win rate','player-nick','playernick','rating 3.0','match stats']:
+                pos=low.find(needle)
+                if pos>=0: snippets.append({'needle':needle,'snippet':re.sub(r'\s+',' ',t[max(0,pos-500):pos+1600])})
+              summary[name]={
+                'status':r.status_code,'bytes':len(t.encode()),'url':r.url,
+                'match_links':len(set(re.findall(r'href=["\'](/matches/\d+/[^"\']+)',t,re.I))),
+                'mapstats_links':len(set(re.findall(r'href=["\']([^"\']*mapstatsid/\d+/[^"\']*)',t,re.I))),
+                'player_links':len(set(re.findall(r'href=["\'](/(?:stats/players?|player)/\d+/[^"\']+)',t,re.I))),
+                'kpr_mentions':low.count('kills per round'),'map_overview':low.count('map overview'),
+                'snippets':snippets[:12],
+              }
+            except Exception as e: summary[name]={'error':f'{type(e).__name__}: {e}'}
           (root/'summary.json').write_text(json.dumps(summary,indent=2))
-          print(json.dumps(summary,indent=2))
+          print(json.dumps(summary,indent=2)[:40000])
           PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: cs2-provider-probe
+          name: cs2-provider-probe-final
           path: /tmp/provider_probe
-          retention-days: 3
+          retention-days: 2
