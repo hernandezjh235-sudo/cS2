@@ -1,4 +1,4 @@
-"""OneWayPickz CS2 v5.9.5 collector entrypoint.
+"""OneWayPickz CS2 v5.9.6 collector entrypoint.
 
 Protected projection math stays untouched. This collector loads the verified
 source-identity, provider, profile, team/map, freeze, grading, and persistence
@@ -33,6 +33,7 @@ for patch in [
     ROOT / "autofeed_maps_v593.py",
     ROOT / "autofeed_grading_v594.py",
     ROOT / "autofeed_production_v595.py",
+    ROOT / "autofeed_context_v596.py",
 ]:
     if patch not in base.PATCH_PATHS:
         base.PATCH_PATHS.append(patch)
@@ -43,9 +44,9 @@ _base_bridge_match_from_row = base._bridge_match_from_row
 def _bridge_match_from_row(ns: dict, row: dict):
     rec = _base_bridge_match_from_row(ns, row)
     if not rec: return rec
-    for key in ["provider_team_verified","identity_official_ready","projection_data_ready","official_data_ready","source_match_verified","source_team_name_verified","source_identity_verified_v588","current_roster_verified","player_in_lineup","lineup_verified","v585_premodel_context","v586_premodel_context","v587_provider_context","v588_premodel_context"]:
+    for key in ["provider_team_verified","identity_official_ready","projection_data_ready","official_data_ready","source_match_verified","source_team_name_verified","source_identity_verified_v588","current_roster_verified","player_in_lineup","lineup_verified","v585_premodel_context","v586_premodel_context","v587_provider_context","v588_premodel_context","v596_deep_context","deep_team_map_verified"]:
         rec[key]=bool(row.get(key))
-    for key in ["lineup_groups","lineup_names","source_lineup_groups","source_roster_names","current_roster_names"]:
+    for key in ["lineup_groups","lineup_names","source_lineup_groups","source_roster_names","current_roster_names","provider_current_roster_names"]:
         source={"lineup_groups":"confirmed_lineup_groups","lineup_names":"confirmed_lineup_names"}.get(key,key)
         rec[key]=list(row.get(source) or row.get(key) or [])
     rec["data_readiness_score"]=row.get("data_readiness_score")
@@ -56,6 +57,10 @@ def _bridge_match_from_row(ns: dict, row: dict):
     rec["source_opponent_name"]=str(row.get("source_opponent_name") or "")
     rec["provider_match_url"]=str(row.get("provider_match_url") or "")
     rec["provider_match_id"]=str(row.get("provider_match_id") or (row.get("identity_ids") or {}).get("match_id") or rec.get("provider_match_id") or "")
+    rec["team_recent_maps"]=int(row.get("team_recent_maps") or 0)
+    rec["team_mapstats_samples"]=int(row.get("team_mapstats_samples") or 0)
+    rec["opponent_recent_maps"]=int(row.get("opponent_recent_maps") or 0)
+    rec["opponent_mapstats_samples"]=int(row.get("opponent_mapstats_samples") or 0)
     return rec
 
 
@@ -75,7 +80,7 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
         if not isinstance(dbrec,dict): continue
         team=str(dbrec.get("team") or "").strip()
         if team:
-            merged=dict(rec or {}); merged["team"]=team; merged["provider_team_verified"]=bool(dbrec.get("provider_team_verified",True)); merged["identity_verified_at"]=dbrec.get("identity_verified_at"); merged["identity_verified_source"]=dbrec.get("identity_verified_source") or "v5.9.5 collector"
+            merged=dict(rec or {}); merged["team"]=team; merged["provider_team_verified"]=bool(dbrec.get("provider_team_verified",True)); merged["identity_verified_at"]=dbrec.get("identity_verified_at"); merged["identity_verified_source"]=dbrec.get("identity_verified_source") or "v5.9.6 collector"
             if dbrec.get("player_id") and not merged.get("player_id"): merged["player_id"]=dbrec.get("player_id")
             profiles[key]=merged
     if isinstance(team_db,dict):
@@ -85,10 +90,10 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
         try:
             for key,rec in (ns["_v49_build_team_index"](profiles) or {}).items(): teams[key]={**dict(teams.get(key) or {}),**dict(rec or {})}
         except Exception: pass
-    bridge["schema_version"]=max(19,int(bridge.get("schema_version") or 0)); bridge["profiles"]=profiles; bridge["teams"]=teams
+    bridge["schema_version"]=max(20,int(bridge.get("schema_version") or 0)); bridge["profiles"]=profiles; bridge["teams"]=teams
     status=dict(bridge.get("source_status") or {})
     status.update({
-        "autofeed_version":"5.9.5","verified_profile_count":len(profiles),"team_count":len(teams),"match_count":len(bridge.get("matches") or []),"verified_team_profiles":sum(bool((x or {}).get("team")) for x in profiles.values()),
+        "autofeed_version":"5.9.6","verified_profile_count":len(profiles),"team_count":len(teams),"match_count":len(bridge.get("matches") or []),"verified_team_profiles":sum(bool((x or {}).get("team")) for x in profiles.values()),
         "exact_id_rows":sum(bool(((x or {}).get("identity_ids") or {}).get("match_id") and ((x or {}).get("identity_ids") or {}).get("player_id")) for x in board),
         "exact_source_identity_rows":sum(bool((x or {}).get("source_identity_verified_v588")) for x in board),
         "five_player_lineup_rows":sum(len(list((x or {}).get("current_roster_names") or []))==5 for x in board),
@@ -104,7 +109,7 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
     })
     try:
         context=ns["load_json"](ns.get("V57_CONTEXT_HEALTH_FILE"),{}) if ns.get("V57_CONTEXT_HEALTH_FILE") else {}; readiness=ns["load_json"](ns.get("V55_READINESS_FILE"),{}) if ns.get("V55_READINESS_FILE") else {}
-        ph=ns["load_json"](ns.get("V590_PROVIDER_HEALTH_FILE"),{}) if ns.get("V590_PROVIDER_HEALTH_FILE") else {}; hh=ns["load_json"](ns.get("V591_HEALTH_FILE"),{}) if ns.get("V591_HEALTH_FILE") else {}; pph=ns["load_json"](ns.get("V592_PROFILE_HEALTH_FILE"),{}) if ns.get("V592_PROFILE_HEALTH_FILE") else {}; mh=ns["load_json"](ns.get("V593_MAP_HEALTH_FILE"),{}) if ns.get("V593_MAP_HEALTH_FILE") else {}; gh=ns["load_json"](ns.get("V594_GRADE_HEALTH_FILE"),{}) if ns.get("V594_GRADE_HEALTH_FILE") else {}; vh=ns["load_json"](ns.get("V595_HEALTH_FILE"),{}) if ns.get("V595_HEALTH_FILE") else {}
+        ph=ns["load_json"](ns.get("V590_PROVIDER_HEALTH_FILE"),{}) if ns.get("V590_PROVIDER_HEALTH_FILE") else {}; hh=ns["load_json"](ns.get("V591_HEALTH_FILE"),{}) if ns.get("V591_HEALTH_FILE") else {}; pph=ns["load_json"](ns.get("V592_PROFILE_HEALTH_FILE"),{}) if ns.get("V592_PROFILE_HEALTH_FILE") else {}; mh=ns["load_json"](ns.get("V593_MAP_HEALTH_FILE"),{}) if ns.get("V593_MAP_HEALTH_FILE") else {}; gh=ns["load_json"](ns.get("V594_GRADE_HEALTH_FILE"),{}) if ns.get("V594_GRADE_HEALTH_FILE") else {}; vh=ns["load_json"](ns.get("V595_HEALTH_FILE"),{}) if ns.get("V595_HEALTH_FILE") else {}; ch=ns["load_json"](ns.get("V596_HEALTH_FILE"),{}) if ns.get("V596_HEALTH_FILE") else {}
         if isinstance(context,dict):
             for k in ["real_provider_match_rows","real_source_match_rows","verified_profile_rows","core_kpr_rows","exact_source_identity_rows","supported_exact_id_blank_team_rows","freeze_candidate_rows","deep_team_map_rows","projection_ready_rows","official_ready_rows"]:
                 if k in context: status[k]=int(context.get(k) or 0)
@@ -116,13 +121,14 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
         if isinstance(mh,dict): status["hltv_map_version"]=mh.get("version"); status["hltv_map_health"]=mh
         if isinstance(gh,dict): status["direct_grading_version"]=gh.get("version"); status["direct_grading_health"]=gh
         if isinstance(vh,dict): status["production_completion_version"]=vh.get("version"); status["production_completion_health"]=vh
+        if isinstance(ch,dict): status["verified_deep_context_version"]=ch.get("version"); status["verified_deep_context_health"]=ch
     except Exception: pass
     bridge["source_status"]=status
     path=Path(str(ns.get("V48_BRIDGE_LOCAL_FILE") or (Path(ns["STORAGE_DIR"])/"cs2_provider_cache.json"))); ns["save_json"](str(path),bridge,force=True)
     seed=ns.get("_v54_seed_databases_from_bridge")
     if callable(seed):
-        try: bridge["source_status"]["database_seed_v595"]=seed(bridge); ns["save_json"](str(path),bridge,force=True)
-        except Exception as exc: bridge["source_status"]["database_seed_v595_warning"]=str(exc)
+        try: bridge["source_status"]["database_seed_v596"]=seed(bridge); ns["save_json"](str(path),bridge,force=True)
+        except Exception as exc: bridge["source_status"]["database_seed_v596_warning"]=str(exc)
     return bridge
 
 
