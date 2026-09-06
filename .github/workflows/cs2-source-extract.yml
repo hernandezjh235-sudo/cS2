@@ -1,0 +1,40 @@
+name: CS2 Source Extract
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cs2-source-extract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract provider and deep-data functions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          src=Path('app.py').read_text(encoding='utf-8', errors='ignore').splitlines()
+          needles=['def fetch_match_context','def discover_hltv_match','def discover_bo3_match','def enrich_match_context','def build_team_deep_profile','def fetch_team_map_pool','team_recent_maps','opponent_mapstats_samples','def _match_id_from_url']
+          hits=[]
+          for i,line in enumerate(src,1):
+              if any(n in line for n in needles):
+                  hits.append((i,line.strip()))
+          out=['HITS']+[f'{i}: {line}' for i,line in hits]
+          for i,line in hits:
+              start=max(1,i-25); end=min(len(src),i+180)
+              out.append(f'\n===== app.py {start}-{end} around {i}: {line} =====')
+              out.extend(f'{j}: {src[j-1]}' for j in range(start,end+1))
+          Path('/tmp/provider_source_extract.txt').write_text('\n'.join(out),encoding='utf-8')
+          print('\n'.join(out[:200]))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cs2-provider-source-extract
+          path: /tmp/provider_source_extract.txt
+          retention-days: 2
