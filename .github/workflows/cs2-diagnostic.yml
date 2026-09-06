@@ -56,7 +56,7 @@ jobs:
           import json
           from pathlib import Path
           root=Path('/tmp/cs2_engine')
-          names=['.autofeed_collector_status.json','cs2_context_health.json','cs2_data_readiness.json','cs2_operational_status.json','cs2_grading_health.json','cs2_live_line_catalog.json','cs2_provider_cache.json','cs2_official_snapshots.json','cs2_graded_results.json']
+          names=['.autofeed_collector_status.json','cs2_context_health.json','cs2_data_readiness.json','cs2_operational_status.json','cs2_grading_health.json','cs2_provider_discovery_health.json','cs2_live_line_catalog.json','cs2_provider_cache.json','cs2_official_snapshots.json','cs2_graded_results.json']
           summary={}
           for name in names:
               p=root/name
@@ -72,20 +72,21 @@ jobs:
                   summary[name]=obj
               except Exception as e:
                   summary[name]={'error':str(e),'bytes':p.stat().st_size}
-          (root/'v589_diagnostic_summary.json').write_text(json.dumps(summary,indent=2,default=str))
+          (root/'v590_diagnostic_summary.json').write_text(json.dumps(summary,indent=2,default=str))
           print(json.dumps(summary,indent=2,default=str))
           PY
-      - name: Upload v5.8.9 diagnostics
+      - name: Upload v5.9.0 diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cs2-v589-diagnostics
+          name: cs2-v590-diagnostics
           path: |
-            /tmp/cs2_engine/v589_diagnostic_summary.json
+            /tmp/cs2_engine/v590_diagnostic_summary.json
             /tmp/cs2_engine/.autofeed_collector_status.json
             /tmp/cs2_engine/cs2_context_health.json
             /tmp/cs2_engine/cs2_data_readiness.json
             /tmp/cs2_engine/cs2_operational_status.json
             /tmp/cs2_engine/cs2_grading_health.json
+            /tmp/cs2_engine/cs2_provider_discovery_health.json
           if-no-files-found: warn
           retention-days: 3
