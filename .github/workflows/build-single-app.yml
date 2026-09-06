@@ -26,19 +26,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Build standalone patched app v5.9.5
+      - name: Build standalone patched app v5.9.6
         env:
           CS2_DATA_DIR: /tmp/cs2_engine
-          CS2_WEB_RUNTIME_APP: /tmp/OneWayPickz_CS2_v595_app.py
+          CS2_WEB_RUNTIME_APP: /tmp/OneWayPickz_CS2_v596_app.py
         run: |
           mkdir -p /tmp/cs2_engine
           RUNTIME="$(python prepare_web_app.py | tail -n 1)"
-          test "$RUNTIME" = "/tmp/OneWayPickz_CS2_v595_app.py"
-          python -m py_compile "$RUNTIME" autofeed_grading_v594.py autofeed_production_v595.py
+          test "$RUNTIME" = "/tmp/OneWayPickz_CS2_v596_app.py"
+          python -m py_compile "$RUNTIME" autofeed_grading_v594.py autofeed_production_v595.py autofeed_context_v596.py
           python - <<'PY'
           import json
           from pathlib import Path
-          p=Path('/tmp/OneWayPickz_CS2_v595_app.py'); text=p.read_text(encoding='utf-8')
+          p=Path('/tmp/OneWayPickz_CS2_v596_app.py'); text=p.read_text(encoding='utf-8')
           required=[
               '# === ONEWAYPICKZ CS2 AUTOFEED ACCURACY PATCH V5.2 ===',
               '# === ONEWAYPICKZ CS2 COMPLETE DATA PIPELINE V5.5 ===',
@@ -52,21 +52,22 @@ jobs:
               '# === ONEWAYPICKZ V5.9.3 DIRECT HLTV MAP CARD PARSER ===',
               '# === ONEWAYPICKZ V5.9.4 DIRECT VERIFIED MAPS 1-2 GRADING ===',
               '# === ONEWAYPICKZ V5.9.5 PRODUCTION COMPLETION GATES ===',
+              '# === ONEWAYPICKZ V5.9.6 VERIFIED TEAM MAP CONTEXT PROPAGATION ===',
               '🧪 FULL LIVE AUDIT DOWNLOAD','cs2_enable_full_live_audit_download_v57','ALL LIVE UNDERDOG CS2 LINES'
           ]
           missing=[x for x in required if x not in text]
           if missing: raise SystemExit(f'standalone app missing integrations: {missing}')
           s=json.loads(Path('/tmp/cs2_engine/.web_runtime_status.json').read_text())
-          if not s.get('ok') or s.get('runtime_version')!='5.9.5' or s.get('production_completion_layer')!='5.9.5': raise SystemExit(f'v5.9.5 runtime invalid: {s}')
+          if not s.get('ok') or s.get('runtime_version')!='5.9.6' or s.get('verified_deep_context_layer')!='5.9.6': raise SystemExit(f'v5.9.6 runtime invalid: {s}')
           patches={x.get('file'):x for x in s.get('patches') or []}
-          for name in ('autofeed_handoff_v589.py','autofeed_provider_v590.py','autofeed_hltv_v591.py','autofeed_profiles_v592.py','autofeed_maps_v593.py','autofeed_grading_v594.py','autofeed_production_v595.py'):
+          for name in ('autofeed_handoff_v589.py','autofeed_provider_v590.py','autofeed_hltv_v591.py','autofeed_profiles_v592.py','autofeed_maps_v593.py','autofeed_grading_v594.py','autofeed_production_v595.py','autofeed_context_v596.py'):
               if not patches.get(name,{}).get('ok'): raise SystemExit(f'{name} missing: {s}')
-          print({'standalone_bytes':p.stat().st_size,'runtime':'5.9.5','integrations':len(required)})
+          print({'standalone_bytes':p.stat().st_size,'runtime':'5.9.6','integrations':len(required)})
           PY
-          cp "$RUNTIME" ./OneWayPickz_CS2_v595_READY_app.py
+          cp "$RUNTIME" ./OneWayPickz_CS2_v596_READY_app.py
       - uses: actions/upload-artifact@v4
         with:
-          name: OneWayPickz-CS2-v595-READY-app
-          path: OneWayPickz_CS2_v595_READY_app.py
+          name: OneWayPickz-CS2-v596-READY-app
+          path: OneWayPickz_CS2_v596_READY_app.py
           if-no-files-found: error
           retention-days: 30
