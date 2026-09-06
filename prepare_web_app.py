@@ -32,6 +32,7 @@ PATCHES = [
     ROOT / "autofeed_provider_v590.py",
     ROOT / "autofeed_hltv_v591.py",
     ROOT / "autofeed_profiles_v592.py",
+    ROOT / "autofeed_maps_v593.py",
 ]
 
 
@@ -49,12 +50,9 @@ def _write_status(payload: dict) -> None:
 
 def _load_patch(path: Path, idx: int):
     spec = importlib.util.spec_from_file_location(f"cs2_web_patch_{idx}", path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"cannot load patch module: {path.name}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    if not hasattr(module, "patch_app"):
-        raise RuntimeError(f"patch_app missing: {path.name}")
+    if spec is None or spec.loader is None: raise RuntimeError(f"cannot load patch module: {path.name}")
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    if not hasattr(module, "patch_app"): raise RuntimeError(f"patch_app missing: {path.name}")
     return module
 
 
@@ -62,25 +60,19 @@ def main() -> int:
     status = {"ok": False, "source": str(SOURCE_APP), "target": str(TARGET_APP), "patches": []}
     try:
         if not SOURCE_APP.exists(): raise FileNotFoundError(SOURCE_APP)
-        TARGET_APP.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(SOURCE_APP, TARGET_APP)
+        TARGET_APP.parent.mkdir(parents=True, exist_ok=True); shutil.copy2(SOURCE_APP, TARGET_APP)
         for idx, patch_path in enumerate(PATCHES):
-            if not patch_path.exists():
-                status["patches"].append({"file": patch_path.name, "ok": False, "warning": "missing"}); continue
-            module = _load_patch(patch_path, idx)
-            changed = bool(module.patch_app(TARGET_APP))
-            status["patches"].append({"file": patch_path.name, "ok": True, "changed": changed})
-        compile(TARGET_APP.read_text(encoding="utf-8"), str(TARGET_APP), "exec")
-        status.update({"ok":True,"runtime_app":str(TARGET_APP),"runtime_version":"5.9.2","web_latency_layer":"5.8.4","premodel_context_layer":"5.8.5","verified_source_layer":"5.8.6","provider_recovery_layer":"5.8.7","authoritative_identity_layer":"5.8.8","completion_layer":"5.8.9","provider_discovery_layer":"5.9.0","hltv_context_layer":"5.9.1","verified_profile_layer":"5.9.2"})
+            if not patch_path.exists(): status["patches"].append({"file":patch_path.name,"ok":False,"warning":"missing"}); continue
+            module=_load_patch(patch_path,idx); changed=bool(module.patch_app(TARGET_APP)); status["patches"].append({"file":patch_path.name,"ok":True,"changed":changed})
+        compile(TARGET_APP.read_text(encoding="utf-8"),str(TARGET_APP),"exec")
+        status.update({"ok":True,"runtime_app":str(TARGET_APP),"runtime_version":"5.9.3","web_latency_layer":"5.8.4","premodel_context_layer":"5.8.5","verified_source_layer":"5.8.6","provider_recovery_layer":"5.8.7","authoritative_identity_layer":"5.8.8","completion_layer":"5.8.9","provider_discovery_layer":"5.9.0","hltv_context_layer":"5.9.1","verified_profile_layer":"5.9.2","hltv_map_layer":"5.9.3"})
         _write_status(status); print(str(TARGET_APP)); return 0
     except Exception as exc:
-        status["error"] = f"{type(exc).__name__}: {exc}"
+        status["error"]=f"{type(exc).__name__}: {exc}"
         try:
-            compile(SOURCE_APP.read_text(encoding="utf-8"), str(SOURCE_APP), "exec")
-            status["fallback"] = str(SOURCE_APP); _write_status(status); print(str(SOURCE_APP)); return 0
+            compile(SOURCE_APP.read_text(encoding="utf-8"),str(SOURCE_APP),"exec"); status["fallback"]=str(SOURCE_APP); _write_status(status); print(str(SOURCE_APP)); return 0
         except Exception as base_exc:
-            status["base_error"] = f"{type(base_exc).__name__}: {base_exc}"; _write_status(status); print(json.dumps(status), file=sys.stderr); return 2
+            status["base_error"]=f"{type(base_exc).__name__}: {base_exc}"; _write_status(status); print(json.dumps(status),file=sys.stderr); return 2
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+if __name__ == "__main__": raise SystemExit(main())
