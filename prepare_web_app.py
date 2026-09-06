@@ -30,6 +30,7 @@ PATCHES = [
     ROOT / "autofeed_completion_v588.py",
     ROOT / "autofeed_handoff_v589.py",
     ROOT / "autofeed_provider_v590.py",
+    ROOT / "autofeed_hltv_v591.py",
 ]
 
 
@@ -73,7 +74,7 @@ def main() -> int:
         compile(TARGET_APP.read_text(encoding="utf-8"), str(TARGET_APP), "exec")
         status["ok"] = True
         status["runtime_app"] = str(TARGET_APP)
-        status["runtime_version"] = "5.9.0"
+        status["runtime_version"] = "5.9.1"
         status["web_latency_layer"] = "5.8.4"
         status["premodel_context_layer"] = "5.8.5"
         status["verified_source_layer"] = "5.8.6"
@@ -81,6 +82,7 @@ def main() -> int:
         status["authoritative_identity_layer"] = "5.8.8"
         status["completion_layer"] = "5.8.9"
         status["provider_discovery_layer"] = "5.9.0"
+        status["hltv_context_layer"] = "5.9.1"
         _write_status(status)
         print(str(TARGET_APP))
         return 0
