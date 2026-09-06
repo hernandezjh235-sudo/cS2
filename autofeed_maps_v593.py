@@ -23,47 +23,62 @@ def _v593_save_health(extra=None):
     except Exception: pass
 
 
-def _v593_map_label(name):
-    return "Dust2" if name == "Dust2" else name
+def _v593_num_from_stat(chunk, label):
+    m=re.search(rf'<div\s+class=["\']stat["\']>\s*(\d+)\s*</div>\s*<div\s+class=["\']description["\']>\s*{re.escape(label)}\s*</div>',chunk,re.I|re.S)
+    return int(m.group(1)) if m else 0
 
 
 def _v591_team_map_pool(team_id, slug, days=120):
     tid=str(team_id or "").strip()
     if not tid.isdigit(): return {}, {"ok":False,"warning":"numeric HLTV team id required"}
-    start,end=_period_dates(max(int(days or 120),1))
-    url=f"https://www.hltv.org/stats/teams/maps/{tid}/{slug or 'team'}"
+    # The HLTV /stats/ tree can return 403 to cloud runners while the canonical
+    # public team page remains available and contains the same last-3-month map
+    # cards (map, win %, exact W/D/L, veto usage). Use that verified page.
+    url=f"https://www.hltv.org/team/{tid}/{slug or 'team'}"
     V593_MAP_HEALTH["requests"]=int(V593_MAP_HEALTH.get("requests") or 0)+1
-    page,status=_v591_direct_get(url,params={"startDate":start,"endDate":end,"csVersion":"CS2"},ttl=4*3600,timeout=24)
+    page,status=_v591_direct_get(url,ttl=4*3600,timeout=30)
     if not page:
-        V593_MAP_HEALTH["last_error"]=str((status or {}).get("warning") or "team map page unavailable")
+        V593_MAP_HEALTH["last_error"]=str((status or {}).get("warning") or "team page unavailable")
         _v593_save_health({"last_status":status}); return {}, {**dict(status or {}),"ok":False,"maps_found":0,"sample_maps":0}
-    text=strip_tags(page).replace("\xa0"," ")
-    marker=re.search(r"Map\s+overview",text,re.I)
-    if marker: text=text[marker.end():]
+
+    starts=[m.start() for m in re.finditer(r'class=["\']map-statistics-row(?:\s[^"\']*)?["\']',page,re.I)]
     pool={}
-    for map_name in KNOWN_MAPS:
-        label="Dust2" if map_name=="Dust2" else map_name
-        # Current HLTV map cards expose exact W/D/L and win rate.  W+D+L is an
-        # auditable played-map sample and is safer than guessing from unrelated numbers.
-        pat=rf"\b{re.escape(label)}\b[\s\S]{{0,1300}}?Wins\s*/\s*draws\s*/\s*losses\s*(\d+)\s*/\s*(\d+)\s*/\s*(\d+)[\s\S]{{0,500}}?Win\s*rate\s*(\d+(?:\.\d+)?)\s*%"
-        m=re.search(pat,text,re.I)
-        if not m and map_name=="Dust2":
-            pat=rf"\bDust\s*II\b[\s\S]{{0,1300}}?Wins\s*/\s*draws\s*/\s*losses\s*(\d+)\s*/\s*(\d+)\s*/\s*(\d+)[\s\S]{{0,500}}?Win\s*rate\s*(\d+(?:\.\d+)?)\s*%"
-            m=re.search(pat,text,re.I)
-        if not m: continue
-        wins,draws,losses=[int(m.group(i)) for i in (1,2,3)]
+    for i,start in enumerate(starts):
+        end=starts[i+1] if i+1<len(starts) else min(len(page),start+14000)
+        chunk=page[start:end]
+        mm=re.search(r'class=["\']map-statistics-row-map-mapname["\'][^>]*>\s*([^<]+)',chunk,re.I|re.S)
+        wm=re.search(r'class=["\']map-statistics-row-win-percentage["\'][^>]*>\s*(\d+(?:\.\d+)?)\s*%',chunk,re.I|re.S)
+        if not mm or not wm: continue
+        raw_name=strip_tags(mm.group(1)).strip()
+        map_name=next((m for m in KNOWN_MAPS if normalize_name(m)==normalize_name(raw_name) or (m=="Dust2" and normalize_name(raw_name) in {"dust2","dust ii","dustii"})),None)
+        if not map_name: continue
+        wins=_v593_num_from_stat(chunk,"Win")
+        draws=_v593_num_from_stat(chunk,"Draws")
+        losses=_v593_num_from_stat(chunk,"Losses")
         played=wins+draws+losses
         if played<=0: continue
-        pool[map_name]={"maps":played,"wins":wins,"draws":draws,"losses":losses,"win_pct":float(m.group(4)),"source":str((status or {}).get("url") or url),"period_days":int(days or 120)}
+        pickm=re.search(r'Picks\s*</div>\s*<div>\s*(\d+(?:\.\d+)?)%\s+of\s+(\d+)',chunk,re.I|re.S)
+        banm=re.search(r'Bans\s*</div>\s*<div>\s*(\d+(?:\.\d+)?)%\s+of\s+(\d+)',chunk,re.I|re.S)
+        pool[map_name]={
+            "maps":played,"wins":wins,"draws":draws,"losses":losses,
+            "win_pct":float(wm.group(1)),
+            "pick_pct":float(pickm.group(1)) if pickm else None,
+            "pick_opportunities":int(pickm.group(2)) if pickm else 0,
+            "ban_pct":float(banm.group(1)) if banm else None,
+            "ban_opportunities":int(banm.group(2)) if banm else 0,
+            "source":str((status or {}).get("url") or url),
+            "period":"HLTV public team page last 3 months",
+        }
     sample=sum(int((v or {}).get("maps") or 0) for v in pool.values())
     ok=bool(pool and sample>0)
     if ok:
         V593_MAP_HEALTH["ok"]=int(V593_MAP_HEALTH.get("ok") or 0)+1
         V593_MAP_HEALTH["maps_parsed"]=int(V593_MAP_HEALTH.get("maps_parsed") or 0)+len(pool)
         V593_MAP_HEALTH["sample_maps"]=int(V593_MAP_HEALTH.get("sample_maps") or 0)+sample
+        V593_MAP_HEALTH["last_error"]=""
     else:
-        V593_MAP_HEALTH["last_error"]="No W/D/L map cards parsed from current HLTV team page"
-    out_status={**dict(status or {}),"ok":ok,"provider":"HLTV direct current map cards v5.9.3","maps_found":len(pool),"sample_maps":sample,"period_days":int(days or 120)}
+        V593_MAP_HEALTH["last_error"]="No verified W/D/L map cards parsed from public HLTV team page"
+    out_status={**dict(status or {}),"ok":ok,"provider":"HLTV public team-page map cards v5.9.3","maps_found":len(pool),"sample_maps":sample,"period":"last 3 months"}
     _v593_save_health({"last_status":out_status,"last_team_id":tid,"last_slug":slug})
     return pool,out_status
 
