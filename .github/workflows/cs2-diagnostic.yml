@@ -17,7 +17,7 @@ concurrency:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -31,7 +31,7 @@ jobs:
         run: |
           mkdir -p /tmp/cs2_engine
           python github_cache_sync_v582.py pull --data-dir /tmp/cs2_engine --repo "${GITHUB_REPOSITORY}" --branch data-cache || true
-      - name: Run collector and summarize strict gates
+      - name: Run collector and summarize final strict gates
         continue-on-error: true
         env:
           CS2_DATA_DIR: /tmp/cs2_engine
@@ -53,7 +53,7 @@ jobs:
           import csv,json
           from pathlib import Path
           root=Path('/tmp/cs2_engine')
-          names=['.autofeed_collector_status.json','cs2_context_health.json','cs2_data_readiness.json','cs2_operational_status.json','cs2_grading_health.json','cs2_provider_discovery_health.json','cs2_hltv_direct_health.json','cs2_hltv_profile_health.json','cs2_hltv_map_health.json','cs2_live_line_catalog.json','cs2_provider_cache.json','cs2_official_snapshots.json','cs2_graded_results.json']
+          names=['.autofeed_collector_status.json','cs2_context_health.json','cs2_data_readiness.json','cs2_operational_status.json','cs2_grading_health.json','cs2_provider_discovery_health.json','cs2_hltv_direct_health.json','cs2_hltv_profile_health.json','cs2_hltv_map_health.json','cs2_direct_grading_health.json','cs2_live_line_catalog.json','cs2_provider_cache.json','cs2_official_snapshots.json','cs2_graded_results.json']
           summary={}
           for name in names:
               p=root/name
@@ -73,16 +73,37 @@ jobs:
                   try:return int(float(v or 0))
                   except:return 0
               summary['current_board.csv']={'rows':len(rows),'supported':sum(yes(r.get('model_supported')) and yes(r.get('market_scope_verified')) for r in rows),'projection_ready':sum(yes(r.get('projection_data_ready')) for r in rows),'official_ready':sum(yes(r.get('official_data_ready')) for r in rows),'provider_context':sum(yes(r.get('v587_provider_context')) for r in rows),'provider_urls':sum(str(r.get('provider_match_url') or '').startswith('https://www.hltv.org/') for r in rows),'deep_rows':sum(num(r.get('team_recent_maps'))>0 and num(r.get('opponent_mapstats_samples'))>0 for r in rows),'core_kpr':sum(yes(r.get('core_kpr_verified')) for r in rows),'fresh_players':sum(yes(r.get('player_source_fresh')) for r in rows)}
-          (root/'v593_diagnostic_summary.json').write_text(json.dumps(summary,indent=2,default=str))
+          (root/'v594_diagnostic_summary.json').write_text(json.dumps(summary,indent=2,default=str))
           print(json.dumps(summary,indent=2,default=str))
           PY
-      - name: Upload v5.9.3 diagnostics
+      - name: Verify direct Maps 1-2 grader on completed HLTV match
+        continue-on-error: true
+        env:
+          CS2_DATA_DIR: /tmp/cs2_grade_fixture
+          CS2_WEB_ALLOW_PROVIDER_NETWORK: "true"
+          CS2_ASSISTED_OFFICIAL: "false"
+        run: |
+          mkdir -p /tmp/cs2_grade_fixture
+          python - <<'PY'
+          import json
+          import collector_v55
+          import collector as base
+          ns=base.load_engine()
+          url='https://www.hltv.org/matches/2394983/vitality-vs-mouz-iem-cologne-major-2026'
+          actual,meta=ns['fetch_actual_maps12_kills'](url,'ZywOo','')
+          out={'actual_maps12_kills':actual,'meta':meta,'ok':actual is not None and bool(meta.get('ok')) and len(meta.get('map_results') or [])==2 and len(meta.get('map_links') or [])==2}
+          from pathlib import Path
+          Path('/tmp/cs2_grade_fixture/v594_grade_fixture.json').write_text(json.dumps(out,indent=2,default=str))
+          print(json.dumps(out,indent=2,default=str))
+          if not out['ok']: raise SystemExit('direct HLTV Maps 1-2 grading fixture did not verify')
+          PY
+      - name: Upload v5.9.4 diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cs2-v593-diagnostics
+          name: cs2-v594-diagnostics
           path: |
-            /tmp/cs2_engine/v593_diagnostic_summary.json
+            /tmp/cs2_engine/v594_diagnostic_summary.json
             /tmp/cs2_engine/.autofeed_collector_status.json
             /tmp/cs2_engine/cs2_context_health.json
             /tmp/cs2_engine/cs2_data_readiness.json
@@ -92,6 +113,8 @@ jobs:
             /tmp/cs2_engine/cs2_hltv_direct_health.json
             /tmp/cs2_engine/cs2_hltv_profile_health.json
             /tmp/cs2_engine/cs2_hltv_map_health.json
+            /tmp/cs2_engine/cs2_direct_grading_health.json
             /tmp/cs2_engine/current_board.csv
+            /tmp/cs2_grade_fixture/v594_grade_fixture.json
           if-no-files-found: warn
           retention-days: 3
