@@ -1,4 +1,4 @@
-"""OneWayPickz CS2 v5.9.0 collector entrypoint.
+"""OneWayPickz CS2 v5.9.1 collector entrypoint.
 
 Keeps protected projection math untouched while adding verified profile recovery,
 exact source player/game/team IDs, authoritative current-team side recovery,
@@ -30,6 +30,7 @@ for patch in [
     ROOT / "autofeed_completion_v588.py",
     ROOT / "autofeed_handoff_v589.py",
     ROOT / "autofeed_provider_v590.py",
+    ROOT / "autofeed_hltv_v591.py",
 ]:
     if patch not in base.PATCH_PATHS:
         base.PATCH_PATHS.append(patch)
@@ -100,7 +101,7 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
             merged["team"] = team
             merged["provider_team_verified"] = bool(dbrec.get("provider_team_verified", True))
             merged["identity_verified_at"] = dbrec.get("identity_verified_at")
-            merged["identity_verified_source"] = dbrec.get("identity_verified_source") or "v5.9.0 collector"
+            merged["identity_verified_source"] = dbrec.get("identity_verified_source") or "v5.9.1 collector"
             if dbrec.get("player_id") and not merged.get("player_id"):
                 merged["player_id"] = dbrec.get("player_id")
             profiles[key] = merged
@@ -117,12 +118,12 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
         except Exception:
             pass
 
-    bridge["schema_version"] = max(14, int(bridge.get("schema_version") or 0))
+    bridge["schema_version"] = max(15, int(bridge.get("schema_version") or 0))
     bridge["profiles"] = profiles
     bridge["teams"] = teams
     status = dict(bridge.get("source_status") or {})
     status.update({
-        "autofeed_version": "5.9.0",
+        "autofeed_version": "5.9.1",
         "verified_profile_count": len(profiles),
         "team_count": len(teams),
         "match_count": len(bridge.get("matches") or []),
@@ -146,6 +147,7 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
         context = ns["load_json"](ns.get("V57_CONTEXT_HEALTH_FILE"), {}) if ns.get("V57_CONTEXT_HEALTH_FILE") else {}
         readiness = ns["load_json"](ns.get("V55_READINESS_FILE"), {}) if ns.get("V55_READINESS_FILE") else {}
         provider_health = ns["load_json"](ns.get("V590_PROVIDER_HEALTH_FILE"), {}) if ns.get("V590_PROVIDER_HEALTH_FILE") else {}
+        hltv_health = ns["load_json"](ns.get("V591_HEALTH_FILE"), {}) if ns.get("V591_HEALTH_FILE") else {}
         if isinstance(context, dict):
             status["context_health_version"] = context.get("version")
             status["real_provider_match_rows"] = int(context.get("real_provider_match_rows") or status.get("real_provider_match_rows") or 0)
@@ -162,6 +164,9 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
             status["provider_discovery_version"] = provider_health.get("version")
             status["provider_discovery"] = dict(provider_health.get("discovery") or {})
             status["provider_index"] = dict(provider_health.get("index") or {})
+        if isinstance(hltv_health, dict):
+            status["hltv_direct_version"] = hltv_health.get("version")
+            status["hltv_direct_health"] = hltv_health
     except Exception:
         pass
     bridge["source_status"] = status
@@ -171,10 +176,10 @@ def export_provider_bridge(ns: dict, board: list[dict], previous: dict | None = 
     seed = ns.get("_v54_seed_databases_from_bridge")
     if callable(seed):
         try:
-            bridge["source_status"]["database_seed_v590"] = seed(bridge)
+            bridge["source_status"]["database_seed_v591"] = seed(bridge)
             ns["save_json"](str(path), bridge, force=True)
         except Exception as exc:
-            bridge["source_status"]["database_seed_v590_warning"] = str(exc)
+            bridge["source_status"]["database_seed_v591_warning"] = str(exc)
     return bridge
 
 
