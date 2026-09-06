@@ -13,55 +13,36 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - run: pip install requests
-      - name: Probe verified public fallbacks
+      - name: Inspect public HLTV team map cards
         run: |
           mkdir -p /tmp/provider_probe
           python - <<'PY'
-          import json,requests,pathlib,re
-          from urllib.parse import urljoin
+          import json,requests,pathlib,re,html
           root=pathlib.Path('/tmp/provider_probe')
-          urls={
-            'match_complete':'https://www.hltv.org/matches/2396950/mouz-vs-vitality-blast-open-porto-2026',
-            'match_old_complete':'https://www.hltv.org/matches/2394983/vitality-vs-mouz-iem-cologne-major-2026',
-            'team_spirit':'https://www.hltv.org/team/7020/spirit',
-            'results_spirit':'https://www.hltv.org/results?team=7020',
-            'results_mouz':'https://www.hltv.org/results?team=4494',
-            'stats_players':'https://www.hltv.org/stats/players?csVersion=CS2',
-            'stats_team_maps':'https://www.hltv.org/stats/teams/maps/7020/spirit?csVersion=CS2',
-          }
-          s=requests.Session(); s.headers.update({'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137 Safari/537.36','Accept-Language':'en-US,en;q=0.9','Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'})
-          summary={}
-          for name,url in urls.items():
-            try:
-              r=s.get(url,timeout=25,allow_redirects=True); t=r.text or ''
-              (root/f'{name}.html').write_text(t[:900000],encoding='utf-8',errors='ignore')
-              low=t.lower()
-              snippets=[]
-              for needle in ['kills per round','mapstatsid','match over','wins / draws / losses','win rate','player-nick','playernick','rating 3.0','match stats']:
-                pos=low.find(needle)
-                if pos>=0: snippets.append({'needle':needle,'snippet':re.sub(r'\s+',' ',t[max(0,pos-500):pos+1600])})
-              summary[name]={
-                'status':r.status_code,'bytes':len(t.encode()),'url':r.url,
-                'match_links':len(set(re.findall(r'href=["\'](/matches/\d+/[^"\']+)',t,re.I))),
-                'mapstats_links':len(set(re.findall(r'href=["\']([^"\']*mapstatsid/\d+/[^"\']*)',t,re.I))),
-                'player_links':len(set(re.findall(r'href=["\'](/(?:stats/players?|player)/\d+/[^"\']+)',t,re.I))),
-                'kpr_mentions':low.count('kills per round'),'map_overview':low.count('map overview'),
-                'snippets':snippets[:12],
-              }
-            except Exception as e: summary[name]={'error':f'{type(e).__name__}: {e}'}
-          (root/'summary.json').write_text(json.dumps(summary,indent=2))
-          print(json.dumps(summary,indent=2)[:40000])
+          s=requests.Session(); s.headers.update({'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/137 Safari/537.36','Accept-Language':'en-US,en;q=0.9'})
+          url='https://www.hltv.org/team/7020/spirit'
+          r=s.get(url,timeout=30); t=r.text or ''
+          rows=[]
+          for m in re.finditer(r'class=["\']map-statistics-row(?:\s[^"\']*)?["\']',t,re.I):
+              chunk=t[m.start():m.start()+9000]
+              nextm=re.search(r'class=["\']map-statistics-row(?:\s[^"\']*)?["\']',chunk[80:],re.I)
+              if nextm: chunk=chunk[:80+nextm.start()]
+              txt=html.unescape(re.sub(r'<[^>]+>',' ',chunk)); txt=re.sub(r'\s+',' ',txt).strip()
+              rows.append({'text':txt[:2500],'html':re.sub(r'\s+',' ',chunk)[:5000]})
+          out={'status':r.status_code,'bytes':len(t.encode()),'rows_found':len(rows),'rows':rows[:12]}
+          (root/'team_map_rows.json').write_text(json.dumps(out,indent=2))
+          print(json.dumps(out,indent=2)[:35000])
           PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: cs2-provider-probe-final
-          path: /tmp/provider_probe
+          name: cs2-team-map-row-probe
+          path: /tmp/provider_probe/team_map_rows.json
           retention-days: 2
