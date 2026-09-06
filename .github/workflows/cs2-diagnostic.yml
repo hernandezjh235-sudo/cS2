@@ -17,7 +17,7 @@ concurrency:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -31,7 +31,7 @@ jobs:
         run: |
           mkdir -p /tmp/cs2_engine
           python github_cache_sync_v582.py pull --data-dir /tmp/cs2_engine --repo "${GITHUB_REPOSITORY}" --branch data-cache || true
-      - name: Run collector without hiding diagnostics
+      - name: Run collector and summarize strict gates
         continue-on-error: true
         env:
           CS2_DATA_DIR: /tmp/cs2_engine
@@ -47,41 +47,51 @@ jobs:
           CS2_AUTOFEED_DIRECT_PROFILE_BATCH: "120"
           CS2_PROFILE_RECOVERY_PASSES: "3"
           CS2_AUTOFEED_DIRECT_WORKERS: "4"
-          CS2_HLTV_BATCH_PAGES: "12"
-          CS2_HLTV_BATCH_WORKERS: "4"
+          CS2_HLTV_DIRECT_PROFILE_PAGES: "5"
           JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
         run: |
           python collector_v55.py || true
           python - <<'PY'
-          import json
+          import csv,json
           from pathlib import Path
           root=Path('/tmp/cs2_engine')
-          names=['.autofeed_collector_status.json','cs2_context_health.json','cs2_data_readiness.json','cs2_operational_status.json','cs2_grading_health.json','cs2_provider_discovery_health.json','cs2_hltv_direct_health.json','cs2_live_line_catalog.json','cs2_provider_cache.json','cs2_official_snapshots.json','cs2_graded_results.json']
+          names=['.autofeed_collector_status.json','cs2_context_health.json','cs2_data_readiness.json','cs2_operational_status.json','cs2_grading_health.json','cs2_provider_discovery_health.json','cs2_hltv_direct_health.json','cs2_hltv_profile_health.json','cs2_live_line_catalog.json','cs2_provider_cache.json','cs2_official_snapshots.json','cs2_graded_results.json']
           summary={}
           for name in names:
               p=root/name
-              if not p.exists():
-                  summary[name]={'missing':True}; continue
+              if not p.exists(): summary[name]={'missing':True}; continue
               try:
                   obj=json.loads(p.read_text())
-                  if name=='cs2_live_line_catalog.json' and isinstance(obj,dict):
-                      obj={k:v for k,v in obj.items() if k!='rows'}
-                  if name=='cs2_provider_cache.json' and isinstance(obj,dict):
-                      obj={'schema_version':obj.get('schema_version'),'generated_at':obj.get('generated_at'),'profiles':len(obj.get('profiles') or {}),'teams':len(obj.get('teams') or {}),'matches':len(obj.get('matches') or []),'source_status':obj.get('source_status')}
+                  if name=='cs2_live_line_catalog.json' and isinstance(obj,dict): obj={k:v for k,v in obj.items() if k!='rows'}
+                  if name=='cs2_provider_cache.json' and isinstance(obj,dict): obj={'schema_version':obj.get('schema_version'),'generated_at':obj.get('generated_at'),'profiles':len(obj.get('profiles') or {}),'teams':len(obj.get('teams') or {}),'matches':len(obj.get('matches') or []),'source_status':obj.get('source_status')}
                   if isinstance(obj,list): obj={'rows':len(obj)}
                   summary[name]=obj
-              except Exception as e:
-                  summary[name]={'error':str(e),'bytes':p.stat().st_size}
-          (root/'v591_diagnostic_summary.json').write_text(json.dumps(summary,indent=2,default=str))
+              except Exception as e: summary[name]={'error':str(e),'bytes':p.stat().st_size}
+          board=root/'current_board.csv'
+          if board.exists():
+              rows=list(csv.DictReader(board.open()))
+              yes=lambda v:str(v).lower() in {'1','true','yes'}
+              summary['current_board.csv']={
+                  'rows':len(rows),
+                  'supported':sum(yes(r.get('model_supported')) and yes(r.get('market_scope_verified')) for r in rows),
+                  'projection_ready':sum(yes(r.get('projection_data_ready')) for r in rows),
+                  'official_ready':sum(yes(r.get('official_data_ready')) for r in rows),
+                  'provider_context':sum(yes(r.get('v587_provider_context')) for r in rows),
+                  'provider_urls':sum(str(r.get('provider_match_url') or '').startswith('https://www.hltv.org/') for r in rows),
+                  'deep_rows':sum(int(float(r.get('team_recent_maps') or 0))>0 and int(float(r.get('opponent_mapstats_samples') or 0))>0 for r in rows),
+                  'core_kpr':sum(yes(r.get('core_kpr_verified')) for r in rows),
+                  'fresh_players':sum(yes(r.get('player_source_fresh')) for r in rows),
+              }
+          (root/'v592_diagnostic_summary.json').write_text(json.dumps(summary,indent=2,default=str))
           print(json.dumps(summary,indent=2,default=str))
           PY
-      - name: Upload v5.9.1 diagnostics
+      - name: Upload v5.9.2 diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cs2-v591-diagnostics
+          name: cs2-v592-diagnostics
           path: |
-            /tmp/cs2_engine/v591_diagnostic_summary.json
+            /tmp/cs2_engine/v592_diagnostic_summary.json
             /tmp/cs2_engine/.autofeed_collector_status.json
             /tmp/cs2_engine/cs2_context_health.json
             /tmp/cs2_engine/cs2_data_readiness.json
@@ -89,5 +99,7 @@ jobs:
             /tmp/cs2_engine/cs2_grading_health.json
             /tmp/cs2_engine/cs2_provider_discovery_health.json
             /tmp/cs2_engine/cs2_hltv_direct_health.json
+            /tmp/cs2_engine/cs2_hltv_profile_health.json
+            /tmp/cs2_engine/current_board.csv
           if-no-files-found: warn
           retention-days: 3
