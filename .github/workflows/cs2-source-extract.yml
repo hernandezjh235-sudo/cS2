@@ -15,35 +15,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Extract provider, deep-data, and profile functions
+      - name: Extract grading and snapshot implementation
         run: |
           python - <<'PY'
           from pathlib import Path
-          src=Path('app.py').read_text(encoding='utf-8', errors='ignore').splitlines()
-          needles=[
-              'def fetch_match_context','def discover_hltv_match','def discover_bo3_match',
-              'def enrich_match_context','def build_team_deep_profile','def fetch_team_map_pool',
-              'team_recent_maps','opponent_mapstats_samples','def _match_id_from_url',
-              'def fetch_hltv_player_table','def fetch_player_profile','def fetch_hltv_player',
-              'def build_player_profile','def resolve_player_profile','def load_player_profile',
-              'kpr_source','core_kpr_verified','def _v50_profile_available',
-              'def _autofeed_direct_profile_recovery','def _v49_fetch','def _v49_parse',
-              'def _v50_fetch','def _v50_', 'PlayerStats('
-          ]
-          hits=[]
-          for i,line in enumerate(src,1):
-              if any(n in line for n in needles):
-                  hits.append((i,line.strip()))
-          out=['HITS']+[f'{i}: {line}' for i,line in hits]
-          for i,line in hits:
-              start=max(1,i-30); end=min(len(src),i+220)
-              out.append(f'\n===== app.py {start}-{end} around {i}: {line} =====')
-              out.extend(f'{j}: {src[j-1]}' for j in range(start,end+1))
-          Path('/tmp/provider_source_extract.txt').write_text('\n'.join(out),encoding='utf-8')
-          print('\n'.join(out[:260]))
+          src=Path('app.py').read_text(encoding='utf-8',errors='ignore').splitlines()
+          out=[]
+          for start,end,label in [(4515,4580,'snapshots'),(4600,4735,'automatic-hltv-grade'),(12480,12625,'v55-grade-wrapper')]:
+              out.append(f'===== {label} app.py {start}-{end} =====')
+              out.extend(f'{i}: {src[i-1]}' for i in range(start,min(end,len(src))+1))
+          Path('/tmp/grading_source_extract.txt').write_text('\n'.join(out),encoding='utf-8')
+          print('\n'.join(out))
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: cs2-provider-source-extract
-          path: /tmp/provider_source_extract.txt
+          name: cs2-grading-source-extract
+          path: /tmp/grading_source_extract.txt
           retention-days: 2
