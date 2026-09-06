@@ -33,6 +33,10 @@ mkdir -p "${DATA_DIR}" 2>/dev/null || true
 # prepare_web_app.py falls back to the known-good committed app.py so Railway
 # health is not held hostage by the data layer.
 WEB_APP_PATH="$(python prepare_web_app.py | tail -n 1)"
+
+# Presentation-only density pass: keeps the exact same CS2 projection/data
+# logic while making player cards substantially more compact on desktop/mobile.
+python compact_ui_patch.py "${WEB_APP_PATH}"
 python -m py_compile "${WEB_APP_PATH}"
 
 # Web refreshes are cache-first. The collector owns slow provider work so the
