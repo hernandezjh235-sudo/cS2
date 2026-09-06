@@ -1,3 +1,4 @@
+# Final validation uses public HLTV team-page map cards plus direct match grading.
 name: CS2 Pipeline Diagnostic
 
 on:
