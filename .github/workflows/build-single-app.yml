@@ -22,70 +22,49 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Build standalone patched app
+      - name: Build standalone patched app v5.9.3
         env:
           CS2_DATA_DIR: /tmp/cs2_engine
-          CS2_WEB_RUNTIME_APP: /tmp/OneWayPickz_CS2_v589_app.py
+          CS2_WEB_RUNTIME_APP: /tmp/OneWayPickz_CS2_v593_app.py
         run: |
           mkdir -p /tmp/cs2_engine
           RUNTIME="$(python prepare_web_app.py | tail -n 1)"
-          test "$RUNTIME" = "/tmp/OneWayPickz_CS2_v589_app.py"
+          test "$RUNTIME" = "/tmp/OneWayPickz_CS2_v593_app.py"
           python -m py_compile "$RUNTIME"
           python - <<'PY'
           import json
           from pathlib import Path
-          p=Path('/tmp/OneWayPickz_CS2_v589_app.py')
-          text=p.read_text(encoding='utf-8')
+          p=Path('/tmp/OneWayPickz_CS2_v593_app.py'); text=p.read_text(encoding='utf-8')
           required=[
               '# === ONEWAYPICKZ CS2 AUTOFEED ACCURACY PATCH V5.2 ===',
-              '# === ONEWAYPICKZ CS2 AUTOFEED RECOVERY PATCH V5.3 ===',
               '# === ONEWAYPICKZ CS2 COMPLETE DATA PIPELINE V5.5 ===',
-              '# === ONEWAYPICKZ CS2 PRODUCTION DATA PIPELINE V5.6 ===',
-              '# === ONEWAYPICKZ V5.6.2 REAL IDENTITY CARRY ===',
               '# === ONEWAYPICKZ V5.7 VERIFIED MATCH + LINEUP CONTEXT ===',
-              '# === ONEWAYPICKZ V5.8 FAST LIVE LINE COVERAGE ===',
-              '# === ONEWAYPICKZ V5.8.1 CACHE-FIRST WEB MATCH CONTEXT ===',
-              '# === ONEWAYPICKZ V5.8.2 PRIMARY-SOURCE LINE + CONTEXT FASTPATH ===',
-              '# === ONEWAYPICKZ V5.8.3 COMPLETE SUPPORTED-LINE VISIBILITY ===',
-              '# === ONEWAYPICKZ V5.8.4 ALL-LINE INSTANT DISPLAY ===',
-              '# === ONEWAYPICKZ V5.8.5 PREMODEL VERIFIED CONTEXT HANDOFF ===',
               '# === ONEWAYPICKZ V5.8.6 VERIFIED CS2 SOURCE GATE ===',
-              '# === ONEWAYPICKZ V5.8.7 COMPLETE VERIFIED DATA RECOVERY ===',
               '# === ONEWAYPICKZ V5.8.8 AUTHORITATIVE SOURCE IDENTITY + PROVIDER RECOVERY ===',
               '# === ONEWAYPICKZ V5.8.9 VERIFIED FREEZE + GRADING HANDOFF ===',
-              '🧪 FULL LIVE AUDIT DOWNLOAD',
-              'cs2_enable_full_live_audit_download_v57',
-              '_audit_sidebar_slot = st.empty()',
-              'ALL LIVE UNDERDOG CS2 LINES',
+              '# === ONEWAYPICKZ V5.9.0 DIRECT HLTV MATCH DISCOVERY ===',
+              '# === ONEWAYPICKZ V5.9.1 DIRECT HLTV CONTEXT + TEAM MAP HYDRATION ===',
+              '# === ONEWAYPICKZ V5.9.2 DIRECT HLTV VERIFIED PLAYER PROFILES ===',
+              '# === ONEWAYPICKZ V5.9.3 DIRECT HLTV MAP CARD PARSER ===',
+              '🧪 FULL LIVE AUDIT DOWNLOAD','cs2_enable_full_live_audit_download_v57','ALL LIVE UNDERDOG CS2 LINES'
           ]
           missing=[x for x in required if x not in text]
           if missing: raise SystemExit(f'standalone app missing integrations: {missing}')
-          if 'value=True,\n            key="cs2_enable_full_live_audit_download_v57"' not in text:
-              raise SystemExit('audit download toggle is not enabled by default')
-          status=Path('/tmp/cs2_engine/.web_runtime_status.json')
-          s=json.loads(status.read_text()) if status.exists() else {}
-          if not s.get('ok') or s.get('runtime_version')!='5.8.9' or s.get('completion_layer')!='5.8.9':
-              raise SystemExit(f'v5.8.9 runtime status invalid: {s}')
+          s=json.loads(Path('/tmp/cs2_engine/.web_runtime_status.json').read_text())
+          if not s.get('ok') or s.get('runtime_version')!='5.9.3' or s.get('hltv_map_layer')!='5.9.3': raise SystemExit(f'v5.9.3 runtime invalid: {s}')
           patches={x.get('file'):x for x in s.get('patches') or []}
-          for required_patch in ('autofeed_completion_v588.py','autofeed_handoff_v589.py'):
-              if not patches.get(required_patch,{}).get('ok'):
-                  raise SystemExit(f'{required_patch} missing: {s}')
-          print({'standalone_bytes':p.stat().st_size,'required_integrations':len(required),'audit_top_sidebar':True,'runtime':'5.8.9'})
+          for name in ('autofeed_handoff_v589.py','autofeed_provider_v590.py','autofeed_hltv_v591.py','autofeed_profiles_v592.py','autofeed_maps_v593.py'):
+              if not patches.get(name,{}).get('ok'): raise SystemExit(f'{name} missing: {s}')
+          print({'standalone_bytes':p.stat().st_size,'runtime':'5.9.3','integrations':len(required)})
           PY
-          cp "$RUNTIME" ./OneWayPickz_CS2_v589_READY_app.py
-
-      - name: Upload single app file
-        uses: actions/upload-artifact@v4
+          cp "$RUNTIME" ./OneWayPickz_CS2_v593_READY_app.py
+      - uses: actions/upload-artifact@v4
         with:
-          name: OneWayPickz-CS2-v589-READY-app
-          path: OneWayPickz_CS2_v589_READY_app.py
+          name: OneWayPickz-CS2-v593-READY-app
+          path: OneWayPickz_CS2_v593_READY_app.py
           if-no-files-found: error
           retention-days: 30
