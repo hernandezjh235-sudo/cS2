@@ -36,6 +36,7 @@ PATCHES = [
     ROOT / "autofeed_grading_v594.py",
     ROOT / "autofeed_production_v595.py",
     ROOT / "autofeed_context_v596.py",
+    ROOT / "autofeed_durable_v597.py",
 ]
 
 
@@ -68,7 +69,7 @@ def main() -> int:
             if not patch_path.exists(): status["patches"].append({"file":patch_path.name,"ok":False,"warning":"missing"}); continue
             module=_load_patch(patch_path,idx); changed=bool(module.patch_app(TARGET_APP)); status["patches"].append({"file":patch_path.name,"ok":True,"changed":changed})
         compile(TARGET_APP.read_text(encoding="utf-8"),str(TARGET_APP),"exec")
-        status.update({"ok":True,"runtime_app":str(TARGET_APP),"runtime_version":"5.9.6","web_latency_layer":"5.8.4","premodel_context_layer":"5.8.5","verified_source_layer":"5.8.6","provider_recovery_layer":"5.8.7","authoritative_identity_layer":"5.8.8","completion_layer":"5.8.9","provider_discovery_layer":"5.9.0","hltv_context_layer":"5.9.1","verified_profile_layer":"5.9.2","hltv_map_layer":"5.9.3","direct_grading_layer":"5.9.4","production_completion_layer":"5.9.5","verified_deep_context_layer":"5.9.6"})
+        status.update({"ok":True,"runtime_app":str(TARGET_APP),"runtime_version":"5.9.7","web_latency_layer":"5.8.4","premodel_context_layer":"5.8.5","verified_source_layer":"5.8.6","provider_recovery_layer":"5.8.7","authoritative_identity_layer":"5.8.8","completion_layer":"5.8.9","provider_discovery_layer":"5.9.0","hltv_context_layer":"5.9.1","verified_profile_layer":"5.9.2","hltv_map_layer":"5.9.3","direct_grading_layer":"5.9.4","production_completion_layer":"5.9.5","verified_deep_context_layer":"5.9.6","durable_verified_context_layer":"5.9.7"})
         _write_status(status); print(str(TARGET_APP)); return 0
     except Exception as exc:
         status["error"]=f"{type(exc).__name__}: {exc}"
