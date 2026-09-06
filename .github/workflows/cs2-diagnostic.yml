@@ -43,10 +43,8 @@ jobs:
           CS2_AUTO_GRADE: "true"
           CS2_DEEP_DATA: "true"
           CS2_WEB_ALLOW_PROVIDER_NETWORK: "true"
-          CS2_BO3_PROFILES_PER_REFRESH: "180"
           CS2_AUTOFEED_DIRECT_PROFILE_BATCH: "120"
           CS2_PROFILE_RECOVERY_PASSES: "3"
-          CS2_AUTOFEED_DIRECT_WORKERS: "4"
           CS2_HLTV_DIRECT_PROFILE_PAGES: "5"
           JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
         run: |
@@ -55,7 +53,7 @@ jobs:
           import csv,json
           from pathlib import Path
           root=Path('/tmp/cs2_engine')
-          names=['.autofeed_collector_status.json','cs2_context_health.json','cs2_data_readiness.json','cs2_operational_status.json','cs2_grading_health.json','cs2_provider_discovery_health.json','cs2_hltv_direct_health.json','cs2_hltv_profile_health.json','cs2_live_line_catalog.json','cs2_provider_cache.json','cs2_official_snapshots.json','cs2_graded_results.json']
+          names=['.autofeed_collector_status.json','cs2_context_health.json','cs2_data_readiness.json','cs2_operational_status.json','cs2_grading_health.json','cs2_provider_discovery_health.json','cs2_hltv_direct_health.json','cs2_hltv_profile_health.json','cs2_hltv_map_health.json','cs2_live_line_catalog.json','cs2_provider_cache.json','cs2_official_snapshots.json','cs2_graded_results.json']
           summary={}
           for name in names:
               p=root/name
@@ -71,27 +69,20 @@ jobs:
           if board.exists():
               rows=list(csv.DictReader(board.open()))
               yes=lambda v:str(v).lower() in {'1','true','yes'}
-              summary['current_board.csv']={
-                  'rows':len(rows),
-                  'supported':sum(yes(r.get('model_supported')) and yes(r.get('market_scope_verified')) for r in rows),
-                  'projection_ready':sum(yes(r.get('projection_data_ready')) for r in rows),
-                  'official_ready':sum(yes(r.get('official_data_ready')) for r in rows),
-                  'provider_context':sum(yes(r.get('v587_provider_context')) for r in rows),
-                  'provider_urls':sum(str(r.get('provider_match_url') or '').startswith('https://www.hltv.org/') for r in rows),
-                  'deep_rows':sum(int(float(r.get('team_recent_maps') or 0))>0 and int(float(r.get('opponent_mapstats_samples') or 0))>0 for r in rows),
-                  'core_kpr':sum(yes(r.get('core_kpr_verified')) for r in rows),
-                  'fresh_players':sum(yes(r.get('player_source_fresh')) for r in rows),
-              }
-          (root/'v592_diagnostic_summary.json').write_text(json.dumps(summary,indent=2,default=str))
+              def num(v):
+                  try:return int(float(v or 0))
+                  except:return 0
+              summary['current_board.csv']={'rows':len(rows),'supported':sum(yes(r.get('model_supported')) and yes(r.get('market_scope_verified')) for r in rows),'projection_ready':sum(yes(r.get('projection_data_ready')) for r in rows),'official_ready':sum(yes(r.get('official_data_ready')) for r in rows),'provider_context':sum(yes(r.get('v587_provider_context')) for r in rows),'provider_urls':sum(str(r.get('provider_match_url') or '').startswith('https://www.hltv.org/') for r in rows),'deep_rows':sum(num(r.get('team_recent_maps'))>0 and num(r.get('opponent_mapstats_samples'))>0 for r in rows),'core_kpr':sum(yes(r.get('core_kpr_verified')) for r in rows),'fresh_players':sum(yes(r.get('player_source_fresh')) for r in rows)}
+          (root/'v593_diagnostic_summary.json').write_text(json.dumps(summary,indent=2,default=str))
           print(json.dumps(summary,indent=2,default=str))
           PY
-      - name: Upload v5.9.2 diagnostics
+      - name: Upload v5.9.3 diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cs2-v592-diagnostics
+          name: cs2-v593-diagnostics
           path: |
-            /tmp/cs2_engine/v592_diagnostic_summary.json
+            /tmp/cs2_engine/v593_diagnostic_summary.json
             /tmp/cs2_engine/.autofeed_collector_status.json
             /tmp/cs2_engine/cs2_context_health.json
             /tmp/cs2_engine/cs2_data_readiness.json
@@ -100,6 +91,7 @@ jobs:
             /tmp/cs2_engine/cs2_provider_discovery_health.json
             /tmp/cs2_engine/cs2_hltv_direct_health.json
             /tmp/cs2_engine/cs2_hltv_profile_health.json
+            /tmp/cs2_engine/cs2_hltv_map_health.json
             /tmp/cs2_engine/current_board.csv
           if-no-files-found: warn
           retention-days: 3
