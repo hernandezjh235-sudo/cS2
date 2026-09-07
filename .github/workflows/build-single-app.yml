@@ -31,6 +31,7 @@ jobs:
           CS2_DATA_DIR: /tmp/cs2_engine
           CS2_WEB_RUNTIME_APP: /tmp/OneWayPickz_CS2_v601_app.py
         run: |
+          # v6.0.1 robust-side validation
           mkdir -p /tmp/cs2_engine
           RUNTIME="$(python prepare_web_app.py | tail -n 1)"
           test "$RUNTIME" = "/tmp/OneWayPickz_CS2_v601_app.py"
