@@ -40,6 +40,7 @@ PATCHES = [
     ROOT / "autofeed_ui_compact_v598.py",
     ROOT / "autofeed_durable_profiles_v599.py",
     ROOT / "autofeed_winrate_v600.py",
+    ROOT / "autofeed_robust_side_v601.py",
 ]
 
 
@@ -72,7 +73,7 @@ def main() -> int:
             if not patch_path.exists(): status["patches"].append({"file":patch_path.name,"ok":False,"warning":"missing"}); continue
             module=_load_patch(patch_path,idx); changed=bool(module.patch_app(TARGET_APP)); status["patches"].append({"file":patch_path.name,"ok":True,"changed":changed})
         compile(TARGET_APP.read_text(encoding="utf-8"),str(TARGET_APP),"exec")
-        status.update({"ok":True,"runtime_app":str(TARGET_APP),"runtime_version":"6.0","web_latency_layer":"5.8.4","premodel_context_layer":"5.8.5","verified_source_layer":"5.8.6","provider_recovery_layer":"5.8.7","authoritative_identity_layer":"5.8.8","completion_layer":"5.8.9","provider_discovery_layer":"5.9.0","hltv_context_layer":"5.9.1","verified_profile_layer":"5.9.2","hltv_map_layer":"5.9.3","direct_grading_layer":"5.9.4","production_completion_layer":"5.9.5","verified_deep_context_layer":"5.9.6","durable_verified_context_layer":"5.9.7","compact_ui_layer":"5.9.8","durable_verified_profile_layer":"5.9.9","winrate_tracking_audit_layer":"6.0"})
+        status.update({"ok":True,"runtime_app":str(TARGET_APP),"runtime_version":"6.0.1","web_latency_layer":"5.8.4","premodel_context_layer":"5.8.5","verified_source_layer":"5.8.6","provider_recovery_layer":"5.8.7","authoritative_identity_layer":"5.8.8","completion_layer":"5.8.9","provider_discovery_layer":"5.9.0","hltv_context_layer":"5.9.1","verified_profile_layer":"5.9.2","hltv_map_layer":"5.9.3","direct_grading_layer":"5.9.4","production_completion_layer":"5.9.5","verified_deep_context_layer":"5.9.6","durable_verified_context_layer":"5.9.7","compact_ui_layer":"5.9.8","durable_verified_profile_layer":"5.9.9","winrate_tracking_audit_layer":"6.0","robust_side_gate_layer":"6.0.1"})
         _write_status(status); print(str(TARGET_APP)); return 0
     except Exception as exc:
         status["error"]=f"{type(exc).__name__}: {exc}"
