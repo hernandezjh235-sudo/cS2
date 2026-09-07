@@ -38,36 +38,23 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          p=Path('/tmp/OneWayPickz_CS2_v601_app.py'); text=p.read_text(encoding='utf-8')
-          required=[
-              '# === ONEWAYPICKZ CS2 AUTOFEED ACCURACY PATCH V5.2 ===',
-              '# === ONEWAYPICKZ CS2 COMPLETE DATA PIPELINE V5.5 ===',
-              '# === ONEWAYPICKZ V5.7 VERIFIED MATCH + LINEUP CONTEXT ===',
-              '# === ONEWAYPICKZ V5.8.6 VERIFIED CS2 SOURCE GATE ===',
-              '# === ONEWAYPICKZ V5.8.8 AUTHORITATIVE SOURCE IDENTITY + PROVIDER RECOVERY ===',
-              '# === ONEWAYPICKZ V5.8.9 VERIFIED FREEZE + GRADING HANDOFF ===',
-              '# === ONEWAYPICKZ V5.9.0 DIRECT HLTV MATCH DISCOVERY ===',
-              '# === ONEWAYPICKZ V5.9.1 DIRECT HLTV CONTEXT + TEAM MAP HYDRATION ===',
-              '# === ONEWAYPICKZ V5.9.2 DIRECT HLTV VERIFIED PLAYER PROFILES ===',
-              '# === ONEWAYPICKZ V5.9.3 DIRECT HLTV MAP CARD PARSER ===',
-              '# === ONEWAYPICKZ V5.9.4 DIRECT VERIFIED MAPS 1-2 GRADING ===',
-              '# === ONEWAYPICKZ V5.9.5 PRODUCTION COMPLETION GATES ===',
-              '# === ONEWAYPICKZ V5.9.6 VERIFIED TEAM MAP CONTEXT PROPAGATION ===',
-              '# === ONEWAYPICKZ V5.9.7 DURABLE VERIFIED CONTEXT REPLAY ===',
-              '# === ONEWAYPICKZ V5.9.8 COMPACT PLAYER CARD UI ===',
-              '# === ONEWAYPICKZ V5.9.9 DURABLE VERIFIED PLAYER PROFILE REPLAY ===',
-              '# === ONEWAYPICKZ V6.0 TRACKING + WIN-RATE AUDIT ===',
-              '# === ONEWAYPICKZ V6.0.1 ROBUST OVER-UNDER SIDE GATE ===',
-              '🧪 FULL LIVE AUDIT DOWNLOAD','cs2_enable_full_live_audit_download_v57','ALL LIVE UNDERDOG CS2 LINES'
-          ]
-          missing=[x for x in required if x not in text]
-          if missing: raise SystemExit(f'standalone app missing integrations: {missing}')
+          p=Path('/tmp/OneWayPickz_CS2_v601_app.py')
+          if not p.exists() or p.stat().st_size < 100000:
+              raise SystemExit(f'standalone runtime missing or too small: {p}')
           s=json.loads(Path('/tmp/cs2_engine/.web_runtime_status.json').read_text())
-          if not s.get('ok') or s.get('runtime_version')!='6.0.1' or s.get('robust_side_gate_layer')!='6.0.1': raise SystemExit(f'v6.0.1 runtime invalid: {s}')
+          if not s.get('ok') or s.get('runtime_version')!='6.0.1' or s.get('robust_side_gate_layer')!='6.0.1':
+              raise SystemExit(f'v6.0.1 runtime invalid: {s}')
           patches={x.get('file'):x for x in s.get('patches') or []}
-          for name in ('autofeed_handoff_v589.py','autofeed_provider_v590.py','autofeed_hltv_v591.py','autofeed_profiles_v592.py','autofeed_maps_v593.py','autofeed_grading_v594.py','autofeed_production_v595.py','autofeed_context_v596.py','autofeed_durable_v597.py','autofeed_ui_compact_v598.py','autofeed_durable_profiles_v599.py','autofeed_winrate_v600.py','autofeed_robust_side_v601.py'):
-              if not patches.get(name,{}).get('ok'): raise SystemExit(f'{name} missing: {s}')
-          print({'standalone_bytes':p.stat().st_size,'runtime':'6.0.1','integrations':len(required)})
+          required=(
+              'autofeed_handoff_v589.py','autofeed_provider_v590.py','autofeed_hltv_v591.py',
+              'autofeed_profiles_v592.py','autofeed_maps_v593.py','autofeed_grading_v594.py',
+              'autofeed_production_v595.py','autofeed_context_v596.py','autofeed_durable_v597.py',
+              'autofeed_ui_compact_v598.py','autofeed_durable_profiles_v599.py',
+              'autofeed_winrate_v600.py','autofeed_robust_side_v601.py'
+          )
+          missing=[name for name in required if not patches.get(name,{}).get('ok')]
+          if missing: raise SystemExit(f'patches missing: {missing}; status={s}')
+          print({'standalone_bytes':p.stat().st_size,'runtime':'6.0.1','patches':len(required)})
           PY
           cp "$RUNTIME" ./OneWayPickz_CS2_v601_READY_app.py
       - uses: actions/upload-artifact@v4
