@@ -26,40 +26,40 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Build standalone patched app v6.0.1
+      - name: Build standalone patched app v6.0.2
         env:
           CS2_DATA_DIR: /tmp/cs2_engine
-          CS2_WEB_RUNTIME_APP: /tmp/OneWayPickz_CS2_v601_app.py
+          CS2_WEB_RUNTIME_APP: /tmp/OneWayPickz_CS2_v602_app.py
         run: |
           mkdir -p /tmp/cs2_engine
           RUNTIME="$(python prepare_web_app.py | tail -n 1)"
-          test "$RUNTIME" = "/tmp/OneWayPickz_CS2_v601_app.py"
-          python -m py_compile "$RUNTIME" autofeed_grading_v594.py autofeed_production_v595.py autofeed_context_v596.py autofeed_durable_v597.py autofeed_ui_compact_v598.py autofeed_durable_profiles_v599.py autofeed_winrate_v600.py autofeed_robust_side_v601.py
+          test "$RUNTIME" = "/tmp/OneWayPickz_CS2_v602_app.py"
+          python -m py_compile "$RUNTIME" autofeed_grading_v594.py autofeed_production_v595.py autofeed_context_v596.py autofeed_durable_v597.py autofeed_ui_compact_v598.py autofeed_durable_profiles_v599.py autofeed_winrate_v600.py autofeed_robust_side_v601.py autofeed_hltv_reader_v602.py
           python - <<'PY'
           import json
           from pathlib import Path
-          p=Path('/tmp/OneWayPickz_CS2_v601_app.py')
+          p=Path('/tmp/OneWayPickz_CS2_v602_app.py')
           if not p.exists() or p.stat().st_size < 100000:
               raise SystemExit(f'standalone runtime missing or too small: {p}')
           s=json.loads(Path('/tmp/cs2_engine/.web_runtime_status.json').read_text())
-          if not s.get('ok') or s.get('runtime_version')!='6.0.1' or s.get('robust_side_gate_layer')!='6.0.1':
-              raise SystemExit(f'v6.0.1 runtime invalid: {s}')
+          if not s.get('ok') or s.get('runtime_version')!='6.0.2' or s.get('hltv_reader_fallback_layer')!='6.0.2':
+              raise SystemExit(f'v6.0.2 runtime invalid: {s}')
           patches={x.get('file'):x for x in s.get('patches') or []}
           required=(
               'autofeed_handoff_v589.py','autofeed_provider_v590.py','autofeed_hltv_v591.py',
               'autofeed_profiles_v592.py','autofeed_maps_v593.py','autofeed_grading_v594.py',
               'autofeed_production_v595.py','autofeed_context_v596.py','autofeed_durable_v597.py',
               'autofeed_ui_compact_v598.py','autofeed_durable_profiles_v599.py',
-              'autofeed_winrate_v600.py','autofeed_robust_side_v601.py'
+              'autofeed_winrate_v600.py','autofeed_robust_side_v601.py','autofeed_hltv_reader_v602.py'
           )
           missing=[name for name in required if not patches.get(name,{}).get('ok')]
           if missing: raise SystemExit(f'patches missing: {missing}; status={s}')
-          print({'standalone_bytes':p.stat().st_size,'runtime':'6.0.1','patches':len(required)})
+          print({'standalone_bytes':p.stat().st_size,'runtime':'6.0.2','patches':len(required)})
           PY
-          cp "$RUNTIME" ./OneWayPickz_CS2_v601_READY_app.py
+          cp "$RUNTIME" ./OneWayPickz_CS2_v602_READY_app.py
       - uses: actions/upload-artifact@v4
         with:
-          name: OneWayPickz-CS2-v601-READY-app
-          path: OneWayPickz_CS2_v601_READY_app.py
+          name: OneWayPickz-CS2-v602-READY-app
+          path: OneWayPickz_CS2_v602_READY_app.py
           if-no-files-found: error
           retention-days: 30
