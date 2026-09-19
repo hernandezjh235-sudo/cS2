@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-19T00:48:36+00:00",
+  "repo_cache_version": "5.8.2",
+  "archive": "cs2_data_cache.zip",
+  "archive_sha256": "24c7a484acb3dcfbe2fdd25f20a631eb244e4f0df9079367578dd1453dcfef64",
+  "archive_size": 50145332,
+  "files": [
+    {
+      "name": "cs2_provider_cache.json",
+      "size": 2912528,
+      "sha256": "0109dc60de1e8828ce1eefc4aa5cd4403b55efe30777347b9cc99a62af80f719"
+    },
+    {
+      "name": "player_database.json",
+      "size": 1101709,
+      "sha256": "a1f93c87d17db62de57bbaf264c85b1b8c32565d930dd8e5d7769f9ef0bbdd3e"
+    },
+    {
+      "name": "team_database.json",
+      "size": 135545,
+      "sha256": "6d0782efbeb31fdb1f7ed7b0ae81b2d8da16321fbb549dec2700bc6974367749"
+    },
+    {
+      "name": "match_database.json",
+      "size": 1966609,
+      "sha256": "09fca64cb76c40c3bd653b27f43057985a51a6d6e4210e3a850b40865ca46422"
+    },
+    {
+      "name": "map_database.json",
+      "size": 619494,
+      "sha256": "35d47377768062fe876ccce55bdce86299d04d7a8b2e27be7cd8a1f6c713e5ea"
+    },
+    {
+      "name": "roster_database.json",
+      "size": 672244,
+      "sha256": "ec8c0619358e88296cc593bda54c620184b00028f082ea62e54f4753ef07c507"
+    },
+    {
+      "name": "veto_database.json",
+      "size": 169373,
+      "sha256": "78593d89d12ca9dd8ddf206b6f2847b223bec16530736094c539ede84c89cffe"
+    },
+    {
+      "name": "player_aliases.json",
+      "size": 145616,
+      "sha256": "2274df9f3970546a165c9ffc8c262239e40dc96f9d66e0a3688a33720112d0c7"
+    },
+    {
+      "name": "database_meta.json",
+      "size": 72,
+      "sha256": "4a6b0e3710f8101d753e306a26310a00757a96c6c771b923fd6d3e4eef74e51e"
+    },
+    {
+      "name": "cs2_official_snapshots.json",
+      "size": 45628044,
+      "sha256": "7fcdfa911030407ac834d79bd0a786a695947a60fa3d7a7af05571836e81c9ab"
+    },
+    {
+      "name": "cs2_graded_results.json",
+      "size": 2,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "name": "cs2_learning.json",
+      "size": 345,
+      "sha256": "acf7d06760a6040b9274494559bd229ca90d936e45468d9d548608cc640188ef"
+    },
+    {
+      "name": "cs2_line_history.json",
+      "size": 449353,
+      "sha256": "94c0055638bac674af21de540e1d5d31a064c2296d47ad75aa53f672cfbf624a"
+    },
+    {
+      "name": "cs2_player_map_profiles.json",
+      "size": 659411,
+      "sha256": "e779b32524998fc98b5d82f4cd151702c29bceef67d1eaf81458a0a178715492"
+    },
+    {
+      "name": "cs2_market_consensus.json",
+      "size": 13658,
+      "sha256": "f4e6d784dbf6f68d957dee89cd16c51ed2c7fd619f4957e46b7c908c46d5401c"
+    },
+    {
+      "name": "cs2_probability_calibration.json",
+      "size": 279,
+      "sha256": "cdf7ddbd8d1a73817320d61e465327e59c97202cf775fb7965d2ac8a3171585d"
+    },
+    {
+      "name": "cs2_patch_map_pool_eras.json",
+      "size": 817,
+      "sha256": "189c090c227704f3040b9d6eee092fbc4fa5d6708540bbe7707b7bd054a1d2c7"
+    },
+    {
+      "name": "cs2_role_timeline.json",
+      "size": 254924,
+      "sha256": "217c302a78e385dd7d5d181a919f613f2357ffcd730156b8a96e38757ed2de08"
+    },
+    {
+      "name": "cs2_asof_projection_history.jsonl",
+      "size": 69191148,
+      "sha256": "edf150a75303f084054b07c2a41caa060ba198122973dee5c73784e15794d2ce"
+    },
+    {
+      "name": "cs2_core_v42.sqlite3",
+      "size": 385568768,
+      "sha256": "aa4bb85b34e5d66799512ff128f37b88a47b6a7dd0c85cf7cc88da173261e0e3"
+    },
+    {
+      "name": "cs2_bo3_player_index_v50.json",
+      "size": 14991,
+      "sha256": "cb2ac8d64c0a9491b071de35a82b01a3f2899735de1207f9030595d583084c22"
+    },
+    {
+      "name": "cs2_profile_recovery_cursor.json",
+      "size": 85,
+      "sha256": "e180a6d2fecbae13965bc245bd5a266a2098c1fa801c4bed7e53b76f7c156383"
+    },
+    {
+      "name": "cs2_data_readiness.json",
+      "size": 539,
+      "sha256": "6f0f386a52662ca871c133e44d68f45e3b1042bf9d1a27739869e8d7ec1b08b6"
+    },
+    {
+      "name": "cs2_grading_health.json",
+      "size": 147,
+      "sha256": "dfafa93d202270efbebb9c51d330b91988f7d5cd1ede4ea1a1d2a87bb09b7526"
+    },
+    {
+      "name": "cs2_operational_status.json",
+      "size": 1171,
+      "sha256": "55c2f4f0e4f7e9fbe6aebb384269b29d75c8f65ef764e2ecd4444e0d2af3738e"
+    },
+    {
+      "name": "cs2_context_health.json",
+      "size": 648,
+      "sha256": "975110d49746686eefe1fd30e4b01cf9e057255036a816e08e8eeea8cac3081d"
+    },
+    {
+      "name": "cs2_live_line_catalog.json",
+      "size": 376336,
+      "sha256": "cac85827a17ccdc8daf07a925c9824e6e3296fc0b4d8d85360b598add4307f27"
+    }
+  ]
+}

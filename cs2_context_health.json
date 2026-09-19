@@ -1,0 +1,23 @@
+{
+  "version": "5.9.6",
+  "runtime_layer": "5.9.6",
+  "updated_at": "2026-09-19T00:41:35+00:00",
+  "board_rows": 110,
+  "exact_source_identity_rows": 110,
+  "exact_match_player_ids": 108,
+  "five_player_lineups": 99,
+  "players_in_lineup": 99,
+  "real_provider_match_rows": 39,
+  "real_source_match_rows": 71,
+  "real_match_rows": 110,
+  "verified_profile_rows": 54,
+  "core_kpr_rows": 54,
+  "deep_team_map_rows": 39,
+  "projection_ready_rows": 54,
+  "official_ready_rows": 0,
+  "premodel_context_rows": 110,
+  "supported_exact_id_blank_team_rows": 0,
+  "non_cs2_rows_visible": 0,
+  "projection_math_changed": false,
+  "freeze_candidate_rows": 38
+}
