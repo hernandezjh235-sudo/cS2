@@ -1,0 +1,5582 @@
+{
+  "version": "5.8.6",
+  "updated_at": "2026-10-17T14:28:55+00:00",
+  "rows": [
+    {
+      "source": "Underdog",
+      "prop_id": "137bf4e8-360c-42f1-beb7-20303a857c20",
+      "player": "NiKo",
+      "team": "BetBoom",
+      "opponent": "Team Falcons",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "137bf4e8-360c-42f1-beb7-20303a857c20",
+      "appearance_id": "57e0cd81-6750-4180-a547-8c894990c4f3",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 30.5,
+      "evidence": "active | balanced | active | NiKo | Higher 30.5 Kills on Maps 1+2 | OverUnderOption | active | NiKo | Lower 30.5 Kills on Maps 1+2 | OverUnderOption | NiKo Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | NiKo | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "9721d9cd-667d-4034-a7f6-93111de0977f",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "underdog_opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "source_identity_ids": {
+        "player_id": "9721d9cd-667d-4034-a7f6-93111de0977f",
+        "match_id": "273100",
+        "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+        "opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "BetBoom",
+      "source_opponent_name": "Team Falcons",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "164433f0-64bd-48d0-87a9-60100dbca85b",
+      "player": "sjuush",
+      "team": "Made in Brazil",
+      "opponent": "Ninjas in Pyjamas",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "164433f0-64bd-48d0-87a9-60100dbca85b",
+      "appearance_id": "d791834b-9e22-4553-b60c-31662ed6799b",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 27.5,
+      "evidence": "active | balanced | active |  sjuush | Higher 27.5 Kills on Maps 1+2 | OverUnderOption | active |  sjuush | Lower 27.5 Kills on Maps 1+2 | OverUnderOption |  sjuush Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | sjuush | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "f628f824-2ffb-4d81-939d-4a33bb1f68fa",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "underdog_opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "source_identity_ids": {
+        "player_id": "f628f824-2ffb-4d81-939d-4a33bb1f68fa",
+        "match_id": "273178",
+        "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+        "opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Made in Brazil",
+      "source_opponent_name": "Ninjas in Pyjamas",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "a763b9e1-00ee-4147-9f6d-01f9d3e1d637",
+      "player": "sjuush",
+      "team": "Made in Brazil",
+      "opponent": "Ninjas in Pyjamas",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "a763b9e1-00ee-4147-9f6d-01f9d3e1d637",
+      "appearance_id": "d791834b-9e22-4553-b60c-31662ed6799b",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 14.5,
+      "evidence": "active | balanced | active |  sjuush | Higher 14.5 Headshots on Maps 1+2 | OverUnderOption | active |  sjuush | Lower 14.5 Headshots on Maps 1+2 | OverUnderOption |  sjuush Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | sjuush | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "f628f824-2ffb-4d81-939d-4a33bb1f68fa",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "underdog_opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "source_identity_ids": {
+        "player_id": "f628f824-2ffb-4d81-939d-4a33bb1f68fa",
+        "match_id": "273178",
+        "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+        "opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "Made in Brazil",
+      "source_opponent_name": "Ninjas in Pyjamas",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "19aa6d5d-1874-44c0-9707-5210e687e849",
+      "player": "NiKo",
+      "team": "BetBoom",
+      "opponent": "Team Falcons",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "19aa6d5d-1874-44c0-9707-5210e687e849",
+      "appearance_id": "57e0cd81-6750-4180-a547-8c894990c4f3",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 16.5,
+      "evidence": "active | balanced | active | NiKo | Higher 16.5 Headshots on Maps 1+2 | OverUnderOption | active | NiKo | Lower 16.5 Headshots on Maps 1+2 | OverUnderOption | NiKo Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | NiKo | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "9721d9cd-667d-4034-a7f6-93111de0977f",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "underdog_opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "source_identity_ids": {
+        "player_id": "9721d9cd-667d-4034-a7f6-93111de0977f",
+        "match_id": "273100",
+        "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+        "opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "BetBoom",
+      "source_opponent_name": "Team Falcons",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "600b96f1-f173-4bb4-acfd-5b0e9fbde9bc",
+      "player": "kyousuke",
+      "team": "BetBoom",
+      "opponent": "Team Falcons",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "600b96f1-f173-4bb4-acfd-5b0e9fbde9bc",
+      "appearance_id": "f423db22-084d-4ec8-9803-a858f62bbe83",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 32.5,
+      "evidence": "active | balanced | active |  kyousuke | Higher 32.5 Kills on Maps 1+2 | OverUnderOption | active |  kyousuke | Lower 32.5 Kills on Maps 1+2 | OverUnderOption |  kyousuke Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | kyousuke | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "ab7e43b5-1aff-4c46-b74d-e1db9a0a47d3",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "underdog_opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "source_identity_ids": {
+        "player_id": "ab7e43b5-1aff-4c46-b74d-e1db9a0a47d3",
+        "match_id": "273100",
+        "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+        "opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "BetBoom",
+      "source_opponent_name": "Team Falcons",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "60ee39fa-42c0-44a0-b744-d6c3ff064dba",
+      "player": "kyousuke",
+      "team": "BetBoom",
+      "opponent": "Team Falcons",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "60ee39fa-42c0-44a0-b744-d6c3ff064dba",
+      "appearance_id": "f423db22-084d-4ec8-9803-a858f62bbe83",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 19.5,
+      "evidence": "active | balanced | active |  kyousuke | Higher 19.5 Headshots on Maps 1+2 | OverUnderOption | active |  kyousuke | Lower 19.5 Headshots on Maps 1+2 | OverUnderOption |  kyousuke Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | kyousuke | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "ab7e43b5-1aff-4c46-b74d-e1db9a0a47d3",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "underdog_opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "source_identity_ids": {
+        "player_id": "ab7e43b5-1aff-4c46-b74d-e1db9a0a47d3",
+        "match_id": "273100",
+        "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+        "opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "BetBoom",
+      "source_opponent_name": "Team Falcons",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "bf38170e-94c4-454e-a862-388e5af4f92f",
+      "player": "bl1x1",
+      "team": "BBL Esports",
+      "opponent": "ex",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "bf38170e-94c4-454e-a862-388e5af4f92f",
+      "appearance_id": "2e9fb076-8a34-4823-8f5e-f6935064b1fd",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 27.5,
+      "evidence": "active | balanced | active |  bl1x1 | Higher 27.5 Kills on Maps 1+2 | OverUnderOption | active |  bl1x1 | Lower 27.5 Kills on Maps 1+2 | OverUnderOption |  bl1x1 Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | bl1x1 | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "097e0901-ec17-434e-804d-06c250b7f82a",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "underdog_opponent_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "source_identity_ids": {
+        "player_id": "097e0901-ec17-434e-804d-06c250b7f82a",
+        "match_id": "273102",
+        "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+        "opponent_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        },
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "bl1x1",
+        "youka",
+        "relaxxie",
+        "Brilliance"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "BBL Esports",
+      "source_opponent_name": "ex",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "125b54f3-ccb5-4e78-a397-ce28b6eddbbf",
+      "player": "bl1x1",
+      "team": "BBL Esports",
+      "opponent": "ex",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "125b54f3-ccb5-4e78-a397-ce28b6eddbbf",
+      "appearance_id": "2e9fb076-8a34-4823-8f5e-f6935064b1fd",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 18.5,
+      "evidence": "active | balanced | active |  bl1x1 | Higher 18.5 Headshots on Maps 1+2 | OverUnderOption | active |  bl1x1 | Lower 18.5 Headshots on Maps 1+2 | OverUnderOption |  bl1x1 Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | bl1x1 | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "097e0901-ec17-434e-804d-06c250b7f82a",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "underdog_opponent_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "source_identity_ids": {
+        "player_id": "097e0901-ec17-434e-804d-06c250b7f82a",
+        "match_id": "273102",
+        "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+        "opponent_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        },
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "bl1x1",
+        "youka",
+        "relaxxie",
+        "Brilliance"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "BBL Esports",
+      "source_opponent_name": "ex",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "78aa7053-7b51-4185-9edb-1a68918eefd5",
+      "player": "xKacpersky",
+      "team": "Made in Brazil",
+      "opponent": "Ninjas in Pyjamas",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "78aa7053-7b51-4185-9edb-1a68918eefd5",
+      "appearance_id": "fdff186b-c4be-432b-b89e-52b5f6e45f3c",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 29.5,
+      "evidence": "active | balanced | active |  xKacpersky | Higher 29.5 Kills on Maps 1+2 | OverUnderOption | active |  xKacpersky | Lower 29.5 Kills on Maps 1+2 | OverUnderOption |  xKacpersky Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | xKacpersky | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "3f2337bf-5a4a-4d4c-873b-41597e26327b",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "underdog_opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "source_identity_ids": {
+        "player_id": "3f2337bf-5a4a-4d4c-873b-41597e26327b",
+        "match_id": "273178",
+        "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+        "opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Made in Brazil",
+      "source_opponent_name": "Ninjas in Pyjamas",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "41fc1b35-32da-4219-8547-eca2a1b2706e",
+      "player": "xKacpersky",
+      "team": "Made in Brazil",
+      "opponent": "Ninjas in Pyjamas",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "41fc1b35-32da-4219-8547-eca2a1b2706e",
+      "appearance_id": "fdff186b-c4be-432b-b89e-52b5f6e45f3c",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 15.5,
+      "evidence": "active | balanced | active |  xKacpersky | Higher 15.5 Headshots on Maps 1+2 | OverUnderOption | active |  xKacpersky | Lower 15.5 Headshots on Maps 1+2 | OverUnderOption |  xKacpersky Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | xKacpersky | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "3f2337bf-5a4a-4d4c-873b-41597e26327b",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "underdog_opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "source_identity_ids": {
+        "player_id": "3f2337bf-5a4a-4d4c-873b-41597e26327b",
+        "match_id": "273178",
+        "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+        "opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "Made in Brazil",
+      "source_opponent_name": "Ninjas in Pyjamas",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "c2d1f06b-a754-41da-9885-aa51a72844cb",
+      "player": "d1Ledez",
+      "team": "Team Falcons",
+      "opponent": "BetBoom",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "c2d1f06b-a754-41da-9885-aa51a72844cb",
+      "appearance_id": "98657096-ad4a-46b8-bad3-dd22b3994983",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 28.5,
+      "evidence": "active | balanced | active |  d1Ledez | Higher 28.5 Kills on Maps 1+2 | OverUnderOption | active |  d1Ledez | Lower 28.5 Kills on Maps 1+2 | OverUnderOption |  d1Ledez Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | d1Ledez | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "22a0af8a-1fdf-4b71-b50f-330d9ae04247",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "underdog_opponent_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "source_identity_ids": {
+        "player_id": "22a0af8a-1fdf-4b71-b50f-330d9ae04247",
+        "match_id": "273100",
+        "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+        "opponent_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        },
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "d1Ledez",
+        "Magnojez",
+        "s1ren",
+        "zorte",
+        "boombl4"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Team Falcons",
+      "source_opponent_name": "BetBoom",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "d1Ledez",
+        "Magnojez",
+        "s1ren",
+        "zorte",
+        "boombl4"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        },
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "0def3ac4-c1cb-4833-ad76-a5c17fbeae6f",
+      "player": "d1Ledez",
+      "team": "Team Falcons",
+      "opponent": "BetBoom",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "0def3ac4-c1cb-4833-ad76-a5c17fbeae6f",
+      "appearance_id": "98657096-ad4a-46b8-bad3-dd22b3994983",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 16.5,
+      "evidence": "active | balanced | active |  d1Ledez | Higher 16.5 Headshots on Maps 1+2 | OverUnderOption | active |  d1Ledez | Lower 16.5 Headshots on Maps 1+2 | OverUnderOption |  d1Ledez Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | d1Ledez | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "22a0af8a-1fdf-4b71-b50f-330d9ae04247",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "underdog_opponent_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "source_identity_ids": {
+        "player_id": "22a0af8a-1fdf-4b71-b50f-330d9ae04247",
+        "match_id": "273100",
+        "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+        "opponent_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        },
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "d1Ledez",
+        "Magnojez",
+        "s1ren",
+        "zorte",
+        "boombl4"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "Team Falcons",
+      "source_opponent_name": "BetBoom",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "d1Ledez",
+        "Magnojez",
+        "s1ren",
+        "zorte",
+        "boombl4"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        },
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "c5ddc445-749a-43de-b5b6-5ef71649ea9d",
+      "player": "TeSeS",
+      "team": "BetBoom",
+      "opponent": "Team Falcons",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "c5ddc445-749a-43de-b5b6-5ef71649ea9d",
+      "appearance_id": "cf8e21b4-8e41-46a1-b298-71bc5aabd80d",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 29.5,
+      "evidence": "active | balanced | active | TeSeS | Higher 29.5 Kills on Maps 1+2 | OverUnderOption | active | TeSeS | Lower 29.5 Kills on Maps 1+2 | OverUnderOption | TeSeS Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | TeSeS | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "adf7634c-68fe-49f6-9f2c-c2a1491305e6",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "underdog_opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "source_identity_ids": {
+        "player_id": "adf7634c-68fe-49f6-9f2c-c2a1491305e6",
+        "match_id": "273100",
+        "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+        "opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "BetBoom",
+      "source_opponent_name": "Team Falcons",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "411d4af8-c67f-4c4d-8334-fd6a57096679",
+      "player": "TeSeS",
+      "team": "BetBoom",
+      "opponent": "Team Falcons",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "411d4af8-c67f-4c4d-8334-fd6a57096679",
+      "appearance_id": "cf8e21b4-8e41-46a1-b298-71bc5aabd80d",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 16.5,
+      "evidence": "active | balanced | active | TeSeS | Higher 16.5 Headshots on Maps 1+2 | OverUnderOption | active | TeSeS | Lower 16.5 Headshots on Maps 1+2 | OverUnderOption | TeSeS Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | TeSeS | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "adf7634c-68fe-49f6-9f2c-c2a1491305e6",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "underdog_opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "source_identity_ids": {
+        "player_id": "adf7634c-68fe-49f6-9f2c-c2a1491305e6",
+        "match_id": "273100",
+        "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+        "opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "BetBoom",
+      "source_opponent_name": "Team Falcons",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "82125ec5-d62a-47ef-96de-76d58b13399b",
+      "player": "nqz",
+      "team": "Ninjas in Pyjamas",
+      "opponent": "Made in Brazil",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "82125ec5-d62a-47ef-96de-76d58b13399b",
+      "appearance_id": "e6cb9e24-e1b4-4f71-bc5d-efb356501f71",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 29.5,
+      "evidence": "active | balanced | active | nqz | Higher 29.5 Kills on Maps 1+2 | OverUnderOption | active | nqz | Lower 29.5 Kills on Maps 1+2 | OverUnderOption | nqz Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | nqz | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "72472c1e-99d0-48da-a8c7-f910680b1052",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "underdog_opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "source_identity_ids": {
+        "player_id": "72472c1e-99d0-48da-a8c7-f910680b1052",
+        "match_id": "273178",
+        "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+        "opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Ninjas in Pyjamas",
+      "source_opponent_name": "Made in Brazil",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "16818c16-d332-4c41-a12a-d2824bc5eb8f",
+      "player": "nqz",
+      "team": "Ninjas in Pyjamas",
+      "opponent": "Made in Brazil",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "16818c16-d332-4c41-a12a-d2824bc5eb8f",
+      "appearance_id": "e6cb9e24-e1b4-4f71-bc5d-efb356501f71",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 10.5,
+      "evidence": "active | balanced | active | nqz | Higher 10.5 Headshots on Maps 1+2 | OverUnderOption | active | nqz | Lower 10.5 Headshots on Maps 1+2 | OverUnderOption | nqz Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | nqz | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "72472c1e-99d0-48da-a8c7-f910680b1052",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "underdog_opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "source_identity_ids": {
+        "player_id": "72472c1e-99d0-48da-a8c7-f910680b1052",
+        "match_id": "273178",
+        "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+        "opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "Ninjas in Pyjamas",
+      "source_opponent_name": "Made in Brazil",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "8a80fb3c-d3e5-46f2-ad17-d62d5c957b58",
+      "player": "stavn",
+      "team": "Made in Brazil",
+      "opponent": "Ninjas in Pyjamas",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "8a80fb3c-d3e5-46f2-ad17-d62d5c957b58",
+      "appearance_id": "4ee8317e-9c67-45f5-b866-73c8b61e89a5",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 31.5,
+      "evidence": "active | balanced | active | stavn | Higher 31.5 Kills on Maps 1+2 | OverUnderOption | active | stavn | Lower 31.5 Kills on Maps 1+2 | OverUnderOption | stavn Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | stavn | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "01328cac-1c00-40ec-a4ed-7a9ea8fbd17e",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "underdog_opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "source_identity_ids": {
+        "player_id": "01328cac-1c00-40ec-a4ed-7a9ea8fbd17e",
+        "match_id": "273178",
+        "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+        "opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Made in Brazil",
+      "source_opponent_name": "Ninjas in Pyjamas",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "1029bf4c-8bb4-4b67-808f-c0847d8cb173",
+      "player": "IceBerg",
+      "team": "ex",
+      "opponent": "BBL Esports",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "1029bf4c-8bb4-4b67-808f-c0847d8cb173",
+      "appearance_id": "19cf0ff2-f748-48ad-a9c8-53af0ea11a4a",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 24.5,
+      "evidence": "active | balanced | active |  IceBerg | Higher 24.5 Kills on Maps 1+2 | OverUnderOption | active |  IceBerg | Lower 24.5 Kills on Maps 1+2 | OverUnderOption |  IceBerg Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | IceBerg | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "b610d7af-691d-4c17-be2b-5d0856503518",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "underdog_opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "source_identity_ids": {
+        "player_id": "b610d7af-691d-4c17-be2b-5d0856503518",
+        "match_id": "273102",
+        "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+        "opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "ex",
+      "source_opponent_name": "BBL Esports",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "7d72f1ec-5f1d-4f55-983e-e0f51ce472cf",
+      "player": "IceBerg",
+      "team": "ex",
+      "opponent": "BBL Esports",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "7d72f1ec-5f1d-4f55-983e-e0f51ce472cf",
+      "appearance_id": "19cf0ff2-f748-48ad-a9c8-53af0ea11a4a",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 13.5,
+      "evidence": "active | balanced | active |  IceBerg | Higher 13.5 Headshots on Maps 1+2 | OverUnderOption | active |  IceBerg | Lower 13.5 Headshots on Maps 1+2 | OverUnderOption |  IceBerg Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | IceBerg | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "b610d7af-691d-4c17-be2b-5d0856503518",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "underdog_opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "source_identity_ids": {
+        "player_id": "b610d7af-691d-4c17-be2b-5d0856503518",
+        "match_id": "273102",
+        "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+        "opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "ex",
+      "source_opponent_name": "BBL Esports",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "21753b6a-d9ef-4858-958a-a4e5537b25b3",
+      "player": "insani",
+      "team": "Ninjas in Pyjamas",
+      "opponent": "Made in Brazil",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "21753b6a-d9ef-4858-958a-a4e5537b25b3",
+      "appearance_id": "d3f95aa4-e73f-4531-b736-1cd3494763ac",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 33.5,
+      "evidence": "active | balanced | active | insani | Higher 33.5 Kills on Maps 1+2 | OverUnderOption | active | insani | Lower 33.5 Kills on Maps 1+2 | OverUnderOption | insani Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | insani | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "b814f359-dfad-40ce-a2a9-b684673f621b",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "underdog_opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "source_identity_ids": {
+        "player_id": "b814f359-dfad-40ce-a2a9-b684673f621b",
+        "match_id": "273178",
+        "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+        "opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Ninjas in Pyjamas",
+      "source_opponent_name": "Made in Brazil",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "92d18022-2fb1-4198-9072-5092a2572e00",
+      "player": "Krimbo",
+      "team": "Made in Brazil",
+      "opponent": "Ninjas in Pyjamas",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "92d18022-2fb1-4198-9072-5092a2572e00",
+      "appearance_id": "4fd0bad9-dda1-430a-9e5e-1e7659a91587",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 28.5,
+      "evidence": "active | balanced | active |  Krimbo | Higher 28.5 Kills on Maps 1+2 | OverUnderOption | active |  Krimbo | Lower 28.5 Kills on Maps 1+2 | OverUnderOption |  Krimbo Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | Krimbo | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "9149cdb5-4e22-4d52-a590-0025a0fe67c3",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "underdog_opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "source_identity_ids": {
+        "player_id": "9149cdb5-4e22-4d52-a590-0025a0fe67c3",
+        "match_id": "273178",
+        "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+        "opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Made in Brazil",
+      "source_opponent_name": "Ninjas in Pyjamas",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "fd464cd0-e207-4e81-99bf-ec2014109f22",
+      "player": "Krimbo",
+      "team": "Made in Brazil",
+      "opponent": "Ninjas in Pyjamas",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "fd464cd0-e207-4e81-99bf-ec2014109f22",
+      "appearance_id": "4fd0bad9-dda1-430a-9e5e-1e7659a91587",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 14.5,
+      "evidence": "active | balanced | active |  Krimbo | Higher 14.5 Headshots on Maps 1+2 | OverUnderOption | active |  Krimbo | Lower 14.5 Headshots on Maps 1+2 | OverUnderOption |  Krimbo Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | Krimbo | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "9149cdb5-4e22-4d52-a590-0025a0fe67c3",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "underdog_opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "source_identity_ids": {
+        "player_id": "9149cdb5-4e22-4d52-a590-0025a0fe67c3",
+        "match_id": "273178",
+        "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+        "opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "Made in Brazil",
+      "source_opponent_name": "Ninjas in Pyjamas",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "de561d62-04fb-452f-8746-db718836a296",
+      "player": "insani",
+      "team": "Ninjas in Pyjamas",
+      "opponent": "Made in Brazil",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "de561d62-04fb-452f-8746-db718836a296",
+      "appearance_id": "d3f95aa4-e73f-4531-b736-1cd3494763ac",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 17.5,
+      "evidence": "active | balanced | active | insani | Higher 17.5 Headshots on Maps 1+2 | OverUnderOption | active | insani | Lower 17.5 Headshots on Maps 1+2 | OverUnderOption | insani Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | insani | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "b814f359-dfad-40ce-a2a9-b684673f621b",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "underdog_opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "source_identity_ids": {
+        "player_id": "b814f359-dfad-40ce-a2a9-b684673f621b",
+        "match_id": "273178",
+        "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+        "opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "Ninjas in Pyjamas",
+      "source_opponent_name": "Made in Brazil",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "b37d000e-b0ea-4374-ab10-8d4d7ae581ac",
+      "player": "Magnojez",
+      "team": "Team Falcons",
+      "opponent": "BetBoom",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "b37d000e-b0ea-4374-ab10-8d4d7ae581ac",
+      "appearance_id": "7e17c197-bd15-40e8-8685-371c1bc73cb5",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 28.5,
+      "evidence": "active | balanced | active | Magnojez | Higher 28.5 Kills on Maps 1+2 | OverUnderOption | active | Magnojez | Lower 28.5 Kills on Maps 1+2 | OverUnderOption | Magnojez Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | Magnojez | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "323a3ec8-672c-408e-84cc-8bcdd1d96eb5",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "underdog_opponent_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "source_identity_ids": {
+        "player_id": "323a3ec8-672c-408e-84cc-8bcdd1d96eb5",
+        "match_id": "273100",
+        "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+        "opponent_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        },
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "d1Ledez",
+        "Magnojez",
+        "s1ren",
+        "zorte",
+        "boombl4"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Team Falcons",
+      "source_opponent_name": "BetBoom",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "d1Ledez",
+        "Magnojez",
+        "s1ren",
+        "zorte",
+        "boombl4"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        },
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "902f38ab-9bcf-4e3e-ba9b-d18e0f325565",
+      "player": "Magnojez",
+      "team": "Team Falcons",
+      "opponent": "BetBoom",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "902f38ab-9bcf-4e3e-ba9b-d18e0f325565",
+      "appearance_id": "7e17c197-bd15-40e8-8685-371c1bc73cb5",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 14.5,
+      "evidence": "active | balanced | active | Magnojez | Higher 14.5 Headshots on Maps 1+2 | OverUnderOption | active | Magnojez | Lower 14.5 Headshots on Maps 1+2 | OverUnderOption | Magnojez Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | Magnojez | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "323a3ec8-672c-408e-84cc-8bcdd1d96eb5",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "underdog_opponent_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "source_identity_ids": {
+        "player_id": "323a3ec8-672c-408e-84cc-8bcdd1d96eb5",
+        "match_id": "273100",
+        "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+        "opponent_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        },
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "d1Ledez",
+        "Magnojez",
+        "s1ren",
+        "zorte",
+        "boombl4"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "Team Falcons",
+      "source_opponent_name": "BetBoom",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "d1Ledez",
+        "Magnojez",
+        "s1ren",
+        "zorte",
+        "boombl4"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        },
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "cb42ee18-c11c-470a-a32a-fbe60564565e",
+      "player": "Adamb",
+      "team": "Made in Brazil",
+      "opponent": "Ninjas in Pyjamas",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "cb42ee18-c11c-470a-a32a-fbe60564565e",
+      "appearance_id": "aa30cef3-b786-4ad3-be19-26232b4b0ba3",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 29.5,
+      "evidence": "active | balanced | active |  Adamb | Higher 29.5 Kills on Maps 1+2 | OverUnderOption | active |  Adamb | Lower 29.5 Kills on Maps 1+2 | OverUnderOption |  Adamb Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | Adamb | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "0f628abb-67c4-4475-b352-994d1eb74edb",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "underdog_opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "source_identity_ids": {
+        "player_id": "0f628abb-67c4-4475-b352-994d1eb74edb",
+        "match_id": "273178",
+        "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+        "opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Made in Brazil",
+      "source_opponent_name": "Ninjas in Pyjamas",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "9017b3b2-af28-480e-931d-4396423b80a5",
+      "player": "Adamb",
+      "team": "Made in Brazil",
+      "opponent": "Ninjas in Pyjamas",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "9017b3b2-af28-480e-931d-4396423b80a5",
+      "appearance_id": "aa30cef3-b786-4ad3-be19-26232b4b0ba3",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 16.5,
+      "evidence": "active | balanced | active |  Adamb | Higher 16.5 Headshots on Maps 1+2 | OverUnderOption | active |  Adamb | Lower 16.5 Headshots on Maps 1+2 | OverUnderOption |  Adamb Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | Adamb | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "0f628abb-67c4-4475-b352-994d1eb74edb",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "underdog_opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "source_identity_ids": {
+        "player_id": "0f628abb-67c4-4475-b352-994d1eb74edb",
+        "match_id": "273178",
+        "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+        "opponent_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "Made in Brazil",
+      "source_opponent_name": "Ninjas in Pyjamas",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "sjuush",
+        "xKacpersky",
+        "stavn",
+        "Krimbo",
+        "Adamb"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        },
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "9a9c3136-4d0d-4776-876a-415c0eedb697",
+      "player": "s1ren",
+      "team": "Team Falcons",
+      "opponent": "BetBoom",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "9a9c3136-4d0d-4776-876a-415c0eedb697",
+      "appearance_id": "c9fc88ce-710a-4927-8eb7-b473e89df04a",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 25.5,
+      "evidence": "active | balanced | active |  s1ren | Higher 25.5 Kills on Maps 1+2 | OverUnderOption | active |  s1ren | Lower 25.5 Kills on Maps 1+2 | OverUnderOption |  s1ren Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | s1ren | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "3e1507dd-ddbe-4208-98f1-c37adc7cd329",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "underdog_opponent_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "source_identity_ids": {
+        "player_id": "3e1507dd-ddbe-4208-98f1-c37adc7cd329",
+        "match_id": "273100",
+        "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+        "opponent_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        },
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "d1Ledez",
+        "Magnojez",
+        "s1ren",
+        "zorte",
+        "boombl4"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Team Falcons",
+      "source_opponent_name": "BetBoom",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "d1Ledez",
+        "Magnojez",
+        "s1ren",
+        "zorte",
+        "boombl4"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        },
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "39eebe34-a9ab-48ff-b667-464a1b4d6319",
+      "player": "s1ren",
+      "team": "Team Falcons",
+      "opponent": "BetBoom",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "39eebe34-a9ab-48ff-b667-464a1b4d6319",
+      "appearance_id": "c9fc88ce-710a-4927-8eb7-b473e89df04a",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 14.5,
+      "evidence": "active | balanced | active |  s1ren | Higher 14.5 Headshots on Maps 1+2 | OverUnderOption | active |  s1ren | Lower 14.5 Headshots on Maps 1+2 | OverUnderOption |  s1ren Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | s1ren | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "3e1507dd-ddbe-4208-98f1-c37adc7cd329",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "underdog_opponent_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "source_identity_ids": {
+        "player_id": "3e1507dd-ddbe-4208-98f1-c37adc7cd329",
+        "match_id": "273100",
+        "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+        "opponent_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        },
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "d1Ledez",
+        "Magnojez",
+        "s1ren",
+        "zorte",
+        "boombl4"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "Team Falcons",
+      "source_opponent_name": "BetBoom",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "d1Ledez",
+        "Magnojez",
+        "s1ren",
+        "zorte",
+        "boombl4"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        },
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "398ff846-5a0f-4112-805a-860190f6edce",
+      "player": "karrigan",
+      "team": "BetBoom",
+      "opponent": "Team Falcons",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "398ff846-5a0f-4112-805a-860190f6edce",
+      "appearance_id": "575c5f5f-1b61-48da-9edb-f5bfc85cfb77",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 21.5,
+      "evidence": "active | balanced | active | karrigan | Higher 21.5 Kills on Maps 1+2 | OverUnderOption | active | karrigan | Lower 21.5 Kills on Maps 1+2 | OverUnderOption | karrigan Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | karrigan | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "2159d164-8eab-47a2-aa5a-5b27269cd2db",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "underdog_opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "source_identity_ids": {
+        "player_id": "2159d164-8eab-47a2-aa5a-5b27269cd2db",
+        "match_id": "273100",
+        "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+        "opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "BetBoom",
+      "source_opponent_name": "Team Falcons",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "77971809-3953-41b2-98e8-b9e9173de86d",
+      "player": "tomaszin",
+      "team": "Ninjas in Pyjamas",
+      "opponent": "Made in Brazil",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "77971809-3953-41b2-98e8-b9e9173de86d",
+      "appearance_id": "c21892ef-9a80-4e32-ba80-b3317c36c87d",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 30.5,
+      "evidence": "active | balanced | active |  tomaszin | Higher 30.5 Kills on Maps 1+2 | OverUnderOption | active |  tomaszin | Lower 30.5 Kills on Maps 1+2 | OverUnderOption |  tomaszin Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | tomaszin | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "a372bf1b-df29-4ede-85b5-4370f93eb8e2",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "underdog_opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "source_identity_ids": {
+        "player_id": "a372bf1b-df29-4ede-85b5-4370f93eb8e2",
+        "match_id": "273178",
+        "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+        "opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Ninjas in Pyjamas",
+      "source_opponent_name": "Made in Brazil",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "228623e0-5dd7-4f44-8648-eba3b25b4968",
+      "player": "karrigan",
+      "team": "BetBoom",
+      "opponent": "Team Falcons",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "228623e0-5dd7-4f44-8648-eba3b25b4968",
+      "appearance_id": "575c5f5f-1b61-48da-9edb-f5bfc85cfb77",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 10.5,
+      "evidence": "active | balanced | active | karrigan | Higher 10.5 Headshots on Maps 1+2 | OverUnderOption | active | karrigan | Lower 10.5 Headshots on Maps 1+2 | OverUnderOption | karrigan Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | karrigan | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "2159d164-8eab-47a2-aa5a-5b27269cd2db",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "underdog_opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "source_identity_ids": {
+        "player_id": "2159d164-8eab-47a2-aa5a-5b27269cd2db",
+        "match_id": "273100",
+        "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+        "opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "BetBoom",
+      "source_opponent_name": "Team Falcons",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "b48db25e-b84b-488d-8d06-cbc24b5ab720",
+      "player": "tomaszin",
+      "team": "Ninjas in Pyjamas",
+      "opponent": "Made in Brazil",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "b48db25e-b84b-488d-8d06-cbc24b5ab720",
+      "appearance_id": "c21892ef-9a80-4e32-ba80-b3317c36c87d",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 14.5,
+      "evidence": "active | balanced | active |  tomaszin | Higher 14.5 Headshots on Maps 1+2 | OverUnderOption | active |  tomaszin | Lower 14.5 Headshots on Maps 1+2 | OverUnderOption |  tomaszin Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | tomaszin | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "a372bf1b-df29-4ede-85b5-4370f93eb8e2",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "underdog_opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "source_identity_ids": {
+        "player_id": "a372bf1b-df29-4ede-85b5-4370f93eb8e2",
+        "match_id": "273178",
+        "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+        "opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "Ninjas in Pyjamas",
+      "source_opponent_name": "Made in Brazil",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "c52c2fed-cab8-45a1-af62-4ad9b4453f65",
+      "player": "zorte",
+      "team": "Team Falcons",
+      "opponent": "BetBoom",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "c52c2fed-cab8-45a1-af62-4ad9b4453f65",
+      "appearance_id": "74ac9ce9-6d7f-472d-91a7-c5590a1db41a",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 26.5,
+      "evidence": "active | balanced | active |  zorte | Higher 26.5 Kills on Maps 1+2 | OverUnderOption | active |  zorte | Lower 26.5 Kills on Maps 1+2 | OverUnderOption |  zorte Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | zorte | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "325802d1-55a5-479d-aad1-672cfde9805e",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "underdog_opponent_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "source_identity_ids": {
+        "player_id": "325802d1-55a5-479d-aad1-672cfde9805e",
+        "match_id": "273100",
+        "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+        "opponent_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        },
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "d1Ledez",
+        "Magnojez",
+        "s1ren",
+        "zorte",
+        "boombl4"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Team Falcons",
+      "source_opponent_name": "BetBoom",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "d1Ledez",
+        "Magnojez",
+        "s1ren",
+        "zorte",
+        "boombl4"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        },
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "77edacf2-5c45-4fc2-811c-33b7ff61e6f4",
+      "player": "leakz",
+      "team": "ex",
+      "opponent": "BBL Esports",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "77edacf2-5c45-4fc2-811c-33b7ff61e6f4",
+      "appearance_id": "10924905-90e2-42fb-bbaf-da8629405908",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 33.5,
+      "evidence": "active | balanced | active |  leakz | Higher 33.5 Kills on Maps 1+2 | OverUnderOption | active |  leakz | Lower 33.5 Kills on Maps 1+2 | OverUnderOption |  leakz Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | leakz | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "3a1134c4-0964-4493-9e40-fafcbaab3469",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "underdog_opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "source_identity_ids": {
+        "player_id": "3a1134c4-0964-4493-9e40-fafcbaab3469",
+        "match_id": "273102",
+        "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+        "opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "ex",
+      "source_opponent_name": "BBL Esports",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "448d12d3-a389-4a6c-b634-d5f4cab85505",
+      "player": "leakz",
+      "team": "ex",
+      "opponent": "BBL Esports",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "448d12d3-a389-4a6c-b634-d5f4cab85505",
+      "appearance_id": "10924905-90e2-42fb-bbaf-da8629405908",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 18.5,
+      "evidence": "active | balanced | active |  leakz | Higher 18.5 Headshots on Maps 1+2 | OverUnderOption | active |  leakz | Lower 18.5 Headshots on Maps 1+2 | OverUnderOption |  leakz Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | leakz | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "3a1134c4-0964-4493-9e40-fafcbaab3469",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "underdog_opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "source_identity_ids": {
+        "player_id": "3a1134c4-0964-4493-9e40-fafcbaab3469",
+        "match_id": "273102",
+        "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+        "opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "ex",
+      "source_opponent_name": "BBL Esports",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "7b2df83e-1c70-413c-a470-e504e9d8ddb1",
+      "player": "venomzera",
+      "team": "Ninjas in Pyjamas",
+      "opponent": "Made in Brazil",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "7b2df83e-1c70-413c-a470-e504e9d8ddb1",
+      "appearance_id": "ddb99b04-35d7-439a-a744-45ba1f5cc4fe",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 27.5,
+      "evidence": "active | balanced | active | venomzera | Higher 27.5 Kills on Maps 1+2 | OverUnderOption | active | venomzera | Lower 27.5 Kills on Maps 1+2 | OverUnderOption | venomzera Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | venomzera | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "63be49be-fca7-4c07-aaef-c43599f475d3",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "underdog_opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "source_identity_ids": {
+        "player_id": "63be49be-fca7-4c07-aaef-c43599f475d3",
+        "match_id": "273178",
+        "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+        "opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Ninjas in Pyjamas",
+      "source_opponent_name": "Made in Brazil",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "3f712f51-9baa-4583-9310-9e61bcc2a554",
+      "player": "venomzera",
+      "team": "Ninjas in Pyjamas",
+      "opponent": "Made in Brazil",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "3f712f51-9baa-4583-9310-9e61bcc2a554",
+      "appearance_id": "ddb99b04-35d7-439a-a744-45ba1f5cc4fe",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 16.5,
+      "evidence": "active | balanced | active | venomzera | Higher 16.5 Headshots on Maps 1+2 | OverUnderOption | active | venomzera | Lower 16.5 Headshots on Maps 1+2 | OverUnderOption | venomzera Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | venomzera | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "63be49be-fca7-4c07-aaef-c43599f475d3",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "underdog_opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "source_identity_ids": {
+        "player_id": "63be49be-fca7-4c07-aaef-c43599f475d3",
+        "match_id": "273178",
+        "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+        "opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "Ninjas in Pyjamas",
+      "source_opponent_name": "Made in Brazil",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "a680a3ec-cdc0-42f6-995c-0110bab4a062",
+      "player": "LNZ",
+      "team": "Ninjas in Pyjamas",
+      "opponent": "Made in Brazil",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "a680a3ec-cdc0-42f6-995c-0110bab4a062",
+      "appearance_id": "9759221d-81e7-4531-9a75-4ce6492467fd",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 24.5,
+      "evidence": "active | balanced | active |  LNZ | Higher 24.5 Kills on Maps 1+2 | OverUnderOption | active |  LNZ | Lower 24.5 Kills on Maps 1+2 | OverUnderOption |  LNZ Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | LNZ | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "39e149eb-87c6-45dc-839b-7c3af3193b02",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "underdog_opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "source_identity_ids": {
+        "player_id": "39e149eb-87c6-45dc-839b-7c3af3193b02",
+        "match_id": "273178",
+        "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+        "opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Ninjas in Pyjamas",
+      "source_opponent_name": "Made in Brazil",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "15baada6-4bea-416e-a276-b5a9e4ef3633",
+      "player": "LNZ",
+      "team": "Ninjas in Pyjamas",
+      "opponent": "Made in Brazil",
+      "matchup": "Made in Brazil vs Ninjas in Pyjamas",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "15baada6-4bea-416e-a276-b5a9e4ef3633",
+      "appearance_id": "9759221d-81e7-4531-9a75-4ce6492467fd",
+      "game_id": "273178",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 13.5,
+      "evidence": "active | balanced | active |  LNZ | Higher 13.5 Headshots on Maps 1+2 | OverUnderOption | active |  LNZ | Lower 13.5 Headshots on Maps 1+2 | OverUnderOption |  LNZ Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | LNZ | Made in Brazil vs Ninjas in Pyjamas | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "39e149eb-87c6-45dc-839b-7c3af3193b02",
+      "underdog_match_id": "273178",
+      "underdog_team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+      "underdog_opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+      "source_identity_ids": {
+        "player_id": "39e149eb-87c6-45dc-839b-7c3af3193b02",
+        "match_id": "273178",
+        "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+        "opponent_id": "9054a4c4-0355-4060-b917-e77ef492e087"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "Ninjas in Pyjamas",
+      "source_opponent_name": "Made in Brazil",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "nqz",
+        "insani",
+        "tomaszin",
+        "venomzera",
+        "LNZ"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Ninjas in Pyjamas",
+          "team_id": "f4ad1a56-d75c-45de-bae1-9d309c24c494",
+          "players": [
+            "nqz",
+            "insani",
+            "tomaszin",
+            "venomzera",
+            "LNZ"
+          ]
+        },
+        {
+          "team": "Made in Brazil",
+          "team_id": "9054a4c4-0355-4060-b917-e77ef492e087",
+          "players": [
+            "sjuush",
+            "xKacpersky",
+            "stavn",
+            "Krimbo",
+            "Adamb"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "d035c3a3-32ee-4f64-be9a-f0993961f57e",
+      "player": "boombl4",
+      "team": "Team Falcons",
+      "opponent": "BetBoom",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "d035c3a3-32ee-4f64-be9a-f0993961f57e",
+      "appearance_id": "a1fd4261-ed39-49c6-a539-7b642df12ecc",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 23.5,
+      "evidence": "active | balanced | active |  boombl4 | Higher 23.5 Kills on Maps 1+2 | OverUnderOption | active |  boombl4 | Lower 23.5 Kills on Maps 1+2 | OverUnderOption |  boombl4 Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | boombl4 | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "7604dbf4-7f1a-4280-8a1a-9f10eee30256",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "underdog_opponent_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "source_identity_ids": {
+        "player_id": "7604dbf4-7f1a-4280-8a1a-9f10eee30256",
+        "match_id": "273100",
+        "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+        "opponent_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        },
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "d1Ledez",
+        "Magnojez",
+        "s1ren",
+        "zorte",
+        "boombl4"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Team Falcons",
+      "source_opponent_name": "BetBoom",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "d1Ledez",
+        "Magnojez",
+        "s1ren",
+        "zorte",
+        "boombl4"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        },
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "557a3e27-36fb-4997-a30e-75f644df2ed0",
+      "player": "NickyB",
+      "team": "ex",
+      "opponent": "BBL Esports",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "557a3e27-36fb-4997-a30e-75f644df2ed0",
+      "appearance_id": "c2167690-3813-42c9-857c-e510a7bc9390",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 30.5,
+      "evidence": "active | balanced | active |  NickyB | Higher 30.5 Kills on Maps 1+2 | OverUnderOption | active |  NickyB | Lower 30.5 Kills on Maps 1+2 | OverUnderOption |  NickyB Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | NickyB | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "452440fe-1c3c-4273-84a7-dd2e52b4fcfe",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "underdog_opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "source_identity_ids": {
+        "player_id": "452440fe-1c3c-4273-84a7-dd2e52b4fcfe",
+        "match_id": "273102",
+        "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+        "opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "ex",
+      "source_opponent_name": "BBL Esports",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "f4190786-096e-479e-a811-0b4c6c24f3b1",
+      "player": "NickyB",
+      "team": "ex",
+      "opponent": "BBL Esports",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "f4190786-096e-479e-a811-0b4c6c24f3b1",
+      "appearance_id": "c2167690-3813-42c9-857c-e510a7bc9390",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 15.5,
+      "evidence": "active | balanced | active |  NickyB | Higher 15.5 Headshots on Maps 1+2 | OverUnderOption | active |  NickyB | Lower 15.5 Headshots on Maps 1+2 | OverUnderOption |  NickyB Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | NickyB | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "452440fe-1c3c-4273-84a7-dd2e52b4fcfe",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "underdog_opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "source_identity_ids": {
+        "player_id": "452440fe-1c3c-4273-84a7-dd2e52b4fcfe",
+        "match_id": "273102",
+        "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+        "opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "ex",
+      "source_opponent_name": "BBL Esports",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "3293e1e3-cb2a-410d-9877-945093c989cb",
+      "player": "youka",
+      "team": "BBL Esports",
+      "opponent": "ex",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "3293e1e3-cb2a-410d-9877-945093c989cb",
+      "appearance_id": "5c01b264-bf82-4c6a-9fbd-701422dcfc30",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 29.5,
+      "evidence": "active | balanced | active | youka | Higher 29.5 Kills on Maps 1+2 | OverUnderOption | active | youka | Lower 29.5 Kills on Maps 1+2 | OverUnderOption | youka Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | youka | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "74695b9b-0da4-46ba-9e3a-79cc8f23f300",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "underdog_opponent_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "source_identity_ids": {
+        "player_id": "74695b9b-0da4-46ba-9e3a-79cc8f23f300",
+        "match_id": "273102",
+        "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+        "opponent_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        },
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "bl1x1",
+        "youka",
+        "relaxxie",
+        "Brilliance"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "BBL Esports",
+      "source_opponent_name": "ex",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "c862090a-5332-4f7c-8e96-022694faf2ea",
+      "player": "youka",
+      "team": "BBL Esports",
+      "opponent": "ex",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "c862090a-5332-4f7c-8e96-022694faf2ea",
+      "appearance_id": "5c01b264-bf82-4c6a-9fbd-701422dcfc30",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 11.5,
+      "evidence": "active | balanced | active | youka | Higher 11.5 Headshots on Maps 1+2 | OverUnderOption | active | youka | Lower 11.5 Headshots on Maps 1+2 | OverUnderOption | youka Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | youka | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "74695b9b-0da4-46ba-9e3a-79cc8f23f300",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "underdog_opponent_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "source_identity_ids": {
+        "player_id": "74695b9b-0da4-46ba-9e3a-79cc8f23f300",
+        "match_id": "273102",
+        "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+        "opponent_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        },
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "bl1x1",
+        "youka",
+        "relaxxie",
+        "Brilliance"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "BBL Esports",
+      "source_opponent_name": "ex",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "24720e2b-34ec-48b7-98fe-a7871cfd8320",
+      "player": "salazar",
+      "team": "ex",
+      "opponent": "BBL Esports",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "24720e2b-34ec-48b7-98fe-a7871cfd8320",
+      "appearance_id": "ed93b460-575e-4334-ac46-b68a8097578e",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 27.5,
+      "evidence": "active | balanced | active |  salazar | Higher 27.5 Kills on Maps 1+2 | OverUnderOption | active |  salazar | Lower 27.5 Kills on Maps 1+2 | OverUnderOption |  salazar Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | salazar | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "66862c46-5613-413e-a3b9-c6df1aca78c7",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "underdog_opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "source_identity_ids": {
+        "player_id": "66862c46-5613-413e-a3b9-c6df1aca78c7",
+        "match_id": "273102",
+        "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+        "opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "ex",
+      "source_opponent_name": "BBL Esports",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "9b9fc801-b89f-4f77-9b06-53421c9e148a",
+      "player": "salazar",
+      "team": "ex",
+      "opponent": "BBL Esports",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "9b9fc801-b89f-4f77-9b06-53421c9e148a",
+      "appearance_id": "ed93b460-575e-4334-ac46-b68a8097578e",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 10.5,
+      "evidence": "active | balanced | active |  salazar | Higher 10.5 Headshots on Maps 1+2 | OverUnderOption | active |  salazar | Lower 10.5 Headshots on Maps 1+2 | OverUnderOption |  salazar Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | salazar | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "66862c46-5613-413e-a3b9-c6df1aca78c7",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "underdog_opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "source_identity_ids": {
+        "player_id": "66862c46-5613-413e-a3b9-c6df1aca78c7",
+        "match_id": "273102",
+        "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+        "opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "ex",
+      "source_opponent_name": "BBL Esports",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "c0779527-c215-463e-a107-746ab0e79b2f",
+      "player": "relaxxie",
+      "team": "BBL Esports",
+      "opponent": "ex",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "c0779527-c215-463e-a107-746ab0e79b2f",
+      "appearance_id": "e5aaeb2c-2ab6-45c8-9ae6-fcdc8ccda708",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 29.5,
+      "evidence": "active | balanced | active |  relaxxie | Higher 29.5 Kills on Maps 1+2 | OverUnderOption | active |  relaxxie | Lower 29.5 Kills on Maps 1+2 | OverUnderOption |  relaxxie Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | relaxxie | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "1007ac60-f5da-4e78-85f9-90c7189cbc15",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "underdog_opponent_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "source_identity_ids": {
+        "player_id": "1007ac60-f5da-4e78-85f9-90c7189cbc15",
+        "match_id": "273102",
+        "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+        "opponent_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        },
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "bl1x1",
+        "youka",
+        "relaxxie",
+        "Brilliance"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "BBL Esports",
+      "source_opponent_name": "ex",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "ce9a8561-e888-407c-b287-e1f2aa95715f",
+      "player": "relaxxie",
+      "team": "BBL Esports",
+      "opponent": "ex",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "ce9a8561-e888-407c-b287-e1f2aa95715f",
+      "appearance_id": "e5aaeb2c-2ab6-45c8-9ae6-fcdc8ccda708",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 15.5,
+      "evidence": "active | balanced | active |  relaxxie | Higher 15.5 Headshots on Maps 1+2 | OverUnderOption | active |  relaxxie | Lower 15.5 Headshots on Maps 1+2 | OverUnderOption |  relaxxie Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | relaxxie | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "1007ac60-f5da-4e78-85f9-90c7189cbc15",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "underdog_opponent_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "source_identity_ids": {
+        "player_id": "1007ac60-f5da-4e78-85f9-90c7189cbc15",
+        "match_id": "273102",
+        "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+        "opponent_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        },
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "bl1x1",
+        "youka",
+        "relaxxie",
+        "Brilliance"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "BBL Esports",
+      "source_opponent_name": "ex",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "8cbeba90-19f0-4121-b214-574678d89693",
+      "player": "m0NESY-",
+      "team": "BetBoom",
+      "opponent": "Team Falcons",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "8cbeba90-19f0-4121-b214-574678d89693",
+      "appearance_id": "ea618fa1-00ac-41fc-ab44-93b87d8bda98",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 36.5,
+      "evidence": "active | balanced | active | m0NESY- | Higher 36.5 Kills on Maps 1+2 | OverUnderOption | active | m0NESY- | Lower 36.5 Kills on Maps 1+2 | OverUnderOption | m0NESY- Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | m0NESY- | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "e4903180-2f73-4b84-bd01-a2a62fa3adf5",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "underdog_opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "source_identity_ids": {
+        "player_id": "e4903180-2f73-4b84-bd01-a2a62fa3adf5",
+        "match_id": "273100",
+        "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+        "opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "BetBoom",
+      "source_opponent_name": "Team Falcons",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "588bc6db-94f8-4c77-89bd-7ceff02a8282",
+      "player": "Brilliance",
+      "team": "BBL Esports",
+      "opponent": "ex",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "588bc6db-94f8-4c77-89bd-7ceff02a8282",
+      "appearance_id": "0af858c5-e5c0-4f7e-9077-034f3eac7c49",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 24.5,
+      "evidence": "active | balanced | active | Brilliance | Higher 24.5 Kills on Maps 1+2 | OverUnderOption | active | Brilliance | Lower 24.5 Kills on Maps 1+2 | OverUnderOption | Brilliance Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | Brilliance | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "e957fc67-7045-4315-b022-718a0298aa31",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "underdog_opponent_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "source_identity_ids": {
+        "player_id": "e957fc67-7045-4315-b022-718a0298aa31",
+        "match_id": "273102",
+        "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+        "opponent_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        },
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "bl1x1",
+        "youka",
+        "relaxxie",
+        "Brilliance"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "BBL Esports",
+      "source_opponent_name": "ex",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "ac0ac7e7-8ba4-47e2-8c36-85957ae6e3d2",
+      "player": "MistR",
+      "team": "ex",
+      "opponent": "BBL Esports",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "ac0ac7e7-8ba4-47e2-8c36-85957ae6e3d2",
+      "appearance_id": "2c0647e5-0427-42d5-af85-b4068a84b674",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 27.5,
+      "evidence": "active | balanced | active |  MistR | Higher 27.5 Kills on Maps 1+2 | OverUnderOption | active |  MistR | Lower 27.5 Kills on Maps 1+2 | OverUnderOption |  MistR Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | MistR | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "2574f125-1f3c-43e2-b959-b31bc53368cd",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "underdog_opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "source_identity_ids": {
+        "player_id": "2574f125-1f3c-43e2-b959-b31bc53368cd",
+        "match_id": "273102",
+        "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+        "opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "ex",
+      "source_opponent_name": "BBL Esports",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "6b0cff6a-3a04-4ff3-8122-25f27db7f24d",
+      "player": "m0NESY-",
+      "team": "BetBoom",
+      "opponent": "Team Falcons",
+      "matchup": "BetBoom vs Team Falcons",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "6b0cff6a-3a04-4ff3-8122-25f27db7f24d",
+      "appearance_id": "ea618fa1-00ac-41fc-ab44-93b87d8bda98",
+      "game_id": "273100",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 13.5,
+      "evidence": "active | balanced | active | m0NESY- | Higher 13.5 Headshots on Maps 1+2 | OverUnderOption | active | m0NESY- | Lower 13.5 Headshots on Maps 1+2 | OverUnderOption | m0NESY- Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | m0NESY- | BetBoom vs Team Falcons | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "e4903180-2f73-4b84-bd01-a2a62fa3adf5",
+      "underdog_match_id": "273100",
+      "underdog_team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+      "underdog_opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+      "source_identity_ids": {
+        "player_id": "e4903180-2f73-4b84-bd01-a2a62fa3adf5",
+        "match_id": "273100",
+        "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+        "opponent_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "BetBoom",
+      "source_opponent_name": "Team Falcons",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "NiKo",
+        "kyousuke",
+        "TeSeS",
+        "karrigan",
+        "m0NESY-"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "BetBoom",
+          "team_id": "a71094a9-02e2-466d-9e56-c9ec1286bcb4",
+          "players": [
+            "NiKo",
+            "kyousuke",
+            "TeSeS",
+            "karrigan",
+            "m0NESY-"
+          ]
+        },
+        {
+          "team": "Team Falcons",
+          "team_id": "4fa9ff0c-4cee-4cb9-a311-f368ee3e6a33",
+          "players": [
+            "d1Ledez",
+            "Magnojez",
+            "s1ren",
+            "zorte",
+            "boombl4"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "1aca64f1-de00-470e-aa86-2238af31e92d",
+      "player": "MistR",
+      "team": "ex",
+      "opponent": "BBL Esports",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "1aca64f1-de00-470e-aa86-2238af31e92d",
+      "appearance_id": "2c0647e5-0427-42d5-af85-b4068a84b674",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 15.5,
+      "evidence": "active | balanced | active |  MistR | Higher 15.5 Headshots on Maps 1+2 | OverUnderOption | active |  MistR | Lower 15.5 Headshots on Maps 1+2 | OverUnderOption |  MistR Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | MistR | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "2574f125-1f3c-43e2-b959-b31bc53368cd",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "underdog_opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "source_identity_ids": {
+        "player_id": "2574f125-1f3c-43e2-b959-b31bc53368cd",
+        "match_id": "273102",
+        "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+        "opponent_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "ex",
+      "source_opponent_name": "BBL Esports",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "IceBerg",
+        "leakz",
+        "NickyB",
+        "salazar",
+        "MistR"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        },
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "ab3d0750-3009-4f54-9898-4e29d7b26e2b",
+      "player": "Brilliance",
+      "team": "BBL Esports",
+      "opponent": "ex",
+      "matchup": "BBL Esports vs ex-RUSTEC",
+      "start_time": "2026-10-17T17:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "ab3d0750-3009-4f54-9898-4e29d7b26e2b",
+      "appearance_id": "0af858c5-e5c0-4f7e-9077-034f3eac7c49",
+      "game_id": "273102",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 13.5,
+      "evidence": "active | balanced | active | Brilliance | Higher 13.5 Headshots on Maps 1+2 | OverUnderOption | active | Brilliance | Lower 13.5 Headshots on Maps 1+2 | OverUnderOption | Brilliance Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | Brilliance | BBL Esports vs ex-RUSTEC | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-10-17T14:28:51+00:00",
+      "underdog_player_id": "e957fc67-7045-4315-b022-718a0298aa31",
+      "underdog_match_id": "273102",
+      "underdog_team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+      "underdog_opponent_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+      "source_identity_ids": {
+        "player_id": "e957fc67-7045-4315-b022-718a0298aa31",
+        "match_id": "273102",
+        "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+        "opponent_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "BBL Esports",
+          "team_id": "5cd22d20-0f8d-476b-a2a5-5fbc20229eaa",
+          "players": [
+            "bl1x1",
+            "youka",
+            "relaxxie",
+            "Brilliance"
+          ]
+        },
+        {
+          "team": "ex",
+          "team_id": "0acf801c-c6ff-4b98-8d96-bbfa870f18ca",
+          "players": [
+            "IceBerg",
+            "leakz",
+            "NickyB",
+            "salazar",
+            "MistR"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "bl1x1",
+        "youka",
+        "relaxxie",
+        "Brilliance"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "BBL Esports",
+      "source_opponent_name": "ex",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    }
+  ],
+  "all_cs2_lines": 55,
+  "model_supported_lines": 29,
+  "unsupported_visible_lines": 26,
+  "source_exact_five_rows": 47,
+  "source_exact_match_rows": 55,
+  "non_cs2_rows_removed": 0,
+  "source_gate": "explicit Counter-Strike metadata"
+}
