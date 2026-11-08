@@ -1,0 +1,19 @@
+{
+  "version": "5.9.6",
+  "updated_at": "2026-11-08T09:42:12+00:00",
+  "board_rows": 31,
+  "projection_ready_rows": 22,
+  "official_ready_rows": 0,
+  "verified_identity_rows": 31,
+  "verified_profile_rows": 22,
+  "core_kpr_rows": 22,
+  "real_provider_match_rows": 1,
+  "deep_team_map_rows": 1,
+  "supported_exact_id_blank_team_rows": 0,
+  "missing_projection_requirements": {
+    "profile": 1,
+    "core_kpr": 1
+  },
+  "source_gate": "exact Underdog player/game/team IDs + ID-backed matchup side names",
+  "freeze_candidate_rows": 14
+}

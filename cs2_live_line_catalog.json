@@ -1,0 +1,2832 @@
+{
+  "version": "5.8.6",
+  "updated_at": "2026-11-08T09:32:19+00:00",
+  "rows": [
+    {
+      "source": "Underdog",
+      "prop_id": "a3c3c7dc-faab-465e-8924-c69b9116977a",
+      "player": "kraghen",
+      "team": "6yuBoJlbl",
+      "opponent": "9INE",
+      "matchup": "6yuBoJlbl vs 9INE",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "a3c3c7dc-faab-465e-8924-c69b9116977a",
+      "appearance_id": "b4fc4ca7-da2e-433a-89a0-d77f9f7d914c",
+      "game_id": "282783",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 27.5,
+      "evidence": "active | balanced | active |  kraghen | Higher 27.5 Kills on Maps 1+2 | OverUnderOption | active |  kraghen | Lower 27.5 Kills on Maps 1+2 | OverUnderOption |  kraghen Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | kraghen | 6yuBoJlbl vs 9INE | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "f05608fb-46a1-4f5e-ac31-3ce2fe91857c",
+      "underdog_match_id": "282783",
+      "underdog_team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+      "underdog_opponent_id": "7ce13a74-96dc-46ef-8dfc-4d9c369a020c",
+      "source_identity_ids": {
+        "player_id": "f05608fb-46a1-4f5e-ac31-3ce2fe91857c",
+        "match_id": "282783",
+        "team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+        "opponent_id": "7ce13a74-96dc-46ef-8dfc-4d9c369a020c"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "6yuBoJlbl",
+          "team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+          "players": [
+            "kraghen",
+            "Bielany",
+            "raalz",
+            "Flayy"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "kraghen",
+        "Bielany",
+        "raalz",
+        "Flayy"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "6yuBoJlbl",
+      "source_opponent_name": "9INE",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "0c868b50-3998-4abd-add1-f8a554978875",
+      "player": "kraghen",
+      "team": "6yuBoJlbl",
+      "opponent": "9INE",
+      "matchup": "6yuBoJlbl vs 9INE",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "0c868b50-3998-4abd-add1-f8a554978875",
+      "appearance_id": "b4fc4ca7-da2e-433a-89a0-d77f9f7d914c",
+      "game_id": "282783",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 14.5,
+      "evidence": "active | balanced | active |  kraghen | Higher 14.5 Headshots on Maps 1+2 | OverUnderOption | active |  kraghen | Lower 14.5 Headshots on Maps 1+2 | OverUnderOption |  kraghen Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | kraghen | 6yuBoJlbl vs 9INE | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "f05608fb-46a1-4f5e-ac31-3ce2fe91857c",
+      "underdog_match_id": "282783",
+      "underdog_team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+      "underdog_opponent_id": "7ce13a74-96dc-46ef-8dfc-4d9c369a020c",
+      "source_identity_ids": {
+        "player_id": "f05608fb-46a1-4f5e-ac31-3ce2fe91857c",
+        "match_id": "282783",
+        "team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+        "opponent_id": "7ce13a74-96dc-46ef-8dfc-4d9c369a020c"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "6yuBoJlbl",
+          "team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+          "players": [
+            "kraghen",
+            "Bielany",
+            "raalz",
+            "Flayy"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "kraghen",
+        "Bielany",
+        "raalz",
+        "Flayy"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "6yuBoJlbl",
+      "source_opponent_name": "9INE",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "de602a9d-d1d6-4f5f-9ab8-4f2620fea99f",
+      "player": "Bielany",
+      "team": "6yuBoJlbl",
+      "opponent": "9INE",
+      "matchup": "6yuBoJlbl vs 9INE",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "de602a9d-d1d6-4f5f-9ab8-4f2620fea99f",
+      "appearance_id": "cff217c1-6fe0-4234-825b-31a52709aed7",
+      "game_id": "282783",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 29.5,
+      "evidence": "active | balanced | active |  Bielany | Higher 29.5 Kills on Maps 1+2 | OverUnderOption | active |  Bielany | Lower 29.5 Kills on Maps 1+2 | OverUnderOption |  Bielany Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | Bielany | 6yuBoJlbl vs 9INE | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "dc3faeb7-d741-4705-80b2-7bf51a59f0b5",
+      "underdog_match_id": "282783",
+      "underdog_team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+      "underdog_opponent_id": "7ce13a74-96dc-46ef-8dfc-4d9c369a020c",
+      "source_identity_ids": {
+        "player_id": "dc3faeb7-d741-4705-80b2-7bf51a59f0b5",
+        "match_id": "282783",
+        "team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+        "opponent_id": "7ce13a74-96dc-46ef-8dfc-4d9c369a020c"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "6yuBoJlbl",
+          "team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+          "players": [
+            "kraghen",
+            "Bielany",
+            "raalz",
+            "Flayy"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "kraghen",
+        "Bielany",
+        "raalz",
+        "Flayy"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "6yuBoJlbl",
+      "source_opponent_name": "9INE",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "902f38bb-78a4-42a2-9c29-de614197d99a",
+      "player": "raalz",
+      "team": "6yuBoJlbl",
+      "opponent": "9INE",
+      "matchup": "6yuBoJlbl vs 9INE",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "902f38bb-78a4-42a2-9c29-de614197d99a",
+      "appearance_id": "091fb1c5-bb28-4936-beec-a8dca2ceb00f",
+      "game_id": "282783",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 26.5,
+      "evidence": "active | balanced | active | raalz | Higher 26.5 Kills on Maps 1+2 | OverUnderOption | active | raalz | Lower 26.5 Kills on Maps 1+2 | OverUnderOption | raalz Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | raalz | 6yuBoJlbl vs 9INE | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "0b72aa3e-de7a-49ad-881b-35b85e7d752a",
+      "underdog_match_id": "282783",
+      "underdog_team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+      "underdog_opponent_id": "7ce13a74-96dc-46ef-8dfc-4d9c369a020c",
+      "source_identity_ids": {
+        "player_id": "0b72aa3e-de7a-49ad-881b-35b85e7d752a",
+        "match_id": "282783",
+        "team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+        "opponent_id": "7ce13a74-96dc-46ef-8dfc-4d9c369a020c"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "6yuBoJlbl",
+          "team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+          "players": [
+            "kraghen",
+            "Bielany",
+            "raalz",
+            "Flayy"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "kraghen",
+        "Bielany",
+        "raalz",
+        "Flayy"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "6yuBoJlbl",
+      "source_opponent_name": "9INE",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "bf658e9d-2eb3-4b1a-84e4-93e886049ede",
+      "player": "raalz",
+      "team": "6yuBoJlbl",
+      "opponent": "9INE",
+      "matchup": "6yuBoJlbl vs 9INE",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "bf658e9d-2eb3-4b1a-84e4-93e886049ede",
+      "appearance_id": "091fb1c5-bb28-4936-beec-a8dca2ceb00f",
+      "game_id": "282783",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 17.5,
+      "evidence": "active | balanced | active | raalz | Higher 17.5 Headshots on Maps 1+2 | OverUnderOption | active | raalz | Lower 17.5 Headshots on Maps 1+2 | OverUnderOption | raalz Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | raalz | 6yuBoJlbl vs 9INE | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "0b72aa3e-de7a-49ad-881b-35b85e7d752a",
+      "underdog_match_id": "282783",
+      "underdog_team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+      "underdog_opponent_id": "7ce13a74-96dc-46ef-8dfc-4d9c369a020c",
+      "source_identity_ids": {
+        "player_id": "0b72aa3e-de7a-49ad-881b-35b85e7d752a",
+        "match_id": "282783",
+        "team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+        "opponent_id": "7ce13a74-96dc-46ef-8dfc-4d9c369a020c"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "6yuBoJlbl",
+          "team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+          "players": [
+            "kraghen",
+            "Bielany",
+            "raalz",
+            "Flayy"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "kraghen",
+        "Bielany",
+        "raalz",
+        "Flayy"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "6yuBoJlbl",
+      "source_opponent_name": "9INE",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "5c75d342-bfbd-4905-a26b-ed0788c9f5dd",
+      "player": "1eer",
+      "team": "G2 Ares",
+      "opponent": "Private",
+      "matchup": "Private vs G2 Ares",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "5c75d342-bfbd-4905-a26b-ed0788c9f5dd",
+      "appearance_id": "6ef1e646-5bfe-4aad-ab3c-fd97b3e4a9f4",
+      "game_id": "282782",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 28.5,
+      "evidence": "active | balanced | active |  1eer | Higher 28.5 Kills on Maps 1+2 | OverUnderOption | active |  1eer | Lower 28.5 Kills on Maps 1+2 | OverUnderOption |  1eer Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | 1eer | Private vs G2 Ares | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "7895941d-2215-4a36-a4c3-29561532d16f",
+      "underdog_match_id": "282782",
+      "underdog_team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+      "underdog_opponent_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+      "source_identity_ids": {
+        "player_id": "7895941d-2215-4a36-a4c3-29561532d16f",
+        "match_id": "282782",
+        "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+        "opponent_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        },
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "1eer",
+        "H4SAN4TOR",
+        "sh1nejezzz",
+        "sowalio",
+        "z1k4"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "G2 Ares",
+      "source_opponent_name": "Private",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "1eer",
+        "H4SAN4TOR",
+        "sh1nejezzz",
+        "sowalio",
+        "z1k4"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        },
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "fe5322b8-620b-40b8-8550-3da0615b4b02",
+      "player": "H4SAN4TOR",
+      "team": "G2 Ares",
+      "opponent": "Private",
+      "matchup": "Private vs G2 Ares",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "fe5322b8-620b-40b8-8550-3da0615b4b02",
+      "appearance_id": "6dc396f2-7bdb-470a-80aa-f923ab0eaf44",
+      "game_id": "282782",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 32.5,
+      "evidence": "active | balanced | active |  H4SAN4TOR | Higher 32.5 Kills on Maps 1+2 | OverUnderOption | active |  H4SAN4TOR | Lower 32.5 Kills on Maps 1+2 | OverUnderOption |  H4SAN4TOR Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | H4SAN4TOR | Private vs G2 Ares | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "ecd66973-d046-4167-bf43-db8eb48f4622",
+      "underdog_match_id": "282782",
+      "underdog_team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+      "underdog_opponent_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+      "source_identity_ids": {
+        "player_id": "ecd66973-d046-4167-bf43-db8eb48f4622",
+        "match_id": "282782",
+        "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+        "opponent_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        },
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "1eer",
+        "H4SAN4TOR",
+        "sh1nejezzz",
+        "sowalio",
+        "z1k4"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "G2 Ares",
+      "source_opponent_name": "Private",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "1eer",
+        "H4SAN4TOR",
+        "sh1nejezzz",
+        "sowalio",
+        "z1k4"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        },
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "e9445513-bb46-4dab-b2b0-cc756db648c9",
+      "player": "H4SAN4TOR",
+      "team": "G2 Ares",
+      "opponent": "Private",
+      "matchup": "Private vs G2 Ares",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "e9445513-bb46-4dab-b2b0-cc756db648c9",
+      "appearance_id": "6dc396f2-7bdb-470a-80aa-f923ab0eaf44",
+      "game_id": "282782",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 16.5,
+      "evidence": "active | balanced | active |  H4SAN4TOR | Higher 16.5 Headshots on Maps 1+2 | OverUnderOption | active |  H4SAN4TOR | Lower 16.5 Headshots on Maps 1+2 | OverUnderOption |  H4SAN4TOR Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | H4SAN4TOR | Private vs G2 Ares | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "ecd66973-d046-4167-bf43-db8eb48f4622",
+      "underdog_match_id": "282782",
+      "underdog_team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+      "underdog_opponent_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+      "source_identity_ids": {
+        "player_id": "ecd66973-d046-4167-bf43-db8eb48f4622",
+        "match_id": "282782",
+        "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+        "opponent_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        },
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "1eer",
+        "H4SAN4TOR",
+        "sh1nejezzz",
+        "sowalio",
+        "z1k4"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "G2 Ares",
+      "source_opponent_name": "Private",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "1eer",
+        "H4SAN4TOR",
+        "sh1nejezzz",
+        "sowalio",
+        "z1k4"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        },
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "2c1025c9-5482-4fdf-aaff-f4405f61da65",
+      "player": "sh1nejezzz",
+      "team": "G2 Ares",
+      "opponent": "Private",
+      "matchup": "Private vs G2 Ares",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "2c1025c9-5482-4fdf-aaff-f4405f61da65",
+      "appearance_id": "0df9ffeb-fec9-40ab-a171-039386a2d79c",
+      "game_id": "282782",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 27.5,
+      "evidence": "active | balanced | active |  sh1nejezzz | Higher 27.5 Kills on Maps 1+2 | OverUnderOption | active |  sh1nejezzz | Lower 27.5 Kills on Maps 1+2 | OverUnderOption |  sh1nejezzz Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | sh1nejezzz | Private vs G2 Ares | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "463519a5-921a-422a-8057-1a227e93a5a6",
+      "underdog_match_id": "282782",
+      "underdog_team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+      "underdog_opponent_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+      "source_identity_ids": {
+        "player_id": "463519a5-921a-422a-8057-1a227e93a5a6",
+        "match_id": "282782",
+        "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+        "opponent_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        },
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "1eer",
+        "H4SAN4TOR",
+        "sh1nejezzz",
+        "sowalio",
+        "z1k4"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "G2 Ares",
+      "source_opponent_name": "Private",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "1eer",
+        "H4SAN4TOR",
+        "sh1nejezzz",
+        "sowalio",
+        "z1k4"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        },
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "273a2122-54a9-4811-8251-667b5b9957a7",
+      "player": "sh1nejezzz",
+      "team": "G2 Ares",
+      "opponent": "Private",
+      "matchup": "Private vs G2 Ares",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "273a2122-54a9-4811-8251-667b5b9957a7",
+      "appearance_id": "0df9ffeb-fec9-40ab-a171-039386a2d79c",
+      "game_id": "282782",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 16.5,
+      "evidence": "active | balanced | active |  sh1nejezzz | Higher 16.5 Headshots on Maps 1+2 | OverUnderOption | active |  sh1nejezzz | Lower 16.5 Headshots on Maps 1+2 | OverUnderOption |  sh1nejezzz Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | sh1nejezzz | Private vs G2 Ares | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "463519a5-921a-422a-8057-1a227e93a5a6",
+      "underdog_match_id": "282782",
+      "underdog_team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+      "underdog_opponent_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+      "source_identity_ids": {
+        "player_id": "463519a5-921a-422a-8057-1a227e93a5a6",
+        "match_id": "282782",
+        "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+        "opponent_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        },
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "1eer",
+        "H4SAN4TOR",
+        "sh1nejezzz",
+        "sowalio",
+        "z1k4"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "G2 Ares",
+      "source_opponent_name": "Private",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "1eer",
+        "H4SAN4TOR",
+        "sh1nejezzz",
+        "sowalio",
+        "z1k4"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        },
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "01fd5ec3-2695-40bd-81bd-261394edd873",
+      "player": "SHiNE",
+      "team": "Private",
+      "opponent": "G2 Ares",
+      "matchup": "Private vs G2 Ares",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "01fd5ec3-2695-40bd-81bd-261394edd873",
+      "appearance_id": "22398b5c-2034-48b0-b04a-2c28bc2a97b1",
+      "game_id": "282782",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 21.5,
+      "evidence": "active | balanced | active |  SHiNE | Higher 21.5 Kills on Maps 1+2 | OverUnderOption | active |  SHiNE | Lower 21.5 Kills on Maps 1+2 | OverUnderOption |  SHiNE Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | SHiNE | Private vs G2 Ares | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "3d449953-3f1c-4642-9bcb-b35c6a04831d",
+      "underdog_match_id": "282782",
+      "underdog_team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+      "underdog_opponent_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+      "source_identity_ids": {
+        "player_id": "3d449953-3f1c-4642-9bcb-b35c6a04831d",
+        "match_id": "282782",
+        "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+        "opponent_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        },
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "SHiNE",
+        "TMKj",
+        "Junyme",
+        "Hitori",
+        "yksjupe"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Private",
+      "source_opponent_name": "G2 Ares",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "SHiNE",
+        "TMKj",
+        "Junyme",
+        "Hitori",
+        "yksjupe"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        },
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "fb55c2d9-6b73-49c7-bd10-dfd6869317ce",
+      "player": "TMKj",
+      "team": "Private",
+      "opponent": "G2 Ares",
+      "matchup": "Private vs G2 Ares",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "fb55c2d9-6b73-49c7-bd10-dfd6869317ce",
+      "appearance_id": "b2fd64f7-650a-4d40-a4a6-2255ad16bc3c",
+      "game_id": "282782",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 26.5,
+      "evidence": "active | balanced | active |  TMKj | Higher 26.5 Kills on Maps 1+2 | OverUnderOption | active |  TMKj | Lower 26.5 Kills on Maps 1+2 | OverUnderOption |  TMKj Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | TMKj | Private vs G2 Ares | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "32632967-7692-4c15-a3e9-98588eb5be44",
+      "underdog_match_id": "282782",
+      "underdog_team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+      "underdog_opponent_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+      "source_identity_ids": {
+        "player_id": "32632967-7692-4c15-a3e9-98588eb5be44",
+        "match_id": "282782",
+        "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+        "opponent_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        },
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "SHiNE",
+        "TMKj",
+        "Junyme",
+        "Hitori",
+        "yksjupe"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Private",
+      "source_opponent_name": "G2 Ares",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "SHiNE",
+        "TMKj",
+        "Junyme",
+        "Hitori",
+        "yksjupe"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        },
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "a00a9606-24fe-413a-b46b-459cebed4667",
+      "player": "sowalio",
+      "team": "G2 Ares",
+      "opponent": "Private",
+      "matchup": "Private vs G2 Ares",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "a00a9606-24fe-413a-b46b-459cebed4667",
+      "appearance_id": "9f29b28d-26f0-42c4-ace1-8027810bc240",
+      "game_id": "282782",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 29.5,
+      "evidence": "active | balanced | active |  sowalio | Higher 29.5 Kills on Maps 1+2 | OverUnderOption | active |  sowalio | Lower 29.5 Kills on Maps 1+2 | OverUnderOption |  sowalio Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | sowalio | Private vs G2 Ares | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "498e9940-06c7-4ca2-bb6a-a887de66bb9a",
+      "underdog_match_id": "282782",
+      "underdog_team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+      "underdog_opponent_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+      "source_identity_ids": {
+        "player_id": "498e9940-06c7-4ca2-bb6a-a887de66bb9a",
+        "match_id": "282782",
+        "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+        "opponent_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        },
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "1eer",
+        "H4SAN4TOR",
+        "sh1nejezzz",
+        "sowalio",
+        "z1k4"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "G2 Ares",
+      "source_opponent_name": "Private",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "1eer",
+        "H4SAN4TOR",
+        "sh1nejezzz",
+        "sowalio",
+        "z1k4"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        },
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "f73804db-b821-4bb4-aba8-ce77d179c369",
+      "player": "sowalio",
+      "team": "G2 Ares",
+      "opponent": "Private",
+      "matchup": "Private vs G2 Ares",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "f73804db-b821-4bb4-aba8-ce77d179c369",
+      "appearance_id": "9f29b28d-26f0-42c4-ace1-8027810bc240",
+      "game_id": "282782",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 16.5,
+      "evidence": "active | balanced | active |  sowalio | Higher 16.5 Headshots on Maps 1+2 | OverUnderOption | active |  sowalio | Lower 16.5 Headshots on Maps 1+2 | OverUnderOption |  sowalio Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | sowalio | Private vs G2 Ares | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "498e9940-06c7-4ca2-bb6a-a887de66bb9a",
+      "underdog_match_id": "282782",
+      "underdog_team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+      "underdog_opponent_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+      "source_identity_ids": {
+        "player_id": "498e9940-06c7-4ca2-bb6a-a887de66bb9a",
+        "match_id": "282782",
+        "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+        "opponent_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        },
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "1eer",
+        "H4SAN4TOR",
+        "sh1nejezzz",
+        "sowalio",
+        "z1k4"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "G2 Ares",
+      "source_opponent_name": "Private",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "1eer",
+        "H4SAN4TOR",
+        "sh1nejezzz",
+        "sowalio",
+        "z1k4"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        },
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "fde5a898-872b-40d1-ac30-2beee56524e6",
+      "player": "Flayy",
+      "team": "6yuBoJlbl",
+      "opponent": "9INE",
+      "matchup": "6yuBoJlbl vs 9INE",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "fde5a898-872b-40d1-ac30-2beee56524e6",
+      "appearance_id": "cdef9631-ece7-4833-8418-2e78c9b764d2",
+      "game_id": "282783",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 33.5,
+      "evidence": "active | balanced | active |  Flayy | Higher 33.5 Kills on Maps 1+2 | OverUnderOption | active |  Flayy | Lower 33.5 Kills on Maps 1+2 | OverUnderOption |  Flayy Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | Flayy | 6yuBoJlbl vs 9INE | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "debd02d4-c542-4fa4-a7d4-fec16d7fc9d1",
+      "underdog_match_id": "282783",
+      "underdog_team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+      "underdog_opponent_id": "7ce13a74-96dc-46ef-8dfc-4d9c369a020c",
+      "source_identity_ids": {
+        "player_id": "debd02d4-c542-4fa4-a7d4-fec16d7fc9d1",
+        "match_id": "282783",
+        "team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+        "opponent_id": "7ce13a74-96dc-46ef-8dfc-4d9c369a020c"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "6yuBoJlbl",
+          "team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+          "players": [
+            "kraghen",
+            "Bielany",
+            "raalz",
+            "Flayy"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "kraghen",
+        "Bielany",
+        "raalz",
+        "Flayy"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "6yuBoJlbl",
+      "source_opponent_name": "9INE",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "c16411b5-f2d2-4f82-af7c-745bc5babd5d",
+      "player": "Flayy",
+      "team": "6yuBoJlbl",
+      "opponent": "9INE",
+      "matchup": "6yuBoJlbl vs 9INE",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "c16411b5-f2d2-4f82-af7c-745bc5babd5d",
+      "appearance_id": "cdef9631-ece7-4833-8418-2e78c9b764d2",
+      "game_id": "282783",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 10.5,
+      "evidence": "active | balanced | active |  Flayy | Higher 10.5 Headshots on Maps 1+2 | OverUnderOption | active |  Flayy | Lower 10.5 Headshots on Maps 1+2 | OverUnderOption |  Flayy Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | Flayy | 6yuBoJlbl vs 9INE | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "debd02d4-c542-4fa4-a7d4-fec16d7fc9d1",
+      "underdog_match_id": "282783",
+      "underdog_team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+      "underdog_opponent_id": "7ce13a74-96dc-46ef-8dfc-4d9c369a020c",
+      "source_identity_ids": {
+        "player_id": "debd02d4-c542-4fa4-a7d4-fec16d7fc9d1",
+        "match_id": "282783",
+        "team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+        "opponent_id": "7ce13a74-96dc-46ef-8dfc-4d9c369a020c"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "6yuBoJlbl",
+          "team_id": "233ef77f-9b20-4bde-ad95-43f4ef2ad2f5",
+          "players": [
+            "kraghen",
+            "Bielany",
+            "raalz",
+            "Flayy"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "kraghen",
+        "Bielany",
+        "raalz",
+        "Flayy"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "6yuBoJlbl",
+      "source_opponent_name": "9INE",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "4068e17a-d47f-44fe-97bf-707cf8ad59d5",
+      "player": "Junyme",
+      "team": "Private",
+      "opponent": "G2 Ares",
+      "matchup": "Private vs G2 Ares",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "4068e17a-d47f-44fe-97bf-707cf8ad59d5",
+      "appearance_id": "aeb36214-02d4-400b-b13b-2106b6602415",
+      "game_id": "282782",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 28.5,
+      "evidence": "active | balanced | active |  Junyme | Higher 28.5 Kills on Maps 1+2 | OverUnderOption | active |  Junyme | Lower 28.5 Kills on Maps 1+2 | OverUnderOption |  Junyme Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | Junyme | Private vs G2 Ares | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "9cd1db8d-579f-4a95-b616-eb245523547b",
+      "underdog_match_id": "282782",
+      "underdog_team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+      "underdog_opponent_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+      "source_identity_ids": {
+        "player_id": "9cd1db8d-579f-4a95-b616-eb245523547b",
+        "match_id": "282782",
+        "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+        "opponent_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        },
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "SHiNE",
+        "TMKj",
+        "Junyme",
+        "Hitori",
+        "yksjupe"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Private",
+      "source_opponent_name": "G2 Ares",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "SHiNE",
+        "TMKj",
+        "Junyme",
+        "Hitori",
+        "yksjupe"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        },
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "02112976-aaac-4f32-9214-b44900a8bbcf",
+      "player": "oopee",
+      "team": "KUUSAMO.gg",
+      "opponent": "Prestige Esport",
+      "matchup": "Prestige Esport vs KUUSAMO.gg",
+      "start_time": "2026-11-08T12:10:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "02112976-aaac-4f32-9214-b44900a8bbcf",
+      "appearance_id": "e9b60ee8-7102-4f66-95de-b72aa77ddefa",
+      "game_id": "281948",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 32.5,
+      "evidence": "active | balanced | active |  oopee | Higher 32.5 Kills on Maps 1+2 | OverUnderOption | active |  oopee | Lower 32.5 Kills on Maps 1+2 | OverUnderOption |  oopee Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | oopee | Prestige Esport vs KUUSAMO.gg | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "dc9bd794-d414-42b4-b6ac-c44ae0ae0e91",
+      "underdog_match_id": "281948",
+      "underdog_team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+      "underdog_opponent_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+      "source_identity_ids": {
+        "player_id": "dc9bd794-d414-42b4-b6ac-c44ae0ae0e91",
+        "match_id": "281948",
+        "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+        "opponent_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        },
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "oopee",
+        "Jelo",
+        "FejtZ",
+        "N4xx1s"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "KUUSAMO.gg",
+      "source_opponent_name": "Prestige Esport",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "dfb12330-fb66-44b9-bf02-2069b438dd21",
+      "player": "Hitori",
+      "team": "Private",
+      "opponent": "G2 Ares",
+      "matchup": "Private vs G2 Ares",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "dfb12330-fb66-44b9-bf02-2069b438dd21",
+      "appearance_id": "532f8afa-dbcf-4a0c-9428-a4ec8d058516",
+      "game_id": "282782",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 26.5,
+      "evidence": "active | balanced | active | Hitori | Higher 26.5 Kills on Maps 1+2 | OverUnderOption | active | Hitori | Lower 26.5 Kills on Maps 1+2 | OverUnderOption | Hitori Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | Hitori | Private vs G2 Ares | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "ad99a1db-0d13-42d0-9621-403cecaeb819",
+      "underdog_match_id": "282782",
+      "underdog_team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+      "underdog_opponent_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+      "source_identity_ids": {
+        "player_id": "ad99a1db-0d13-42d0-9621-403cecaeb819",
+        "match_id": "282782",
+        "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+        "opponent_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        },
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "SHiNE",
+        "TMKj",
+        "Junyme",
+        "Hitori",
+        "yksjupe"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Private",
+      "source_opponent_name": "G2 Ares",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "SHiNE",
+        "TMKj",
+        "Junyme",
+        "Hitori",
+        "yksjupe"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        },
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "0bf73843-67c0-438b-94a2-7ef36cb3efca",
+      "player": "Jelo",
+      "team": "KUUSAMO.gg",
+      "opponent": "Prestige Esport",
+      "matchup": "Prestige Esport vs KUUSAMO.gg",
+      "start_time": "2026-11-08T12:10:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "0bf73843-67c0-438b-94a2-7ef36cb3efca",
+      "appearance_id": "d358d361-ac12-4ef7-9eb8-4c0fccb607a2",
+      "game_id": "281948",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 28.5,
+      "evidence": "active | balanced | active |  Jelo | Higher 28.5 Kills on Maps 1+2 | OverUnderOption | active |  Jelo | Lower 28.5 Kills on Maps 1+2 | OverUnderOption |  Jelo Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | Jelo | Prestige Esport vs KUUSAMO.gg | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "dff48545-3e43-4533-b9d9-d4fa2bd6a5e2",
+      "underdog_match_id": "281948",
+      "underdog_team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+      "underdog_opponent_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+      "source_identity_ids": {
+        "player_id": "dff48545-3e43-4533-b9d9-d4fa2bd6a5e2",
+        "match_id": "281948",
+        "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+        "opponent_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        },
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "oopee",
+        "Jelo",
+        "FejtZ",
+        "N4xx1s"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "KUUSAMO.gg",
+      "source_opponent_name": "Prestige Esport",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "acaed6b6-a947-4e4f-b576-9c13631b7978",
+      "player": "z1k4",
+      "team": "G2 Ares",
+      "opponent": "Private",
+      "matchup": "Private vs G2 Ares",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "acaed6b6-a947-4e4f-b576-9c13631b7978",
+      "appearance_id": "75acaa02-b9f5-4611-aaba-b1064fbf2117",
+      "game_id": "282782",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 31.5,
+      "evidence": "active | balanced | active |  z1k4 | Higher 31.5 Kills on Maps 1+2 | OverUnderOption | active |  z1k4 | Lower 31.5 Kills on Maps 1+2 | OverUnderOption |  z1k4 Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | z1k4 | Private vs G2 Ares | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "3255378b-6ad4-4964-9581-9eed35b09519",
+      "underdog_match_id": "282782",
+      "underdog_team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+      "underdog_opponent_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+      "source_identity_ids": {
+        "player_id": "3255378b-6ad4-4964-9581-9eed35b09519",
+        "match_id": "282782",
+        "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+        "opponent_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        },
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "1eer",
+        "H4SAN4TOR",
+        "sh1nejezzz",
+        "sowalio",
+        "z1k4"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "G2 Ares",
+      "source_opponent_name": "Private",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "1eer",
+        "H4SAN4TOR",
+        "sh1nejezzz",
+        "sowalio",
+        "z1k4"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        },
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "11d25562-9cd1-47ef-879e-d25910e997ea",
+      "player": "yksjupe",
+      "team": "Private",
+      "opponent": "G2 Ares",
+      "matchup": "Private vs G2 Ares",
+      "start_time": "2026-11-08T14:00:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "11d25562-9cd1-47ef-879e-d25910e997ea",
+      "appearance_id": "04211213-b213-43f1-a70b-95daad9af5c3",
+      "game_id": "282782",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 23.5,
+      "evidence": "active | balanced | active |  yksjupe | Higher 23.5 Kills on Maps 1+2 | OverUnderOption | active |  yksjupe | Lower 23.5 Kills on Maps 1+2 | OverUnderOption |  yksjupe Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | yksjupe | Private vs G2 Ares | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "31d9f144-064d-4681-83a8-2f1dfd74e7be",
+      "underdog_match_id": "282782",
+      "underdog_team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+      "underdog_opponent_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+      "source_identity_ids": {
+        "player_id": "31d9f144-064d-4681-83a8-2f1dfd74e7be",
+        "match_id": "282782",
+        "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+        "opponent_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        },
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "SHiNE",
+        "TMKj",
+        "Junyme",
+        "Hitori",
+        "yksjupe"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Private",
+      "source_opponent_name": "G2 Ares",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "SHiNE",
+        "TMKj",
+        "Junyme",
+        "Hitori",
+        "yksjupe"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Private",
+          "team_id": "94fbd263-dfb8-4d22-a372-01fe25d8a134",
+          "players": [
+            "SHiNE",
+            "TMKj",
+            "Junyme",
+            "Hitori",
+            "yksjupe"
+          ]
+        },
+        {
+          "team": "G2 Ares",
+          "team_id": "da7dacf2-e6b0-4e24-bd45-6e5d4ea8bf37",
+          "players": [
+            "1eer",
+            "H4SAN4TOR",
+            "sh1nejezzz",
+            "sowalio",
+            "z1k4"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "17df9b37-1595-4dd0-831c-7006d200791b",
+      "player": "osku",
+      "team": "Prestige Esport",
+      "opponent": "KUUSAMO.gg",
+      "matchup": "Prestige Esport vs KUUSAMO.gg",
+      "start_time": "2026-11-08T12:10:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "17df9b37-1595-4dd0-831c-7006d200791b",
+      "appearance_id": "0e686172-3081-4061-b2a1-2612a03539e5",
+      "game_id": "281948",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 26.5,
+      "evidence": "active | balanced | active | osku | Higher 26.5 Kills on Maps 1+2 | OverUnderOption | active | osku | Lower 26.5 Kills on Maps 1+2 | OverUnderOption | osku Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | osku | Prestige Esport vs KUUSAMO.gg | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "60493aba-7dba-4c2a-b07e-fd1a8737a37b",
+      "underdog_match_id": "281948",
+      "underdog_team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+      "underdog_opponent_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+      "source_identity_ids": {
+        "player_id": "60493aba-7dba-4c2a-b07e-fd1a8737a37b",
+        "match_id": "281948",
+        "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+        "opponent_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        },
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "osku",
+        "epik",
+        "Keksimage",
+        "rbm",
+        "Matz"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Prestige Esport",
+      "source_opponent_name": "KUUSAMO.gg",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "osku",
+        "epik",
+        "Keksimage",
+        "rbm",
+        "Matz"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        },
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "7cf784a1-5ff3-4b3a-869f-330149f92392",
+      "player": "epik",
+      "team": "Prestige Esport",
+      "opponent": "KUUSAMO.gg",
+      "matchup": "Prestige Esport vs KUUSAMO.gg",
+      "start_time": "2026-11-08T12:10:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "7cf784a1-5ff3-4b3a-869f-330149f92392",
+      "appearance_id": "4a4d77dd-da7b-4f20-b8c9-dbaf8230490d",
+      "game_id": "281948",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 24.5,
+      "evidence": "active | balanced | active | epik | Higher 24.5 Kills on Maps 1+2 | OverUnderOption | active | epik | Lower 24.5 Kills on Maps 1+2 | OverUnderOption | epik Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | epik | Prestige Esport vs KUUSAMO.gg | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "2dd17c5d-b3d3-48ae-980f-b1b38f93661b",
+      "underdog_match_id": "281948",
+      "underdog_team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+      "underdog_opponent_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+      "source_identity_ids": {
+        "player_id": "2dd17c5d-b3d3-48ae-980f-b1b38f93661b",
+        "match_id": "281948",
+        "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+        "opponent_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        },
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "osku",
+        "epik",
+        "Keksimage",
+        "rbm",
+        "Matz"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Prestige Esport",
+      "source_opponent_name": "KUUSAMO.gg",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "osku",
+        "epik",
+        "Keksimage",
+        "rbm",
+        "Matz"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        },
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "428859f3-649d-4a76-806d-0a8859beb9aa",
+      "player": "FejtZ",
+      "team": "KUUSAMO.gg",
+      "opponent": "Prestige Esport",
+      "matchup": "Prestige Esport vs KUUSAMO.gg",
+      "start_time": "2026-11-08T12:10:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "428859f3-649d-4a76-806d-0a8859beb9aa",
+      "appearance_id": "ae6102a5-e39e-49cc-8f5b-6a05324fc5e0",
+      "game_id": "281948",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 32.5,
+      "evidence": "active | balanced | active |  FejtZ | Higher 32.5 Kills on Maps 1+2 | OverUnderOption | active |  FejtZ | Lower 32.5 Kills on Maps 1+2 | OverUnderOption |  FejtZ Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | FejtZ | Prestige Esport vs KUUSAMO.gg | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "e733c3d2-3bd9-4113-98c9-ec30568e78dc",
+      "underdog_match_id": "281948",
+      "underdog_team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+      "underdog_opponent_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+      "source_identity_ids": {
+        "player_id": "e733c3d2-3bd9-4113-98c9-ec30568e78dc",
+        "match_id": "281948",
+        "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+        "opponent_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        },
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "oopee",
+        "Jelo",
+        "FejtZ",
+        "N4xx1s"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "KUUSAMO.gg",
+      "source_opponent_name": "Prestige Esport",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "6bdc949a-6e99-4ab3-ae1d-acede030b1aa",
+      "player": "Keksimage",
+      "team": "Prestige Esport",
+      "opponent": "KUUSAMO.gg",
+      "matchup": "Prestige Esport vs KUUSAMO.gg",
+      "start_time": "2026-11-08T12:10:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "6bdc949a-6e99-4ab3-ae1d-acede030b1aa",
+      "appearance_id": "81dfb572-d80b-4b2e-b57b-542939ae627c",
+      "game_id": "281948",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 29.5,
+      "evidence": "active | balanced | active | Keksimage | Higher 29.5 Kills on Maps 1+2 | OverUnderOption | active | Keksimage | Lower 29.5 Kills on Maps 1+2 | OverUnderOption | Keksimage Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | Keksimage | Prestige Esport vs KUUSAMO.gg | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "9cc90efc-aebf-4c46-a470-e3fb70e94b75",
+      "underdog_match_id": "281948",
+      "underdog_team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+      "underdog_opponent_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+      "source_identity_ids": {
+        "player_id": "9cc90efc-aebf-4c46-a470-e3fb70e94b75",
+        "match_id": "281948",
+        "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+        "opponent_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        },
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "osku",
+        "epik",
+        "Keksimage",
+        "rbm",
+        "Matz"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Prestige Esport",
+      "source_opponent_name": "KUUSAMO.gg",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "osku",
+        "epik",
+        "Keksimage",
+        "rbm",
+        "Matz"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        },
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "28843ff8-8b2a-45e8-a0ca-467a06c0e4a8",
+      "player": "N4xx1s",
+      "team": "KUUSAMO.gg",
+      "opponent": "Prestige Esport",
+      "matchup": "Prestige Esport vs KUUSAMO.gg",
+      "start_time": "2026-11-08T12:10:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "28843ff8-8b2a-45e8-a0ca-467a06c0e4a8",
+      "appearance_id": "83dc18a0-8cee-44bf-a510-7d9527447772",
+      "game_id": "281948",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 25.5,
+      "evidence": "active | balanced | active |  N4xx1s | Higher 25.5 Kills on Maps 1+2 | OverUnderOption | active |  N4xx1s | Lower 25.5 Kills on Maps 1+2 | OverUnderOption |  N4xx1s Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | N4xx1s | Prestige Esport vs KUUSAMO.gg | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "21cff904-8cbd-4910-b522-dca84d943555",
+      "underdog_match_id": "281948",
+      "underdog_team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+      "underdog_opponent_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+      "source_identity_ids": {
+        "player_id": "21cff904-8cbd-4910-b522-dca84d943555",
+        "match_id": "281948",
+        "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+        "opponent_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        },
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "oopee",
+        "Jelo",
+        "FejtZ",
+        "N4xx1s"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": false,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "KUUSAMO.gg",
+      "source_opponent_name": "Prestige Esport",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names"
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "eaf801e3-44be-405c-b5fe-5ba2b723f6af",
+      "player": "rbm",
+      "team": "Prestige Esport",
+      "opponent": "KUUSAMO.gg",
+      "matchup": "Prestige Esport vs KUUSAMO.gg",
+      "start_time": "2026-11-08T12:10:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "eaf801e3-44be-405c-b5fe-5ba2b723f6af",
+      "appearance_id": "915b9639-556c-4c94-bb3b-5ca99d0f95ee",
+      "game_id": "281948",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 26.5,
+      "evidence": "active | balanced | active | rbm | Higher 26.5 Kills on Maps 1+2 | OverUnderOption | active | rbm | Lower 26.5 Kills on Maps 1+2 | OverUnderOption | rbm Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | rbm | Prestige Esport vs KUUSAMO.gg | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "46b08eb1-0ff9-4199-9eb4-3a2104a321cd",
+      "underdog_match_id": "281948",
+      "underdog_team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+      "underdog_opponent_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+      "source_identity_ids": {
+        "player_id": "46b08eb1-0ff9-4199-9eb4-3a2104a321cd",
+        "match_id": "281948",
+        "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+        "opponent_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        },
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "osku",
+        "epik",
+        "Keksimage",
+        "rbm",
+        "Matz"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Prestige Esport",
+      "source_opponent_name": "KUUSAMO.gg",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "osku",
+        "epik",
+        "Keksimage",
+        "rbm",
+        "Matz"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        },
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "abfbb232-8f05-42c6-85a4-1c79321722c2",
+      "player": "Matz",
+      "team": "Prestige Esport",
+      "opponent": "KUUSAMO.gg",
+      "matchup": "Prestige Esport vs KUUSAMO.gg",
+      "start_time": "2026-11-08T12:10:00Z",
+      "market": "Maps 1-2 Kills",
+      "market_scope": "maps_1_2",
+      "market_scope_verified": true,
+      "model_supported": true,
+      "projection_eligible_market": true,
+      "source_line_id": "abfbb232-8f05-42c6-85a4-1c79321722c2",
+      "appearance_id": "5ec937f8-9e96-4685-9699-1b7544c3fa4a",
+      "game_id": "281948",
+      "sport_id": "CS",
+      "stat_name": "kills_on_maps_1_2",
+      "line": 24.5,
+      "evidence": "active | balanced | active |  Matz | Higher 24.5 Kills on Maps 1+2 | OverUnderOption | active |  Matz | Lower 24.5 Kills on Maps 1+2 | OverUnderOption |  Matz Kills on Maps 1+2 O/U | kills_on_maps_1_2 | Kills on Maps 1+2 | kills_on_maps_1_2 | Kills on Maps 1+2 | Player | Matz | Prestige Esport vs KUUSAMO.gg | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "118d6ff2-04ed-4a83-bdef-e14c29d71c0a",
+      "underdog_match_id": "281948",
+      "underdog_team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+      "underdog_opponent_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+      "source_identity_ids": {
+        "player_id": "118d6ff2-04ed-4a83-bdef-e14c29d71c0a",
+        "match_id": "281948",
+        "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+        "opponent_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        },
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "osku",
+        "epik",
+        "Keksimage",
+        "rbm",
+        "Matz"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "MULTI_MAP",
+      "source_team_name": "Prestige Esport",
+      "source_opponent_name": "KUUSAMO.gg",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "osku",
+        "epik",
+        "Keksimage",
+        "rbm",
+        "Matz"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        },
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "23381579-af2f-4c3c-b7b2-0995fee967d0",
+      "player": "Matz",
+      "team": "Prestige Esport",
+      "opponent": "KUUSAMO.gg",
+      "matchup": "Prestige Esport vs KUUSAMO.gg",
+      "start_time": "2026-11-08T12:10:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "23381579-af2f-4c3c-b7b2-0995fee967d0",
+      "appearance_id": "5ec937f8-9e96-4685-9699-1b7544c3fa4a",
+      "game_id": "281948",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 12.5,
+      "evidence": "active | balanced | active |  Matz | Higher 12.5 Headshots on Maps 1+2 | OverUnderOption | active |  Matz | Lower 12.5 Headshots on Maps 1+2 | OverUnderOption |  Matz Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | Matz | Prestige Esport vs KUUSAMO.gg | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "118d6ff2-04ed-4a83-bdef-e14c29d71c0a",
+      "underdog_match_id": "281948",
+      "underdog_team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+      "underdog_opponent_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+      "source_identity_ids": {
+        "player_id": "118d6ff2-04ed-4a83-bdef-e14c29d71c0a",
+        "match_id": "281948",
+        "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+        "opponent_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        },
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "osku",
+        "epik",
+        "Keksimage",
+        "rbm",
+        "Matz"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "Prestige Esport",
+      "source_opponent_name": "KUUSAMO.gg",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "osku",
+        "epik",
+        "Keksimage",
+        "rbm",
+        "Matz"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        },
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Underdog",
+      "prop_id": "2dfd1907-f3d8-4b23-8229-189d3774392f",
+      "player": "epik",
+      "team": "Prestige Esport",
+      "opponent": "KUUSAMO.gg",
+      "matchup": "Prestige Esport vs KUUSAMO.gg",
+      "start_time": "2026-11-08T12:10:00Z",
+      "market": "Headshots Maps 1-2",
+      "market_scope": "unsupported_model_market",
+      "market_scope_verified": false,
+      "model_supported": false,
+      "projection_eligible_market": false,
+      "source_line_id": "2dfd1907-f3d8-4b23-8229-189d3774392f",
+      "appearance_id": "4a4d77dd-da7b-4f20-b8c9-dbaf8230490d",
+      "game_id": "281948",
+      "sport_id": "CS",
+      "stat_name": "headshots_on_maps_1_2",
+      "line": 12.5,
+      "evidence": "active | balanced | active | epik | Higher 12.5 Headshots on Maps 1+2 | OverUnderOption | active | epik | Lower 12.5 Headshots on Maps 1+2 | OverUnderOption | epik Headshots on Maps 1+2 O/U | headshots_on_maps_1_2 | Headshots on Maps 1+2 | headshots_on_maps_1_2 | Headshots on Maps 1+2 | Player | epik | Prestige Esport vs KUUSAMO.gg | CS2 | scheduled | 0 | Game",
+      "source_pulled_at": "2026-11-08T09:32:17+00:00",
+      "underdog_player_id": "2dd17c5d-b3d3-48ae-980f-b1b38f93661b",
+      "underdog_match_id": "281948",
+      "underdog_team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+      "underdog_opponent_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+      "source_identity_ids": {
+        "player_id": "2dd17c5d-b3d3-48ae-980f-b1b38f93661b",
+        "match_id": "281948",
+        "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+        "opponent_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866"
+      },
+      "source_lineup_groups": [
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        },
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        }
+      ],
+      "source_roster_names": [
+        "osku",
+        "epik",
+        "Keksimage",
+        "rbm",
+        "Matz"
+      ],
+      "source_player_in_lineup": true,
+      "source_five_player_lineup": true,
+      "source_match_verified": true,
+      "match_format": "",
+      "source_team_name": "Prestige Esport",
+      "source_opponent_name": "KUUSAMO.gg",
+      "source_team_name_verified": true,
+      "source_identity_verified_v588": true,
+      "identity_reconcile_source": "Underdog exact game/team IDs + game-side names",
+      "current_roster_names": [
+        "osku",
+        "epik",
+        "Keksimage",
+        "rbm",
+        "Matz"
+      ],
+      "current_roster_verified": true,
+      "lineup_verified": true,
+      "player_in_lineup": true,
+      "roster_overlap": 5,
+      "confirmed_lineup_groups": [
+        {
+          "team": "Prestige Esport",
+          "team_id": "009a7f2e-9a84-4fde-bf34-018c7139b32b",
+          "players": [
+            "osku",
+            "epik",
+            "Keksimage",
+            "rbm",
+            "Matz"
+          ]
+        },
+        {
+          "team": "KUUSAMO.gg",
+          "team_id": "d1a19943-4f7a-4b54-8b0a-6991c58cd866",
+          "players": [
+            "oopee",
+            "Jelo",
+            "FejtZ",
+            "N4xx1s"
+          ]
+        }
+      ]
+    }
+  ],
+  "all_cs2_lines": 31,
+  "model_supported_lines": 23,
+  "unsupported_visible_lines": 8,
+  "source_exact_five_rows": 20,
+  "source_exact_match_rows": 31,
+  "non_cs2_rows_removed": 0,
+  "source_gate": "explicit Counter-Strike metadata"
+}
